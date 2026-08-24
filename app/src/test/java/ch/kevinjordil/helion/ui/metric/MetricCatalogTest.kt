@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.metric
 
+import ch.kevinjordil.helion.source.ExportReader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,10 +29,23 @@ class MetricCatalogTest {
     }
 
     @Test
-    fun `the catalog covers every series the reader produces`() {
-        val ids = MetricCatalog.all.map { it.id }
-        assertTrue(ids.containsAll(listOf("heart_rate", "steps", "stress", "spo2", "pai", "hrv", "temperature")))
-        assertEquals(7, ids.size)
+    fun `the catalog covers exactly the point series the reader produces`() {
+        // Compared against the reader's own published list, not a copy of it. An earlier
+        // version of this test held its own hardcoded names, so renaming a series in the
+        // reader kept the test green while that metric's page went permanently blank.
+        val catalogSeries = MetricCatalog.all
+            .filter { it.source == MetricSource.POINT_SERIES }
+            .map { it.id }
+            .toSet()
+        assertEquals(ExportReader.POINT_SERIES_NAMES.toSet(), catalogSeries)
+    }
+
+    @Test
+    fun `the two minute-table sources each have exactly one metric`() {
+        // Heart rate and steps come from the minute table rather than a named point series,
+        // so they are the only entries the comparison above cannot cover.
+        assertEquals(1, MetricCatalog.all.count { it.source == MetricSource.HEART_RATE })
+        assertEquals(1, MetricCatalog.all.count { it.source == MetricSource.STEPS })
     }
 
     @Test
