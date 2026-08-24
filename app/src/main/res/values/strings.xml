@@ -1,3 +1,24 @@
 <resources>
     <string name="app_name">Helion</string>
+
+    <string name="tab_today">Aujourd\'hui</string>
+    <string name="tab_metrics">Données</string>
+    <string name="tab_settings">Réglages</string>
+
+    <string name="metrics_placeholder">Les données par métrique arrivent bientôt.</string>
+
+    <string name="never_synced">Jamais synchronisé</string>
+    <string name="synced_minutes_ago">Synchronisé il y a %1$d min</string>
+
+    <string name="export_location_label">Fichier exporté</string>
+    <string name="export_location_none">Aucun fichier configuré</string>
+    <string name="export_location_set">Fichier configuré : %1$s</string>
+    <string name="choose_export_file">Choisir le fichier exporté par Gadgetbridge</string>
+
+    <string name="sync_now">Synchroniser maintenant</string>
+    <string name="syncing">Synchronisation en cours…</string>
+    <string name="sync_result_not_configured">Aucun fichier n\'est configuré. Choisissez-le d\'abord.</string>
+    <string name="sync_result_unavailable">Le fichier configuré est introuvable ou illisible. Choisissez-le à nouveau.</string>
+    <string name="sync_result_success">%1$d minutes et %2$d points synchronisés.</string>
+    <string name="sync_result_failed">Échec de la synchronisation : %1$s</string>
 </resources>
