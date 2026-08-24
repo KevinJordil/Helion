@@ -31,7 +31,7 @@ class GadgetbridgeCommandsTest {
         val sender = RecordingSender()
         GadgetbridgeCommands(sender).requestExport()
         assertEquals(
-            "nodomain.freeyourgadget.gadgetbridge.command.DATABASE_EXPORT",
+            "nodomain.freeyourgadget.gadgetbridge.command.TRIGGER_DATABASE_EXPORT",
             sender.sent.single().action,
         )
     }
@@ -41,5 +41,29 @@ class GadgetbridgeCommandsTest {
         val sender = RecordingSender()
         GadgetbridgeCommands(sender).requestSync()
         assertEquals("nodomain.freeyourgadget.gadgetbridge", sender.sent.single().`package`)
+    }
+
+    @Test
+    fun `database export success action has the documented value`() {
+        assertEquals(
+            "nodomain.freeyourgadget.gadgetbridge.action.DATABASE_EXPORT_SUCCESS",
+            GadgetbridgeCommands.ACTION_DATABASE_EXPORT_SUCCESS,
+        )
+    }
+
+    @Test
+    fun `database export fail action has the documented value`() {
+        assertEquals(
+            "nodomain.freeyourgadget.gadgetbridge.action.DATABASE_EXPORT_FAIL",
+            GadgetbridgeCommands.ACTION_DATABASE_EXPORT_FAIL,
+        )
+    }
+
+    @Test
+    fun `activity sync finish action has the documented value`() {
+        assertEquals(
+            "nodomain.freeyourgadget.gadgetbridge.action.ACTIVITY_SYNC_FINISH",
+            GadgetbridgeCommands.ACTION_ACTIVITY_SYNC_FINISH,
+        )
     }
 }

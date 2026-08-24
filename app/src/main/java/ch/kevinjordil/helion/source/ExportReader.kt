@@ -104,8 +104,9 @@ open class ExportReader {
      * This device does not expose per-minute sleep stages. In a real export, SLEEP is
      * observed to take values in {0, 64, 128, 192, 255}, while DEEP_SLEEP and REM_SLEEP
      * only ever take values in {0, 128} -- and whenever SLEEP is non-zero, DEEP_SLEEP and
-     * REM_SLEEP are BOTH 128, constantly (over 2000 asleep minutes were byte-identical on
-     * those two columns). RAW_KIND does not differentiate stages either. Treating those
+     * REM_SLEEP are almost always BOTH 128 in lockstep (2536 of 2545 asleep minutes observed,
+     * 99.6%, were byte-identical on those two columns; the remaining 9 were both 0). RAW_KIND
+     * does not differentiate stages either. Treating those
      * two columns as real stage flags, as an earlier version of this reader did, produced
      * a chart that was almost entirely "deep sleep" -- plausible-looking and completely
      * wrong. So only the coarse AWAKE/ASLEEP distinction is derived here; DEEP_SLEEP and
