@@ -15,3 +15,7 @@ local.properties
 # Local Gadgetbridge exports: personal health data, never versioned.
 Gadgetbridge
 Gadgetbridge*.db
+
+# Kotlin incremental-compilation cache and JVM heap dumps.
+.kotlin/
+*.hprof

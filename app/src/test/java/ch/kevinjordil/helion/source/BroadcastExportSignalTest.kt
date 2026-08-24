@@ -21,6 +21,12 @@ class BroadcastExportSignalTest {
     private val context = ApplicationProvider.getApplicationContext<android.app.Application>()
     private val shadow: ShadowApplication get() = shadowOf(context)
 
+    // Baseline, not zero: dependencies such as WorkManager declare their own static
+    // <receiver> entries, which Robolectric registers at app start-up independently of
+    // anything this test does. What matters here is that BroadcastExportSignal does not
+    // leave its *own* receiver behind, i.e. the count returns to wherever it started.
+    private val baselineReceivers = shadow.registeredReceivers.size
+
     @Test
     fun `resolves Success on the export success broadcast and unregisters`() = runTest {
         val signal = BroadcastExportSignal(context)
@@ -31,7 +37,7 @@ class BroadcastExportSignalTest {
         }
 
         assertEquals(ExportOutcome.Success, outcome)
-        assertEquals(0, shadow.registeredReceivers.size)
+        assertEquals(baselineReceivers, shadow.registeredReceivers.size)
     }
 
     @Test
@@ -44,7 +50,7 @@ class BroadcastExportSignalTest {
         }
 
         assertEquals(ExportOutcome.Failure, outcome)
-        assertEquals(0, shadow.registeredReceivers.size)
+        assertEquals(baselineReceivers, shadow.registeredReceivers.size)
     }
 
     @Test
@@ -56,7 +62,7 @@ class BroadcastExportSignalTest {
         }
 
         assertEquals(ExportOutcome.Timeout, outcome)
-        assertEquals(0, shadow.registeredReceivers.size)
+        assertEquals(baselineReceivers, shadow.registeredReceivers.size)
     }
 
     @Test
@@ -91,11 +97,11 @@ class BroadcastExportSignalTest {
         // which is exactly what advanceUntilIdle() would do, completing the wait via
         // Timeout before this test ever gets to observe the mid-wait registration.
         runCurrent()
-        assertEquals(1, shadow.registeredReceivers.size)
+        assertEquals(baselineReceivers + 1, shadow.registeredReceivers.size)
 
         job.cancelAndJoin()
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertEquals(0, shadow.registeredReceivers.size)
+        assertEquals(baselineReceivers, shadow.registeredReceivers.size)
     }
 }
