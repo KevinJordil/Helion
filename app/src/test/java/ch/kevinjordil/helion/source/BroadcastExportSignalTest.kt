@@ -3,6 +3,10 @@ package ch.kevinjordil.helion.source
 import android.content.Intent
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -68,5 +72,30 @@ class BroadcastExportSignalTest {
 
         assertEquals(true, registeredWhenTriggered)
         assertEquals(ExportOutcome.Success, outcome)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `cancelling the wait still unregisters the receiver`() = runTest {
+        val signal = BroadcastExportSignal(context)
+
+        val job = launch {
+            signal.awaitExport(60_000) {
+                // Never broadcasts: the wait is cancelled from the outside before
+                // anything arrives, e.g. WorkManager stopping the worker mid-pass.
+            }
+        }
+        // runCurrent(), not advanceUntilIdle(): the launched coroutine must only run
+        // up to its suspension point (registering the receiver, then waiting on the
+        // 60s timeout), without fast-forwarding virtual time through that timeout --
+        // which is exactly what advanceUntilIdle() would do, completing the wait via
+        // Timeout before this test ever gets to observe the mid-wait registration.
+        runCurrent()
+        assertEquals(1, shadow.registeredReceivers.size)
+
+        job.cancelAndJoin()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(0, shadow.registeredReceivers.size)
     }
 }

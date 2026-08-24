@@ -58,7 +58,6 @@ class BroadcastExportSignal(private val context: Context) : ExportSignal {
                             if (continuation.isActive) continuation.resume(outcome)
                         }
                     }
-                    receiver = r
 
                     val filter = IntentFilter().apply {
                         addAction(GadgetbridgeCommands.ACTION_DATABASE_EXPORT_SUCCESS)
@@ -74,11 +73,16 @@ class BroadcastExportSignal(private val context: Context) : ExportSignal {
                         @Suppress("UnspecifiedRegisterReceiverFlag")
                         context.registerReceiver(r, filter)
                     }
+                    // Only recorded once registration itself succeeded: if registerReceiver
+                    // throws, `receiver` must stay null so the `finally` below does not call
+                    // unregisterReceiver on a receiver the OS never registered (which would
+                    // itself throw and mask the original failure).
+                    receiver = r
 
                     trigger()
                 }
             }
-        } catch (e: TimeoutCancellationException) {
+        } catch (_: TimeoutCancellationException) {
             ExportOutcome.Timeout
         } finally {
             receiver?.let { context.unregisterReceiver(it) }

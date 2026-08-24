@@ -153,6 +153,13 @@ class IngestorTest {
 
         assertTrue(result is IngestResult.Failed)
         assertEquals(50, db.syncState().get()!!.lastIngestedTimestamp)
+        // requestExport() only ever runs inside the trigger lambda passed to
+        // awaitExport -- it must be impossible for the export to be requested
+        // outside of, or ahead of, the wait that is supposed to gate the read.
+        // If a future refactor called commands.requestExport() directly before
+        // signal.awaitExport(...), this assertion (not just the two-sends test
+        // above, which does not distinguish the two call sites) would catch it.
+        assertEquals(listOf("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC"), sent)
     }
 
     @Test
