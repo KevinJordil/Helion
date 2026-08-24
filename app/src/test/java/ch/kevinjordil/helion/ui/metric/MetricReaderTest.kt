@@ -7,6 +7,9 @@ import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.PointSample
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,6 +47,28 @@ class MetricReaderTest {
 
     @After
     fun tearDown() = db.close()
+
+    /** Counts how often work is handed to another thread, to prove [MetricReader] does. */
+    private class CountingDispatcher(private val delegate: CoroutineDispatcher) : CoroutineDispatcher() {
+        var dispatches = 0
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatches++
+            delegate.dispatch(context, block)
+        }
+    }
+
+    @Test
+    fun `the work is handed to a background dispatcher, not the caller's thread`() = runTest {
+        // Both screens call load() from Dispatchers.Main; mapping a year of minute samples
+        // there is hundreds of thousands of rows on the thread that draws the frame.
+        db.minuteSamples().upsertAll(listOf(minute(1_000, heartRate = 64)))
+        val dispatcher = CountingDispatcher(Dispatchers.Default)
+
+        val state = MetricReader(db, ZoneId.of("UTC"), dispatcher).load(heartRate, Range.DAY, now = 1_000)
+
+        assertTrue(dispatcher.dispatches > 0)
+        assertEquals(1, state.readings.size)
+    }
 
     @Test
     fun `empty range yields an empty state`() = runTest {

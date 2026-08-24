@@ -1,6 +1,9 @@
 package ch.kevinjordil.helion.ui.metric
 
 import ch.kevinjordil.helion.store.HelionDatabase
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 
@@ -30,13 +33,19 @@ enum class Range(val seconds: Long) {
  * [zone] is the calendar used to bucket daily aggregates (see [dailyTotals]). It defaults
  * to the device's zone; tests pass a fixed [ZoneId] so they do not depend on the machine
  * running them.
+ *
+ * [dispatcher] is where the work happens. Room already runs the queries off the caller's
+ * thread, but the filtering, bucketing and statistics ran wherever [load] was called from,
+ * which for both screens is the main thread -- a year of minute samples is hundreds of
+ * thousands of rows to map there. Everything is moved off it here.
  */
 class MetricReader(
     private val db: HelionDatabase,
     private val zone: ZoneId = ZoneId.systemDefault(),
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
 
-    suspend fun load(metric: Metric, range: Range, now: Long): MetricUiState {
+    suspend fun load(metric: Metric, range: Range, now: Long): MetricUiState = withContext(dispatcher) {
         val from = now - range.seconds
         val raw = rawReadings(metric, from, now)
         val plausible = metric.plausibleRange
@@ -47,7 +56,7 @@ class MetricReader(
             Aggregation.DAILY_SUM -> dailyTotals(plausible)
         }
 
-        return MetricUiState(
+        MetricUiState(
             readings = readings,
             latest = readings.lastOrNull(),
             stats = statsOf(readings),
