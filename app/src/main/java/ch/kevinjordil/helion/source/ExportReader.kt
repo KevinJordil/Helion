@@ -48,7 +48,7 @@ open class ExportReader {
                 steps = cursor.intOrNull(1),
                 intensity = cursor.intOrNull(2),
                 rawKind = cursor.intOrNull(3),
-                heartRate = cursor.intOrNull(4)?.takeIf { it > 0 },
+                heartRate = cursor.intOrNull(4)?.takeIf { it in VALID_HEART_RATE },
                 sleepStage = sleepStageOf(sleep = cursor.getInt(5)),
             )
         }
@@ -144,6 +144,16 @@ open class ExportReader {
     private data class Series(val name: String, val table: String, val column: String, val unit: TimeUnit)
 
     companion object {
+
+        /**
+         * Huami reports 255 when the sensor did not measure anything -- it is a sentinel,
+         * not a reading, and it appears in real exports. Gadgetbridge itself treats a heart
+         * rate outside 10-224 as invalid; the same bound is applied here so the sentinel
+         * never enters the archive in the first place. Rows already stored by an earlier
+         * version are cleaned up at the display layer instead
+         * (see MetricCatalog's heart_rate entry).
+         */
+        private val VALID_HEART_RATE = 10..224
 
         private val POINT_SERIES = listOf(
             Series("stress", ExportSchema.TABLE_STRESS, ExportSchema.COL_STRESS, TimeUnit.MILLISECONDS),

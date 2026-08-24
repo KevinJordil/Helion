@@ -30,7 +30,10 @@ val MetricSource.aggregation: Aggregation
  *
  * [plausibleRange], when set, excludes readings outside it before they reach the chart or
  * the stats -- the store itself stays raw, this only affects what the display layer shows.
- * See [MetricCatalog]'s temperature entry for why this exists.
+ * See [MetricCatalog]'s temperature and heart_rate entries for why this exists.
+ *
+ * [noteRes], when set, is a one-line explanation shown under the chart, so a metric whose
+ * numbers have been aggregated or filtered says so on its own screen.
  */
 data class Metric(
     val id: String,
@@ -39,6 +42,7 @@ data class Metric(
     val source: MetricSource,
     val decimals: Int = 0,
     val plausibleRange: ClosedFloatingPointRange<Double>? = null,
+    val noteRes: Int? = null,
 )
 
 object MetricCatalog {
@@ -55,9 +59,34 @@ object MetricCatalog {
     private const val MIN_PLAUSIBLE_SKIN_TEMPERATURE = 25.0
     private const val MAX_PLAUSIBLE_SKIN_TEMPERATURE = 42.0
 
+    /**
+     * Huami reports 255 bpm when the sensor did not measure anything, and a real export
+     * carries such rows. Left alone, the sentinel becomes the "Max" on the first screen the
+     * owner sees and stretches the chart's y-axis until the real signal is a flat line.
+     * ExportReader now drops it at ingestion (same 10-224 bound Gadgetbridge uses), but rows
+     * archived by an earlier version are already in the store and are never re-read -- the
+     * watermarks have moved past them -- so the same bound is applied again here, where it
+     * covers the existing archive too.
+     */
+    private const val MIN_PLAUSIBLE_HEART_RATE = 10.0
+    private const val MAX_PLAUSIBLE_HEART_RATE = 224.0
+
     val all = listOf(
-        Metric("heart_rate", R.string.metric_heart_rate, R.string.unit_bpm, MetricSource.HEART_RATE),
-        Metric("steps", R.string.metric_steps, R.string.unit_steps, MetricSource.STEPS),
+        Metric(
+            id = "heart_rate",
+            labelRes = R.string.metric_heart_rate,
+            unitRes = R.string.unit_bpm,
+            source = MetricSource.HEART_RATE,
+            plausibleRange = MIN_PLAUSIBLE_HEART_RATE..MAX_PLAUSIBLE_HEART_RATE,
+            noteRes = R.string.heart_rate_unmeasured_note,
+        ),
+        Metric(
+            id = "steps",
+            labelRes = R.string.metric_steps,
+            unitRes = R.string.unit_steps,
+            source = MetricSource.STEPS,
+            noteRes = R.string.steps_daily_total_note,
+        ),
         Metric("stress", R.string.metric_stress, R.string.unit_none, MetricSource.POINT_SERIES),
         Metric("spo2", R.string.metric_spo2, R.string.unit_percent, MetricSource.POINT_SERIES),
         Metric("pai", R.string.metric_pai, R.string.unit_none, MetricSource.POINT_SERIES, decimals = 1),
@@ -69,6 +98,7 @@ object MetricCatalog {
             source = MetricSource.POINT_SERIES,
             decimals = 1,
             plausibleRange = MIN_PLAUSIBLE_SKIN_TEMPERATURE..MAX_PLAUSIBLE_SKIN_TEMPERATURE,
+            noteRes = R.string.temperature_off_body_note,
         ),
     )
 

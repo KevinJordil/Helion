@@ -97,11 +97,8 @@ fun MetricScreen(
                 StatsRow(stats, metric)
             }
 
-            if (metric.source.aggregation == Aggregation.DAILY_SUM) {
-                Text(stringResource(R.string.steps_daily_total_note), style = MaterialTheme.typography.bodySmall)
-            }
-            if (metric.plausibleRange != null) {
-                Text(stringResource(R.string.temperature_off_body_note), style = MaterialTheme.typography.bodySmall)
+            metric.noteRes?.let { noteRes ->
+                Text(stringResource(noteRes), style = MaterialTheme.typography.bodySmall)
             }
         }
     }

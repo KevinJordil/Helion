@@ -286,20 +286,44 @@ class ExportReaderTest {
     }
 
     @Test
-    fun `heart rate is null for both encodings of absent and preserved when valid`() {
+    fun `heart rate keeps valid readings and drops every absent encoding including 255`() {
+        // 255 is Huami's "not measured" sentinel and it does occur in real exports; it is
+        // not a 255 bpm heart rate. Gadgetbridge treats anything outside 10-224 as invalid
+        // and so does this reader, so the sentinel never reaches the archive.
         val path = buildExportWithHeartRates(
             listOf(
                 1700000000L to "NULL",
                 1700000060L to "0",
                 1700000120L to "-1",
                 1700000180L to "60",
+                1700000240L to "255",
+                1700000300L to "225",
+                1700000360L to "9",
+                1700000420L to "224",
+                1700000480L to "10",
             ),
         )
         val result = ExportReader().read(path, Watermarks.NONE)
-        assertEquals(null, result.minutes.single { it.timestamp == 1700000000L }.heartRate)
-        assertEquals(null, result.minutes.single { it.timestamp == 1700000060L }.heartRate)
-        assertEquals(null, result.minutes.single { it.timestamp == 1700000120L }.heartRate)
-        assertEquals(60, result.minutes.single { it.timestamp == 1700000180L }.heartRate)
+        fun heartRateAt(timestamp: Long) = result.minutes.single { it.timestamp == timestamp }.heartRate
+        assertEquals(null, heartRateAt(1700000000L))
+        assertEquals(null, heartRateAt(1700000060L))
+        assertEquals(null, heartRateAt(1700000120L))
+        assertEquals(60, heartRateAt(1700000180L))
+        assertEquals(null, heartRateAt(1700000240L))
+        assertEquals(null, heartRateAt(1700000300L))
+        assertEquals(null, heartRateAt(1700000360L))
+        assertEquals(224, heartRateAt(1700000420L))
+        assertEquals(10, heartRateAt(1700000480L))
+    }
+
+    @Test
+    fun `the minute row survives a sentinel heart rate, only the reading is dropped`() {
+        // Dropping the whole row would lose that minute's steps and sleep as well, and
+        // would stall the minute watermark on a run of unmeasured minutes.
+        val path = buildExportWithHeartRates(listOf(1700000000L to "255"))
+        val row = ExportReader().read(path, Watermarks.NONE).minutes.single()
+        assertEquals(1700000000L, row.timestamp)
+        assertEquals(null, row.heartRate)
     }
 
     @Test

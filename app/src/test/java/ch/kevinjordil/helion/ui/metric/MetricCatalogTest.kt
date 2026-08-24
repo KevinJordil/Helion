@@ -41,8 +41,20 @@ class MetricCatalogTest {
     }
 
     @Test
-    fun `only temperature has a plausible range`() {
+    fun `heart rate and temperature both carry a plausible range`() {
+        // Heart rate needs one for the same reason temperature does: the device reports a
+        // sentinel (255 bpm, "not measured") that is not a reading. An earlier version of
+        // this test asserted temperature was the *only* metric with a range, which locked
+        // the omission in and let 255 bpm show up as the Max on the first screen.
         val withRange = MetricCatalog.all.filter { it.plausibleRange != null }
-        assertEquals(listOf("temperature"), withRange.map { it.id })
+        assertEquals(listOf("heart_rate", "temperature"), withRange.map { it.id }.sorted())
+    }
+
+    @Test
+    fun `the heart rate range excludes the not-measured sentinel and keeps real extremes`() {
+        val range = MetricCatalog.all.single { it.id == "heart_rate" }.plausibleRange!!
+        assertTrue(255.0 !in range)
+        assertTrue(36.0 in range)
+        assertTrue(200.0 in range)
     }
 }
