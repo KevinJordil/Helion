@@ -38,6 +38,7 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
     var locationUri by remember { mutableStateOf(container.exportLocation.uri) }
     var syncing by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<Pair<Int, List<Any>>?>(null) }
+    var pickRefused by remember { mutableStateOf(false) }
 
     val pickExportFile = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -49,12 +50,28 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
             // stop being able to read the file after the next reboot. ExportLocation
             // cannot take this permission itself -- it only has the string, not the
             // original result's flags -- so it is documented as this layer's job.
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-            container.exportLocation.uri = uri.toString()
-            locationUri = uri.toString()
+            //
+            // The call can throw SecurityException when the picked file's provider does
+            // not support persistable grants at all -- resolveExportPick keeps that from
+            // crashing the app right here, at the exact moment the user picks a file.
+            when (
+                resolveExportPick {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+            ) {
+                ExportPickOutcome.Granted -> {
+                    container.exportLocation.uri = uri.toString()
+                    locationUri = uri.toString()
+                    pickRefused = false
+                }
+                ExportPickOutcome.Refused -> {
+                    // Not stored: see resolveExportPick's kdoc for why.
+                    pickRefused = true
+                }
+            }
         }
     }
 
@@ -73,6 +90,9 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         )
         Button(onClick = { pickExportFile.launch(arrayOf("*/*")) }) {
             Text(stringResource(R.string.choose_export_file))
+        }
+        if (pickRefused) {
+            Text(stringResource(R.string.export_location_grant_refused))
         }
 
         HorizontalDivider()

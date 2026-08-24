@@ -14,6 +14,7 @@
     <string name="export_location_none">Aucun fichier configuré</string>
     <string name="export_location_set">Fichier configuré : %1$s</string>
     <string name="choose_export_file">Choisir le fichier exporté par Gadgetbridge</string>
+    <string name="export_location_grant_refused">Ce fichier ne permet pas un accès durable : sa source ne prend pas en charge une autorisation persistante. Choisissez un autre fichier.</string>
 
     <string name="sync_now">Synchroniser maintenant</string>
     <string name="syncing">Synchronisation en cours…</string>
