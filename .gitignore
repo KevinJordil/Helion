@@ -1,0 +1,13 @@
+# Design and working documents are kept locally, not versioned.
+docs/
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
