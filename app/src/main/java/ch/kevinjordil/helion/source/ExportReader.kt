@@ -12,12 +12,17 @@ import ch.kevinjordil.helion.store.PointSample
  */
 open class ExportReader {
 
+    /**
+     * Reads everything newer than [since]. The watermarks are handed in per series rather
+     * than derived here: this reader knows the export, not Helion's store, and must stay
+     * that way -- it never queries Room.
+     */
     // open so tests can substitute a reader without a real database file
-    open fun read(databasePath: String, since: Long): RawSamples {
+    open fun read(databasePath: String, since: Watermarks): RawSamples {
         val db = SQLiteDatabase.openDatabase(databasePath, null, SQLiteDatabase.OPEN_READONLY)
         return db.use {
             RawSamples(
-                minutes = readMinutes(it, since),
+                minutes = readMinutes(it, since.minutes),
                 points = readPoints(it, since),
             )
         }
@@ -55,14 +60,14 @@ open class ExportReader {
     // converted into the table's native unit to filter correctly, and every returned
     // timestamp is converted back to seconds. Nothing past this point may ever see a
     // millisecond value -- a single one poisons the ingestor's watermark and freezes sync.
-    private fun readPoints(db: SQLiteDatabase, since: Long): List<PointSample> =
-        pointSeries.flatMap { series ->
+    private fun readPoints(db: SQLiteDatabase, since: Watermarks): List<PointSample> =
+        POINT_SERIES.flatMap { series ->
             queryOrEmpty(
                 db,
                 "SELECT ${ExportSchema.COL_TIMESTAMP}, ${series.column} FROM ${series.table} " +
                     "WHERE ${ExportSchema.COL_TIMESTAMP} > ? " +
                     "ORDER BY ${ExportSchema.COL_TIMESTAMP}",
-                series.unit.toExportUnits(since),
+                series.unit.toExportUnits(since.point(series.name)),
             ) { cursor ->
                 PointSample(
                     series = series.name,
@@ -138,11 +143,22 @@ open class ExportReader {
 
     private data class Series(val name: String, val table: String, val column: String, val unit: TimeUnit)
 
-    private val pointSeries = listOf(
-        Series("stress", ExportSchema.TABLE_STRESS, ExportSchema.COL_STRESS, TimeUnit.MILLISECONDS),
-        Series("spo2", ExportSchema.TABLE_SPO2, ExportSchema.COL_SPO2, TimeUnit.MILLISECONDS),
-        Series("pai", ExportSchema.TABLE_PAI, ExportSchema.COL_PAI_TODAY, TimeUnit.MILLISECONDS),
-        Series("hrv", ExportSchema.TABLE_HRV, ExportSchema.COL_HRV_VALUE, TimeUnit.MILLISECONDS),
-        Series("temperature", ExportSchema.TABLE_TEMPERATURE, ExportSchema.COL_TEMPERATURE, TimeUnit.MILLISECONDS),
-    )
+    companion object {
+
+        private val POINT_SERIES = listOf(
+            Series("stress", ExportSchema.TABLE_STRESS, ExportSchema.COL_STRESS, TimeUnit.MILLISECONDS),
+            Series("spo2", ExportSchema.TABLE_SPO2, ExportSchema.COL_SPO2, TimeUnit.MILLISECONDS),
+            Series("pai", ExportSchema.TABLE_PAI, ExportSchema.COL_PAI_TODAY, TimeUnit.MILLISECONDS),
+            Series("hrv", ExportSchema.TABLE_HRV, ExportSchema.COL_HRV_VALUE, TimeUnit.MILLISECONDS),
+            Series("temperature", ExportSchema.TABLE_TEMPERATURE, ExportSchema.COL_TEMPERATURE, TimeUnit.MILLISECONDS),
+        )
+
+        /**
+         * The point-series names this reader emits into PointSample.series. Published so
+         * callers -- the ingestor building watermarks, and the catalog test asserting
+         * coverage -- read the real list instead of duplicating it as literals, where a
+         * rename here would leave them silently out of step.
+         */
+        val POINT_SERIES_NAMES: List<String> = POINT_SERIES.map { it.name }
+    }
 }

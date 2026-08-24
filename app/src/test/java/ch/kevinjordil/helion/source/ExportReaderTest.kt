@@ -148,7 +148,7 @@ class ExportReaderTest {
 
     @Test
     fun `reads every minute when starting from scratch`() {
-        val result = ExportReader().read(buildExport(), since = 0)
+        val result = ExportReader().read(buildExport(), Watermarks.NONE)
         assertEquals(3, result.minutes.size)
         assertEquals(1700000000, result.minutes.first().timestamp)
         assertEquals(60, result.minutes.first().heartRate)
@@ -156,14 +156,14 @@ class ExportReaderTest {
 
     @Test
     fun `reads only what is newer than the watermark`() {
-        val result = ExportReader().read(buildExport(), since = 1700000000)
+        val result = ExportReader().read(buildExport(), Watermarks(minutes = 1700000000))
         assertEquals(2, result.minutes.size)
         assertTrue(result.minutes.all { it.timestamp > 1700000000 })
     }
 
     @Test
     fun `maps sleep flag to a single stage`() {
-        val result = ExportReader().read(buildExport(), since = 0)
+        val result = ExportReader().read(buildExport(), Watermarks.NONE)
         val asleep = result.minutes.single { it.timestamp == 1700000060L }
         assertEquals(SleepStage.ASLEEP, asleep.sleepStage)
         val awake = result.minutes.single { it.timestamp == 1700000000L }
@@ -184,7 +184,7 @@ class ExportReaderTest {
                 1700000240L to 255,
             ),
         )
-        val result = ExportReader().read(path, since = 0)
+        val result = ExportReader().read(path, Watermarks.NONE)
         assertEquals(SleepStage.AWAKE, result.minutes.single { it.timestamp == 1700000000L }.sleepStage)
         assertEquals(SleepStage.ASLEEP, result.minutes.single { it.timestamp == 1700000060L }.sleepStage)
         assertEquals(SleepStage.ASLEEP, result.minutes.single { it.timestamp == 1700000120L }.sleepStage)
@@ -196,7 +196,7 @@ class ExportReaderTest {
 
     @Test
     fun `reads point series into the shared table`() {
-        val result = ExportReader().read(buildExport(), since = 0)
+        val result = ExportReader().read(buildExport(), Watermarks.NONE)
         val stress = result.points.single { it.series == "stress" }
         assertEquals(42.0, stress.value, 0.0)
     }
@@ -205,7 +205,7 @@ class ExportReaderTest {
     fun `a millisecond-stamped point row surfaces with a second-based timestamp`() {
         // The export stores 1700000060000 milliseconds; the reader must hand back
         // 1700000060 seconds, matching the unit the rest of the app uses everywhere.
-        val result = ExportReader().read(buildExport(), since = 0)
+        val result = ExportReader().read(buildExport(), Watermarks.NONE)
         val stress = result.points.single { it.series == "stress" }
         assertEquals(1700000060L, stress.timestamp)
     }
@@ -221,7 +221,7 @@ class ExportReaderTest {
                 (since + 1) * 1000 to 60,
             ),
         )
-        val result = ExportReader().read(path, since = since)
+        val result = ExportReader().read(path, Watermarks(points = mapOf("hrv" to since)))
         val hrv = result.points.filter { it.series == "hrv" }
         assertEquals(1, hrv.size)
         assertEquals(since + 1, hrv.single().timestamp)
@@ -234,7 +234,7 @@ class ExportReaderTest {
             hrvRows = listOf(1700000060000L to 45),
             temperatureRows = listOf(1700000060000L to 36.6),
         )
-        val result = ExportReader().read(path, since = 0)
+        val result = ExportReader().read(path, Watermarks.NONE)
         val hrv = result.points.single { it.series == "hrv" }
         assertEquals(1700000060L, hrv.timestamp)
         assertEquals(45.0, hrv.value, 0.0)
@@ -250,14 +250,14 @@ class ExportReaderTest {
         val path = buildExportWithMillisecondPoints(
             temperatureRows = listOf(1700000060000L to 12.3),
         )
-        val result = ExportReader().read(path, since = 0)
+        val result = ExportReader().read(path, Watermarks.NONE)
         val temperature = result.points.single { it.series == "temperature" }
         assertEquals(12.3, temperature.value, 0.0)
     }
 
     @Test
     fun `a missing table is not an error`() {
-        val result = ExportReader().read(buildExport(withStress = false), since = 0)
+        val result = ExportReader().read(buildExport(withStress = false), Watermarks.NONE)
         assertEquals(3, result.minutes.size)
         assertTrue(result.points.isEmpty())
     }
@@ -267,7 +267,7 @@ class ExportReaderTest {
         // Columns are read by cursor index (0..5); a swap of two adjacent
         // columns would map values to the wrong fields. Every value below is
         // distinct so such a swap cannot coincidentally pass this test.
-        val result = ExportReader().read(buildExport(), since = 0)
+        val result = ExportReader().read(buildExport(), Watermarks.NONE)
         val row = result.minutes.single { it.timestamp == 1700000120L }
         assertEquals(1700000120L, row.timestamp)
         assertEquals(5, row.steps)
@@ -281,7 +281,7 @@ class ExportReaderTest {
     fun `a genuine query failure propagates instead of being swallowed`() {
         val reader = ExportReader()
         assertThrows(SQLiteException::class.java) {
-            reader.read(buildExportWithMalformedMinuteTable(), since = 0)
+            reader.read(buildExportWithMalformedMinuteTable(), Watermarks.NONE)
         }
     }
 
@@ -295,10 +295,62 @@ class ExportReaderTest {
                 1700000180L to "60",
             ),
         )
-        val result = ExportReader().read(path, since = 0)
+        val result = ExportReader().read(path, Watermarks.NONE)
         assertEquals(null, result.minutes.single { it.timestamp == 1700000000L }.heartRate)
         assertEquals(null, result.minutes.single { it.timestamp == 1700000060L }.heartRate)
         assertEquals(null, result.minutes.single { it.timestamp == 1700000120L }.heartRate)
         assertEquals(60, result.minutes.single { it.timestamp == 1700000180L }.heartRate)
+    }
+
+    @Test
+    fun `each series is filtered by its own watermark, not by a shared one`() {
+        // The failure this guards against: one global watermark set by the freshest series
+        // excludes every series that arrives later.
+        val path = buildExportWithMillisecondPoints(
+            hrvRows = listOf(1700000060000L to 40, 1700000120000L to 41),
+            temperatureRows = listOf(1700000060000L to 36.0, 1700000120000L to 36.5),
+        )
+        val result = ExportReader().read(
+            path,
+            Watermarks(points = mapOf("hrv" to 1700000060L)),
+        )
+        assertEquals(listOf(1700000120L), result.points.filter { it.series == "hrv" }.map { it.timestamp })
+        // temperature has no watermark of its own here, so it backfills in full.
+        assertEquals(
+            listOf(1700000060L, 1700000120L),
+            result.points.filter { it.series == "temperature" }.map { it.timestamp },
+        )
+    }
+
+    @Test
+    fun `a truncated export surfaces as a failure, not as a silent empty read`() {
+        // A copy interrupted halfway leaves a file that is not a database at all. Reading
+        // it must throw, so the pass fails and retries, rather than reporting "nothing new"
+        // and leaving the owner looking at stale data with a healthy-looking indicator.
+        val complete = File(buildExport())
+        val truncated = File.createTempFile("truncated", ".db")
+        truncated.writeBytes(complete.readBytes().copyOf(complete.length().toInt() / 3))
+
+        assertThrows(SQLiteException::class.java) {
+            ExportReader().read(truncated.absolutePath, Watermarks.NONE)
+        }
+    }
+
+    @Test
+    fun `a file that is not a database at all surfaces as a failure`() {
+        val garbage = File.createTempFile("garbage", ".db")
+        garbage.writeBytes(ByteArray(4096) { 0x7A })
+
+        assertThrows(SQLiteException::class.java) {
+            ExportReader().read(garbage.absolutePath, Watermarks.NONE)
+        }
+    }
+
+    @Test
+    fun `the published series names match what the reader actually emits`() {
+        val path = buildExport()
+        val emitted = ExportReader().read(path, Watermarks.NONE).points.map { it.series }.toSet()
+        assertTrue(ExportReader.POINT_SERIES_NAMES.containsAll(emitted))
+        assertEquals(ExportReader.POINT_SERIES_NAMES.size, ExportReader.POINT_SERIES_NAMES.toSet().size)
     }
 }

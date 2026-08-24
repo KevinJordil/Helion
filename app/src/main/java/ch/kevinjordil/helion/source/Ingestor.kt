@@ -13,13 +13,14 @@ sealed interface IngestResult {
 
 /**
  * One ingestion pass: ask Gadgetbridge to refresh and export, wait for the export to
- * actually finish, read what is newer than the watermark, store it, then move the
- * watermark.
+ * actually finish, read what is newer than the watermarks, and store it.
  *
- * The watermark only moves after a complete pass, and never backwards -- see
- * [SyncState.lastIngestedTimestamp]. A partial or unreadable export, a failed export,
- * or a timeout waiting for one, all leave it untouched so the next pass retries the
- * same range rather than silently skipping data.
+ * The watermarks are derived from Helion's own archive, one per series (see [Watermarks]),
+ * rather than kept as a separate counter. Nothing needs to be written back after a pass:
+ * storing a sample *is* moving that series' watermark, so a partial or unreadable export,
+ * a failed export, or a timeout waiting for one, all leave the next pass retrying exactly
+ * the range that is still missing. Every write is idempotent on a timestamp-keyed row, so
+ * re-reading a range that was already stored is free of consequence.
  */
 class Ingestor(
     private val reader: ExportReader,
@@ -49,42 +50,37 @@ class Ingestor(
         // API exposes none, so we would be inventing a protocol Gadgetbridge does not
         // speak. Both ways this can go wrong fail safe: the subsequent read is either
         // stale (nothing new -> Ingested(0, 0), retried next pass) or partial (throws ->
-        // Failed, watermark untouched). Registration is also necessarily
+        // Failed, nothing stored). Registration is also necessarily
         // RECEIVER_EXPORTED for cross-app delivery (see BroadcastExportSignal), so in
         // principle another app could spoof the success broadcast too -- same bounded
         // harm applies.
         commands.requestSync()
         val outcome = signal.awaitExport(EXPORT_TIMEOUT_MILLIS) { commands.requestExport() }
 
-        val previous = db.syncState().get()
-        val since = previous?.lastIngestedTimestamp ?: 0
-
         return when (outcome) {
-            ExportOutcome.Failure -> fail(since, "Gadgetbridge reported that the export failed")
-            ExportOutcome.Timeout -> fail(since, "Timed out waiting for Gadgetbridge to export")
-            ExportOutcome.Success -> readAndStore(databasePath, since)
+            ExportOutcome.Failure -> fail("Gadgetbridge reported that the export failed")
+            ExportOutcome.Timeout -> fail("Timed out waiting for Gadgetbridge to export")
+            ExportOutcome.Success -> readAndStore(databasePath)
         }
     }
 
-    private suspend fun readAndStore(databasePath: String, since: Long): IngestResult = try {
-        val samples = reader.read(databasePath, since)
+    /**
+     * The watermark of every series Helion stores, read back out of the archive itself.
+     * A series that has never been stored gets 0 and is backfilled in full.
+     */
+    private suspend fun watermarks(): Watermarks = Watermarks(
+        minutes = db.minuteSamples().latestTimestamp() ?: 0,
+        points = ExportReader.POINT_SERIES_NAMES.associateWith { series ->
+            db.pointSamples().latest(series)?.timestamp ?: 0
+        },
+    )
+
+    private suspend fun readAndStore(databasePath: String): IngestResult = try {
+        val samples = reader.read(databasePath, watermarks())
         db.minuteSamples().upsertAll(samples.minutes)
         db.pointSamples().upsertAll(samples.points)
 
-        val highestRead = (samples.minutes.map { it.timestamp } + samples.points.map { it.timestamp })
-            .maxOrNull()
-
-        // The watermark only ever moves forward: whatever was read this pass can never
-        // push it below where it already was, no matter what timestamps come back.
-        val watermark = maxOf(since, highestRead ?: since)
-
-        db.syncState().put(
-            SyncState(
-                lastIngestedTimestamp = watermark,
-                lastSyncAttempt = now(),
-                lastError = null,
-            ),
-        )
+        db.syncState().put(SyncState(lastSyncAttempt = now(), lastError = null))
         IngestResult.Ingested(samples.minutes.size, samples.points.size)
     } catch (e: CancellationException) {
         // A cooperative stop (e.g. WorkManager tearing down the worker mid-pass) is not
@@ -92,17 +88,11 @@ class Ingestor(
         // being reinterpreted as Failed and issuing a doomed write on a dead job.
         throw e
     } catch (e: Exception) {
-        fail(since, e.message ?: e::class.simpleName.orEmpty())
+        fail(e.message ?: e::class.simpleName.orEmpty())
     }
 
-    private suspend fun fail(since: Long, reason: String): IngestResult.Failed {
-        db.syncState().put(
-            SyncState(
-                lastIngestedTimestamp = since,
-                lastSyncAttempt = now(),
-                lastError = reason,
-            ),
-        )
+    private suspend fun fail(reason: String): IngestResult.Failed {
+        db.syncState().put(SyncState(lastSyncAttempt = now(), lastError = reason))
         return IngestResult.Failed(reason)
     }
 

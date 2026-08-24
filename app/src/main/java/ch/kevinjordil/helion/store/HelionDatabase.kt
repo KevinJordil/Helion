@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [MinuteSample::class, PointSample::class, SyncState::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class HelionDatabase : RoomDatabase() {
