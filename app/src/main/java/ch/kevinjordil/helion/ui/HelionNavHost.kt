@@ -54,7 +54,7 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
         Box(Modifier.padding(contentPadding)) {
             when (destination) {
                 Destination.TODAY -> TodayScreen(container)
-                Destination.METRICS -> MetricsScreen()
+                Destination.METRICS -> MetricsScreen(container)
                 Destination.SETTINGS -> SettingsScreen(container)
             }
         }

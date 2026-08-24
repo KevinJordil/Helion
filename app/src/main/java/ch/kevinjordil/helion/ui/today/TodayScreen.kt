@@ -1,10 +1,14 @@
 package ch.kevinjordil.helion.ui.today
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,19 +22,31 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.metric.MetricCatalog
+import ch.kevinjordil.helion.ui.metric.MetricReader
+import ch.kevinjordil.helion.ui.metric.Range
+import ch.kevinjordil.helion.ui.metric.Reading
+import ch.kevinjordil.helion.ui.metric.formatValue
 import ch.kevinjordil.helion.ui.minutesSinceLastSync
 
 /**
- * Placeholder for now (task 8a): a title and the freshness indicator. Per-metric summaries
- * land on this screen in a later task.
+ * The Today tab: the freshness indicator (task 8a) plus every catalog metric's latest
+ * reading. Each metric looks up its own latest value over a wide (year-long) window,
+ * rather than "right now" -- nothing here is live, see [minutesSinceLastSync]'s kdoc.
  */
 @Composable
 fun TodayScreen(container: AppContainer, modifier: Modifier = Modifier) {
     var lastSyncAttempt by remember { mutableStateOf<Long?>(null) }
+    var latestByMetricId by remember { mutableStateOf<Map<String, Reading?>>(emptyMap()) }
     var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        val reader = MetricReader(container.database)
+        val now = System.currentTimeMillis() / 1000
         lastSyncAttempt = container.database.syncState().get()?.lastSyncAttempt
+        latestByMetricId = MetricCatalog.all.associate { metric ->
+            metric.id to reader.load(metric, Range.YEAR, now).latest
+        }
         loaded = true
     }
 
@@ -50,6 +66,26 @@ fun TodayScreen(container: AppContainer, modifier: Modifier = Modifier) {
                     stringResource(R.string.synced_minutes_ago, minutes)
                 },
             )
+
+            MetricCatalog.all.forEach { metric ->
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(stringResource(metric.labelRes))
+                    val reading = latestByMetricId[metric.id]
+                    Text(
+                        if (reading == null) {
+                            stringResource(R.string.no_data)
+                        } else {
+                            "${metric.formatValue(reading.value)} ${stringResource(metric.unitRes)}".trim()
+                        },
+                    )
+                }
+            }
         }
     }
 }

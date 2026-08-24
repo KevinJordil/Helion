@@ -5,7 +5,34 @@
     <string name="tab_metrics">Données</string>
     <string name="tab_settings">Réglages</string>
 
-    <string name="metrics_placeholder">Les données par métrique arrivent bientôt.</string>
+    <string name="metric_heart_rate">Fréquence cardiaque</string>
+    <string name="metric_steps">Pas</string>
+    <string name="metric_stress">Stress</string>
+    <string name="metric_spo2">Oxygène sanguin</string>
+    <string name="metric_pai">PAI</string>
+    <string name="metric_hrv">Variabilité cardiaque</string>
+    <string name="metric_temperature">Température cutanée</string>
+
+    <string name="unit_bpm">bpm</string>
+    <string name="unit_steps">pas</string>
+    <string name="unit_none"></string>
+    <string name="unit_percent" formatted="false">%</string>
+    <string name="unit_ms">ms</string>
+    <string name="unit_celsius">°C</string>
+
+    <string name="range_day">Jour</string>
+    <string name="range_week">Semaine</string>
+    <string name="range_month">Mois</string>
+    <string name="range_year">Année</string>
+
+    <string name="stat_min">Min</string>
+    <string name="stat_max">Max</string>
+    <string name="stat_average">Moyenne</string>
+
+    <string name="no_data">Aucune donnée sur cette période</string>
+    <string name="action_back">Retour</string>
+    <string name="temperature_off_body_note">Les mesures proches de la température ambiante (bracelet non porté) sont exclues du graphique et des statistiques.</string>
+    <string name="steps_daily_total_note">Les pas sont additionnés par jour : chaque point du graphique est un total quotidien.</string>
 
     <string name="never_synced">Jamais synchronisé</string>
     <string name="synced_minutes_ago">Synchronisé il y a %1$d min</string>
