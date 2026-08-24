@@ -35,8 +35,9 @@
     <string name="heart_rate_unmeasured_note">Les valeurs hors plage physiologique (capteur sans mesure) sont exclues du graphique et des statistiques.</string>
     <string name="steps_daily_total_note">Les pas sont additionnés par jour : chaque point du graphique est un total quotidien.</string>
 
-    <string name="never_synced">Jamais synchronisé</string>
-    <string name="synced_minutes_ago">Synchronisé il y a %1$d min</string>
+    <string name="never_synced">Aucune donnée reçue pour l\'instant</string>
+    <string name="last_value_minutes_ago">Dernière valeur reçue il y a %1$d min</string>
+    <string name="last_sync_failed">La dernière synchronisation a échoué : %1$s</string>
 
     <string name="export_location_label">Fichier exporté</string>
     <string name="export_location_none">Aucun fichier configuré</string>

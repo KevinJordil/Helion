@@ -27,28 +27,36 @@ import ch.kevinjordil.helion.ui.metric.MetricReader
 import ch.kevinjordil.helion.ui.metric.Range
 import ch.kevinjordil.helion.ui.metric.Reading
 import ch.kevinjordil.helion.ui.metric.formatValue
-import ch.kevinjordil.helion.ui.minutesSinceLastSync
+import ch.kevinjordil.helion.ui.minutesSinceLastSample
 
 /**
- * The Today tab: the freshness indicator (task 8a) plus every catalog metric's latest
- * reading. Each metric looks up its own latest value over a wide (year-long) window,
- * rather than "right now" -- nothing here is live, see [minutesSinceLastSync]'s kdoc.
+ * The Today tab: the freshness indicator plus every catalog metric's latest reading. Each
+ * metric looks up its own latest value over a wide (year-long) window, rather than "right
+ * now" -- nothing here is live, see [minutesSinceLastSample]'s kdoc.
+ *
+ * The indicator reports the age of the newest sample actually stored, not the time of the
+ * last sync attempt, and a sync that failed is stated outright rather than left to be
+ * inferred: a broken sync must never be able to look like a fresh one.
  */
 @Composable
 fun TodayScreen(container: AppContainer, modifier: Modifier = Modifier) {
-    var lastSyncAttempt by remember { mutableStateOf<Long?>(null) }
+    var lastError by remember { mutableStateOf<String?>(null) }
     var latestByMetricId by remember { mutableStateOf<Map<String, Reading?>>(emptyMap()) }
     var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val reader = MetricReader(container.database)
         val now = System.currentTimeMillis() / 1000
-        lastSyncAttempt = container.database.syncState().get()?.lastSyncAttempt
+        lastError = container.database.syncState().get()?.lastError
         latestByMetricId = MetricCatalog.all.associate { metric ->
             metric.id to reader.load(metric, Range.YEAR, now).latest
         }
         loaded = true
     }
+
+    // The newest sample anywhere in the archive: every metric's latest reading has already
+    // been loaded above, so this costs no extra query.
+    val newestSample = latestByMetricId.values.filterNotNull().maxOfOrNull { it.timestamp }
 
     Column(
         modifier = modifier
@@ -58,14 +66,21 @@ fun TodayScreen(container: AppContainer, modifier: Modifier = Modifier) {
         Text(stringResource(R.string.tab_today), style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
         if (loaded) {
-            val minutes = minutesSinceLastSync(lastSyncAttempt, System.currentTimeMillis() / 1000)
+            val minutes = minutesSinceLastSample(newestSample, System.currentTimeMillis() / 1000)
             Text(
                 if (minutes == null) {
                     stringResource(R.string.never_synced)
                 } else {
-                    stringResource(R.string.synced_minutes_ago, minutes)
+                    stringResource(R.string.last_value_minutes_ago, minutes)
                 },
             )
+            lastError?.let { error ->
+                Text(
+                    stringResource(R.string.last_sync_failed, error),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
 
             MetricCatalog.all.forEach { metric ->
                 HorizontalDivider()
