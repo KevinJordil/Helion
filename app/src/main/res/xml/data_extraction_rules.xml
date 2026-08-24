@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing in this app leaves the phone. helion.db is the complete minute-by-minute health
+  archive and the SharedPreferences hold the export location, so every domain is excluded
+  from both transports: cloud backup (Google Drive) and device-to-device transfer.
+
+  android:allowBackup="false" already disables cloud backup on every supported release;
+  these rules also cover device-to-device transfer on Android 12 and newer, which
+  allowBackup does not govern.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

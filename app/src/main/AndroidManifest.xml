@@ -4,7 +4,8 @@
     <application
         android:name=".HelionApp"
         android:label="@string/app_name"
-        android:allowBackup="true">
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
 
         <activity
             android:name=".MainActivity"
