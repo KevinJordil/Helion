@@ -71,6 +71,28 @@ class MetricReaderTest {
     }
 
     @Test
+    fun `the oldest daily bucket is a whole day, not a clipped one`() = runTest {
+        // now is midday, so `now - one week` lands at midday seven days ago. Without
+        // snapping, that day's bucket only counts its afternoon and becomes a spurious Min.
+        val utc = ZoneId.of("UTC")
+        val now = ZonedDateTime.of(2024, 3, 14, 12, 0, 0, 0, utc).toEpochSecond()
+        val sevenDaysAgoMorning = ZonedDateTime.of(2024, 3, 7, 8, 0, 0, 0, utc).toEpochSecond()
+        val sevenDaysAgoEvening = ZonedDateTime.of(2024, 3, 7, 20, 0, 0, 0, utc).toEpochSecond()
+        db.minuteSamples().upsertAll(
+            listOf(
+                minute(sevenDaysAgoMorning, steps = 4_000),
+                minute(sevenDaysAgoEvening, steps = 2_000),
+            ),
+        )
+
+        val state = MetricReader(db, utc).load(steps, Range.WEEK, now)
+
+        val oldest = state.readings.first()
+        assertEquals(6_000.0, oldest.value, 0.0)
+        assertEquals(6_000.0, state.stats!!.min, 0.0)
+    }
+
+    @Test
     fun `empty range yields an empty state`() = runTest {
         val state = reader.load(heartRate, Range.DAY, now = 100_000)
 

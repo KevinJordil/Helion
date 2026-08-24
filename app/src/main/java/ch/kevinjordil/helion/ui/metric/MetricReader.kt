@@ -46,7 +46,14 @@ class MetricReader(
 ) {
 
     suspend fun load(metric: Metric, range: Range, now: Long): MetricUiState = withContext(dispatcher) {
-        val from = now - range.seconds
+        // A daily aggregate must start on a day boundary. Starting exactly one range-length
+        // ago cuts the oldest day in half, and that clipped bucket is then almost always the
+        // minimum: "Min 294 pas" on a day the owner walked six thousand. Snapping back to
+        // that day's local midnight makes the first bucket a whole day like every other.
+        val from = when (metric.source.aggregation) {
+            Aggregation.NONE -> now - range.seconds
+            Aggregation.DAILY_SUM -> dayStart(now - range.seconds)
+        }
         val raw = rawReadings(metric, from, now)
         val plausible = metric.plausibleRange
             ?.let { bounds -> raw.filter { it.value in bounds } }
