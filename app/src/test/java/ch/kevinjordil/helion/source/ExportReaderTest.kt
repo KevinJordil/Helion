@@ -1,8 +1,9 @@
 package ch.kevinjordil.helion.source
 
 import android.database.sqlite.SQLiteDatabase
-import androidx.test.core.app.ApplicationProvider
+import android.database.sqlite.SQLiteException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,6 +36,51 @@ class ExportReaderTest {
                     "${ExportSchema.COL_TIMESTAMP} INTEGER, ${ExportSchema.COL_STRESS} INTEGER)",
             )
             db.execSQL("INSERT INTO ${ExportSchema.TABLE_STRESS} VALUES (1700000060, 42)")
+        }
+        db.close()
+        return file.absolutePath
+    }
+
+    /**
+     * A minute table missing the HEART_RATE column: the reader's projection still asks
+     * for it, so the query fails with a genuine SQLite error ("no such column"), not with
+     * a missing table. Used to prove that such a failure propagates instead of being
+     * swallowed as an empty result.
+     */
+    private fun buildExportWithMalformedMinuteTable(): String {
+        val file = File.createTempFile("export", ".db")
+        file.delete()
+        val db = SQLiteDatabase.openOrCreateDatabase(file, null)
+        db.execSQL(
+            "CREATE TABLE ${ExportSchema.TABLE_MINUTE} (" +
+                "${ExportSchema.COL_TIMESTAMP} INTEGER, ${ExportSchema.COL_STEPS} INTEGER, " +
+                "${ExportSchema.COL_RAW_INTENSITY} INTEGER, ${ExportSchema.COL_RAW_KIND} INTEGER, " +
+                "${ExportSchema.COL_SLEEP} INTEGER, " +
+                "${ExportSchema.COL_DEEP_SLEEP} INTEGER, ${ExportSchema.COL_REM_SLEEP} INTEGER)",
+        )
+        db.execSQL(
+            "INSERT INTO ${ExportSchema.TABLE_MINUTE} VALUES (1700000000, 10, 20, 1, 0, 0, 0)",
+        )
+        db.close()
+        return file.absolutePath
+    }
+
+    private fun buildExportWithHeartRates(rows: List<Pair<Long, String>>): String {
+        val file = File.createTempFile("export", ".db")
+        file.delete()
+        val db = SQLiteDatabase.openOrCreateDatabase(file, null)
+        db.execSQL(
+            "CREATE TABLE ${ExportSchema.TABLE_MINUTE} (" +
+                "${ExportSchema.COL_TIMESTAMP} INTEGER, ${ExportSchema.COL_STEPS} INTEGER, " +
+                "${ExportSchema.COL_RAW_INTENSITY} INTEGER, ${ExportSchema.COL_RAW_KIND} INTEGER, " +
+                "${ExportSchema.COL_HEART_RATE} INTEGER, ${ExportSchema.COL_SLEEP} INTEGER, " +
+                "${ExportSchema.COL_DEEP_SLEEP} INTEGER, ${ExportSchema.COL_REM_SLEEP} INTEGER)",
+        )
+        rows.forEach { (timestamp, heartRateLiteral) ->
+            db.execSQL(
+                "INSERT INTO ${ExportSchema.TABLE_MINUTE} VALUES " +
+                    "($timestamp, 0, 0, 1, $heartRateLiteral, 0, 0, 0)",
+            )
         }
         db.close()
         return file.absolutePath
@@ -91,5 +137,30 @@ class ExportReaderTest {
         assertEquals(1, row.rawKind)
         assertEquals(70, row.heartRate)
         assertEquals(SleepStage.AWAKE, row.sleepStage)
+    }
+
+    @Test
+    fun `a genuine query failure propagates instead of being swallowed`() {
+        val reader = ExportReader()
+        assertThrows(SQLiteException::class.java) {
+            reader.read(buildExportWithMalformedMinuteTable(), since = 0)
+        }
+    }
+
+    @Test
+    fun `heart rate is null for both encodings of absent and preserved when valid`() {
+        val path = buildExportWithHeartRates(
+            listOf(
+                1700000000L to "NULL",
+                1700000060L to "0",
+                1700000120L to "-1",
+                1700000180L to "60",
+            ),
+        )
+        val result = ExportReader().read(path, since = 0)
+        assertEquals(null, result.minutes.single { it.timestamp == 1700000000L }.heartRate)
+        assertEquals(null, result.minutes.single { it.timestamp == 1700000060L }.heartRate)
+        assertEquals(null, result.minutes.single { it.timestamp == 1700000120L }.heartRate)
+        assertEquals(60, result.minutes.single { it.timestamp == 1700000180L }.heartRate)
     }
 }

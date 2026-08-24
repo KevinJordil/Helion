@@ -68,9 +68,13 @@ open class ExportReader {
         }
 
     /**
-     * Runs a query, returning an empty list if the table is absent.
+     * Runs a query, returning an empty list only if the table itself is absent.
      * Not every device reports every series, and a missing table is expected,
-     * not a failure.
+     * not a failure. Every other SQLite failure (a corrupt file, a disk I/O error,
+     * a query that fails for some other reason) is deliberately let through: the
+     * caller needs to be able to tell "nothing new" from "this read failed" so it
+     * can retry without advancing its watermark, and swallowing every SQLiteException
+     * here would destroy that distinction before it ever reaches the caller.
      */
     private fun <T> queryOrEmpty(
         db: SQLiteDatabase,
@@ -84,7 +88,11 @@ open class ExportReader {
             }
         }
     } catch (e: SQLiteException) {
-        emptyList()
+        if (e.message?.contains("no such table", ignoreCase = true) == true) {
+            emptyList()
+        } else {
+            throw e
+        }
     }
 
     private fun sleepStageOf(asleep: Boolean, deep: Boolean, rem: Boolean): Int = when {
