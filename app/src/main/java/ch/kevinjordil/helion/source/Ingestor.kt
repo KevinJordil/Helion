@@ -3,6 +3,8 @@ package ch.kevinjordil.helion.source
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.SyncState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface IngestResult {
     /** No export file has been chosen yet. */
@@ -21,6 +23,11 @@ sealed interface IngestResult {
  * a failed export, or a timeout waiting for one, all leave the next pass retrying exactly
  * the range that is still missing. Every write is idempotent on a timestamp-keyed row, so
  * re-reading a range that was already stored is free of consequence.
+ *
+ * Passes are serialised. The periodic worker and a manual "Sync now" tap can be triggered
+ * at the same moment -- most likely precisely when the data looks stale -- and two
+ * overlapping passes would each register a receiver for the same broadcast, each trigger
+ * an export, and each read a cache file the other one is replacing. They queue instead.
  */
 class Ingestor(
     private val reader: ExportReader,
@@ -30,9 +37,14 @@ class Ingestor(
     private val now: () -> Long,
 ) {
 
+    private val passLock = Mutex()
+
     suspend fun ingest(databasePath: String?): IngestResult {
         if (databasePath == null) return IngestResult.NoSource
+        return passLock.withLock { runPass(databasePath) }
+    }
 
+    private suspend fun runPass(databasePath: String): IngestResult {
         // Gadgetbridge also broadcasts ACTIVITY_SYNC_FINISH, but this pass does not wait
         // for it before requesting the export. ACTIVITY_SYNC round-trips to the device
         // over Bluetooth and is not guaranteed to finish (or to broadcast completion) in

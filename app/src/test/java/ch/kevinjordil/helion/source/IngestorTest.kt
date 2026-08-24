@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.PointSample
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -209,6 +211,34 @@ class IngestorTest {
         ingestor(reader, signal).ingest("/tmp/export.db")
 
         assertTrue(signal.awaitedTimeoutMillis > 0)
+    }
+
+    @Test
+    fun `two ingestion passes cannot overlap`() = runTest {
+        // The periodic worker and a manual "Sync now" tap can start at the same moment.
+        // Overlapping passes would each register a receiver for the same broadcast, each
+        // trigger an export, and read a cache file the other one is replacing.
+        var inFlight = 0
+        var highWaterMark = 0
+        val slowSignal = object : ExportSignal {
+            override suspend fun awaitExport(timeoutMillis: Long, trigger: () -> Unit): ExportOutcome {
+                inFlight++
+                highWaterMark = maxOf(highWaterMark, inFlight)
+                delay(1_000)
+                inFlight--
+                trigger()
+                return ExportOutcome.Success
+            }
+        }
+        val ing = ingestor(FakeReader(RawSamples(listOf(minute(100)), emptyList())), slowSignal)
+
+        val first = launch { ing.ingest("/tmp/export.db") }
+        val second = launch { ing.ingest("/tmp/export.db") }
+        first.join()
+        second.join()
+
+        assertEquals(1, highWaterMark)
+        assertEquals(listOf(100L), storedMinutes())
     }
 
     @Test

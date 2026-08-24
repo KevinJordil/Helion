@@ -40,19 +40,31 @@ class ExportLocation(private val context: Context) {
     /**
      * Returns the path of a readable copy, or null if no location has been configured yet.
      *
+     * The copy is staged in a temporary file and moved into place with a single rename, so
+     * the cached export is only ever a complete file. Writing straight into it would leave a
+     * truncated database on disk for the duration of every copy -- and the periodic worker
+     * and a manual "Sync now" can be triggered at the same moment, which is exactly when a
+     * reader would meet a half-written file. A rename is atomic within one directory, and a
+     * reader that already has the previous copy open keeps reading it to the end.
+     *
      * @throws ExportUnavailableException if a location *is* configured but the underlying
      * file can no longer be opened (moved, deleted, or the permission was lost). Thrown
      * rather than returned as null so callers -- and eventually the UI -- can tell "nothing
-     * configured" apart from "configured but broken".
+     * configured" apart from "configured but broken". A copy that fails halfway leaves the
+     * previously cached export untouched rather than replacing it with a partial one.
      */
     fun copyToCache(): String? {
         val source = uri ?: return null
         val destination = File(context.cacheDir, "gadgetbridge-export.db")
+        val staging = File.createTempFile("gadgetbridge-export", ".part", context.cacheDir)
         try {
             val opened = context.contentResolver.openInputStream(Uri.parse(source))
                 ?: throw ExportUnavailableException("No stream for export location: $source")
             opened.use { input ->
-                destination.outputStream().use { output -> input.copyTo(output) }
+                staging.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (!staging.renameTo(destination)) {
+                throw ExportUnavailableException("Failed to move the copied export into place")
             }
         } catch (e: ExportUnavailableException) {
             throw e
@@ -62,6 +74,10 @@ class ExportLocation(private val context: Context) {
             throw ExportUnavailableException("Lost permission to read the export location: $source", e)
         } catch (e: IOException) {
             throw ExportUnavailableException("Failed to copy the export from: $source", e)
+        } finally {
+            // A no-op once the rename succeeded; on any failure path it clears the partial
+            // file so the cache does not accumulate one per failed pass.
+            staging.delete()
         }
         return destination.absolutePath
     }
