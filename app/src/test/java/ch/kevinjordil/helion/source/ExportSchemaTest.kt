@@ -11,8 +11,8 @@ class ExportSchemaTest {
         // ExportReader reads by cursor index, so this order is a contract, not a detail.
         assertEquals(ExportSchema.COL_TIMESTAMP, ExportSchema.MINUTE_COLUMNS[0])
         assertEquals(ExportSchema.COL_HEART_RATE, ExportSchema.MINUTE_COLUMNS[4])
-        assertEquals(ExportSchema.COL_REM_SLEEP, ExportSchema.MINUTE_COLUMNS.last())
-        assertEquals(8, ExportSchema.MINUTE_COLUMNS.size)
+        assertEquals(ExportSchema.COL_SLEEP, ExportSchema.MINUTE_COLUMNS.last())
+        assertEquals(6, ExportSchema.MINUTE_COLUMNS.size)
     }
 
     @Test
@@ -22,6 +22,8 @@ class ExportSchemaTest {
             ExportSchema.TABLE_STRESS,
             ExportSchema.TABLE_SPO2,
             ExportSchema.TABLE_PAI,
+            ExportSchema.TABLE_HRV,
+            ExportSchema.TABLE_TEMPERATURE,
         ).forEach { assertTrue(it.isNotBlank()) }
     }
 }

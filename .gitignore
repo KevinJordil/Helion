@@ -11,3 +11,7 @@ build/
 .externalNativeBuild
 .cxx
 local.properties
+
+# Local Gadgetbridge exports: personal health data, never versioned.
+Gadgetbridge
+Gadgetbridge*.db
