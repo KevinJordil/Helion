@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.metrics
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,9 @@ fun MetricsScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
     val metric = selectedMetric?.let { MetricCatalog.byId(it) }
     if (metric != null) {
+        // Without this the system back gesture leaves the app from a detail screen, because
+        // the drill-down is local state rather than a nav destination the shell knows about.
+        BackHandler { selectedMetric = null }
         MetricScreen(container, metric, onBack = { selectedMetric = null }, modifier = modifier)
     } else {
         MetricList(onSelect = { selectedMetric = it.id }, modifier = modifier)
