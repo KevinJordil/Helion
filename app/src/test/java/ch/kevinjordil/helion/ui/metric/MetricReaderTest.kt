@@ -5,6 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.PointSample
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -26,6 +28,7 @@ class MetricReaderTest {
     private val steps = MetricCatalog.byId("steps")
     private val stress = MetricCatalog.byId("stress")
     private val temperature = MetricCatalog.byId("temperature")
+    private val zurich = ZoneId.of("Europe/Zurich")
 
     private fun minute(timestamp: Long, steps: Int? = null, heartRate: Int? = null) =
         MinuteSample(timestamp = timestamp, steps = steps, intensity = null, rawKind = null, heartRate = heartRate, sleepStage = null)
@@ -36,7 +39,7 @@ class MetricReaderTest {
             ApplicationProvider.getApplicationContext(),
             HelionDatabase::class.java,
         ).allowMainThreadQueries().build()
-        reader = MetricReader(db)
+        reader = MetricReader(db, ZoneId.of("UTC"))
     }
 
     @After
@@ -135,6 +138,48 @@ class MetricReaderTest {
 
         assertEquals(1, state.readings.size)
         assertEquals(10.0, state.readings.single().value, 0.0)
+    }
+
+    @Test
+    fun `steps just after local midnight land in today's bucket, not yesterday's UTC day`() = runTest {
+        // Zurich is UTC+1 in winter: local midnight on 15 Jan 2024 is 23:00 UTC on the
+        // 14th. A fixed 86_400-second UTC bucket would fold both readings below into the
+        // *same* day, since both fall before UTC midnight. Local-zone bucketing must not.
+        val localMidnight = ZonedDateTime.of(2024, 1, 15, 0, 0, 0, 0, zurich)
+        val previousEveningLocal = localMidnight.minusHours(1).toEpochSecond() // 23:00, 14 Jan local
+        val justAfterMidnight = localMidnight.plusMinutes(30).toEpochSecond() // 00:30, 15 Jan local
+
+        db.minuteSamples().upsertAll(
+            listOf(minute(previousEveningLocal, steps = 3), minute(justAfterMidnight, steps = 5)),
+        )
+
+        val zurichReader = MetricReader(db, zurich)
+        val state = zurichReader.load(steps, Range.WEEK, now = justAfterMidnight + 3_600)
+
+        assertEquals(2, state.readings.size)
+        assertEquals(localMidnight.minusDays(1).toEpochSecond(), state.readings[0].timestamp)
+        assertEquals(3.0, state.readings[0].value, 0.0)
+        assertEquals(localMidnight.toEpochSecond(), state.readings[1].timestamp)
+        assertEquals(5.0, state.readings[1].value, 0.0)
+    }
+
+    @Test
+    fun `daily bucket boundaries follow the local clock across a DST transition`() = runTest {
+        // Zurich springs forward on 31 March 2024: 02:00 CET becomes 03:00 CEST, so that
+        // local calendar day is only 23 hours long. A fixed-width bucket would get the
+        // gap between consecutive day starts wrong; zone-aware bucketing must not.
+        val duringTransitionDay = ZonedDateTime.of(2024, 3, 31, 10, 0, 0, 0, zurich).toEpochSecond()
+        val nextDay = ZonedDateTime.of(2024, 4, 1, 10, 0, 0, 0, zurich).toEpochSecond()
+
+        db.minuteSamples().upsertAll(
+            listOf(minute(duringTransitionDay, steps = 1), minute(nextDay, steps = 1)),
+        )
+
+        val zurichReader = MetricReader(db, zurich)
+        val state = zurichReader.load(steps, Range.WEEK, now = nextDay + 3_600)
+
+        assertEquals(2, state.readings.size)
+        assertEquals(23 * 3_600L, state.readings[1].timestamp - state.readings[0].timestamp)
     }
 
     @Test

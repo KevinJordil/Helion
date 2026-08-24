@@ -1,6 +1,8 @@
 package ch.kevinjordil.helion.ui.metric
 
 import ch.kevinjordil.helion.store.HelionDatabase
+import java.time.Instant
+import java.time.ZoneId
 
 /** A metric's value at a point in time, ready to plot. */
 data class Reading(val timestamp: Long, val value: Double)
@@ -20,14 +22,19 @@ enum class Range(val seconds: Long) {
     YEAR(365 * 86_400),
 }
 
-private const val SECONDS_PER_DAY = 86_400L
-
 /**
  * Reads a metric's raw samples for a range and turns them into what the screen shows: a
  * filtered, aggregated reading list plus the stats over exactly that list. All the
  * calculation lives here so MetricScreen only ever renders a [MetricUiState].
+ *
+ * [zone] is the calendar used to bucket daily aggregates (see [dailyTotals]). It defaults
+ * to the device's zone; tests pass a fixed [ZoneId] so they do not depend on the machine
+ * running them.
  */
-class MetricReader(private val db: HelionDatabase) {
+class MetricReader(
+    private val db: HelionDatabase,
+    private val zone: ZoneId = ZoneId.systemDefault(),
+) {
 
     suspend fun load(metric: Metric, range: Range, now: Long): MetricUiState {
         val from = now - range.seconds
@@ -60,8 +67,17 @@ class MetricReader(private val db: HelionDatabase) {
         }
 
     /**
-     * Buckets readings by UTC calendar day and sums each bucket. The bucket's timestamp is
-     * the day's start, so the resulting list stays sorted and plottable like any other.
+     * Buckets readings by [zone]'s calendar day and sums each bucket. The bucket's
+     * timestamp is that day's local midnight, so the resulting list stays sorted and
+     * plottable like any other.
+     *
+     * Deliberately goes through [Instant]/[ZoneId] rather than a fixed 86_400-second
+     * modulo: a fixed step buckets by UTC days, which silently disagrees with the
+     * device's -- and Gadgetbridge's -- local calendar day by up to the zone's UTC
+     * offset, shifting further still across a DST transition. Steps are the one metric
+     * an owner can eyeball against the strap directly, so getting the day boundary wrong
+     * here is far more visible, and more damaging to trust in every other number on the
+     * screen, than the same slip in any other series.
      */
     private fun dailyTotals(readings: List<Reading>): List<Reading> =
         readings
@@ -69,10 +85,12 @@ class MetricReader(private val db: HelionDatabase) {
             .toSortedMap()
             .map { (day, group) -> Reading(day, group.sumOf { it.value }) }
 
-    private fun dayStart(timestamp: Long): Long {
-        val mod = timestamp % SECONDS_PER_DAY
-        return timestamp - if (mod < 0) mod + SECONDS_PER_DAY else mod
-    }
+    private fun dayStart(timestamp: Long): Long =
+        Instant.ofEpochSecond(timestamp)
+            .atZone(zone)
+            .toLocalDate()
+            .atStartOfDay(zone)
+            .toEpochSecond()
 
     private fun statsOf(readings: List<Reading>): MetricStats? =
         readings.takeIf { it.isNotEmpty() }?.let { values ->
