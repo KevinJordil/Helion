@@ -27,10 +27,10 @@ class MetricReaderTest {
     private lateinit var db: HelionDatabase
     private lateinit var reader: MetricReader
 
-    private val heartRate = MetricCatalog.byId("heart_rate")
-    private val steps = MetricCatalog.byId("steps")
-    private val stress = MetricCatalog.byId("stress")
-    private val temperature = MetricCatalog.byId("temperature")
+    private val heartRate = MetricCatalog.byId("heart_rate")!!
+    private val steps = MetricCatalog.byId("steps")!!
+    private val stress = MetricCatalog.byId("stress")!!
+    private val temperature = MetricCatalog.byId("temperature")!!
     private val zurich = ZoneId.of("Europe/Zurich")
 
     private fun minute(timestamp: Long, steps: Int? = null, heartRate: Int? = null) =

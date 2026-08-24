@@ -2,6 +2,7 @@ package ch.kevinjordil.helion.ui.metric
 
 import ch.kevinjordil.helion.source.ExportReader
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,17 +16,14 @@ class MetricCatalogTest {
 
     @Test
     fun `metrics can be looked up by id`() {
-        assertEquals("heart_rate", MetricCatalog.byId("heart_rate").id)
+        assertEquals("heart_rate", MetricCatalog.byId("heart_rate")!!.id)
     }
 
     @Test
-    fun `unknown id fails loudly rather than returning null`() {
-        try {
-            MetricCatalog.byId("does_not_exist")
-            org.junit.Assert.fail("expected an exception")
-        } catch (e: IllegalStateException) {
-            assertTrue(e.message!!.contains("does_not_exist"))
-        }
+    fun `an unknown id yields null rather than throwing`() {
+        // The id is restored from saved instance state, so it can name a metric that a
+        // later version no longer has. Throwing there would crash every restored process.
+        assertNull(MetricCatalog.byId("does_not_exist"))
     }
 
     @Test

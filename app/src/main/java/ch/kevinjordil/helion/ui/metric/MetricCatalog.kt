@@ -102,8 +102,13 @@ object MetricCatalog {
         ),
     )
 
-    fun byId(id: String): Metric =
-        all.firstOrNull { it.id == id } ?: error("Unknown metric: $id")
+    /**
+     * Null for an unknown id rather than throwing. The id comes back from saved instance
+     * state, which outlives the process and therefore outlives this catalog: dropping a
+     * metric in a later version would otherwise turn every restored process into a crash
+     * loop the owner cannot escape from, since the same saved state is restored each time.
+     */
+    fun byId(id: String): Metric? = all.firstOrNull { it.id == id }
 }
 
 /** Formats [value] to this metric's configured precision, e.g. "36.5" for a temperature. */

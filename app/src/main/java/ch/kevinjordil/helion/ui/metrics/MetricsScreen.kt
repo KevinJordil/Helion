@@ -35,6 +35,8 @@ import ch.kevinjordil.helion.ui.metric.MetricScreen
 fun MetricsScreen(container: AppContainer, modifier: Modifier = Modifier) {
     var selectedMetric by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // A saved id that no longer matches a catalog entry simply falls back to the list; see
+    // MetricCatalog.byId for why this must not be an error.
     val metric = selectedMetric?.let { MetricCatalog.byId(it) }
     if (metric != null) {
         // Without this the system back gesture leaves the app from a detail screen, because
