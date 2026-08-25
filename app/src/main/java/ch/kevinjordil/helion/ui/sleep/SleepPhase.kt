@@ -201,6 +201,29 @@ fun devicePhaseOf(deviceStage: Int): SleepPhase? = when (deviceStage) {
     else -> null
 }
 
+/** [count] awakenings totalling [durationMinutes], derived from a night's own device stage segments. */
+data class StageAwakenings(val count: Int, val durationMinutes: Long)
+
+/**
+ * Awakening count and total awake duration computed straight from the device's own AWAKE
+ * stage segments, for use instead of [segmentSleepEpisodes]'s minute-derived figures
+ * whenever an episode has any [SleepEpisode.stageSegments] at all.
+ *
+ * This device's minute samples flag AWAKE minutes inside a device-reported awake stretch
+ * as ASLEEP in the minute table itself, so the minute-derived awakening count (a confirmed
+ * AWAKE reading between two ASLEEP ones, see [segmentSleepEpisodes]) never finds anything
+ * to count: every minute inside the episode already reads ASLEEP. The stage segments carry
+ * the real picture -- device stage type 7 (see [ch.kevinjordil.helion.source.DeviceSleepStage.AWAKE],
+ * mapped to [SleepPhase.AWAKE] by [devicePhaseOf]) -- so a night with real stage segments
+ * must use this instead, falling back to the minute-derived figures only when there are no
+ * stage segments at all (see [SleepReader]).
+ */
+fun awakeningsFromStageSegments(segments: List<StageSegment>): StageAwakenings {
+    val awakeSegments = segments.filter { it.phase == SleepPhase.AWAKE }
+    val durationMinutes = awakeSegments.sumOf { (it.endTimestamp - it.startTimestamp) / 60 + 1 }
+    return StageAwakenings(awakeSegments.size, durationMinutes)
+}
+
 /**
  * Where a [SleepEpisode]'s displayed phase track actually came from -- the one thing a
  * caller must never blur, because only [Estimated] is a guess.

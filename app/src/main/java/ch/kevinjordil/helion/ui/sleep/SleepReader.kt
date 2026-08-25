@@ -58,7 +58,18 @@ class SleepReader(
                 .map { Reading(it.timestamp, it.value) }
                 .sortedBy { it.timestamp }
             val stageSegments = matchSession(episode, sessions)?.let { clipToEpisode(it, episode) } ?: emptyList()
-            episode.copy(respiratoryRateReadings = respiratoryRate, stageSegments = stageSegments)
+            // A night with real device stage segments gets its awakening count and duration
+            // from them instead of the minute-derived figures -- see
+            // [awakeningsFromStageSegments]'s kdoc for why the minute-derived count is
+            // always zero on this device. Nights that fall back to the estimator (no
+            // segments at all) keep segmentSleepEpisodes' own minute-derived figures.
+            val stageAwakenings = stageSegments.takeIf { it.isNotEmpty() }?.let { awakeningsFromStageSegments(it) }
+            episode.copy(
+                respiratoryRateReadings = respiratoryRate,
+                stageSegments = stageSegments,
+                awakenings = stageAwakenings?.count ?: episode.awakenings,
+                awakeningsDurationMinutes = stageAwakenings?.durationMinutes ?: episode.awakeningsDurationMinutes,
+            )
         }
     }
 }

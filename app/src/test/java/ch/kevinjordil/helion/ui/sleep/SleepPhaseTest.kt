@@ -85,4 +85,34 @@ class SleepPhaseTest {
         assertEquals(SleepPhase.AWAKE, phaseAt.getValue(ts(30)).phase)
         assertTrue(phaseAt.getValue(ts(29)).phase != SleepPhase.AWAKE)
     }
+
+    @Test
+    fun `awakenings from stage segments count and sum only the AWAKE segments`() {
+        val segments = listOf(
+            StageSegment(ts(0), ts(29), SleepPhase.LIGHT),
+            StageSegment(ts(30), ts(31), SleepPhase.AWAKE),
+            StageSegment(ts(32), ts(59), SleepPhase.DEEP),
+            StageSegment(ts(60), ts(62), SleepPhase.AWAKE),
+            StageSegment(ts(63), ts(90), SleepPhase.REM),
+        )
+
+        val result = awakeningsFromStageSegments(segments)
+
+        assertEquals(2, result.count)
+        assertEquals(2L + 3L, result.durationMinutes)
+    }
+
+    @Test
+    fun `awakenings from stage segments is genuinely zero when no segment is AWAKE`() {
+        val segments = listOf(
+            StageSegment(ts(0), ts(29), SleepPhase.LIGHT),
+            StageSegment(ts(30), ts(59), SleepPhase.DEEP),
+            StageSegment(ts(60), ts(90), SleepPhase.REM),
+        )
+
+        val result = awakeningsFromStageSegments(segments)
+
+        assertEquals(0, result.count)
+        assertEquals(0L, result.durationMinutes)
+    }
 }
