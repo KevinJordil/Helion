@@ -15,9 +15,9 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Exercises the real migration path against a real, file-backed database -- not the
  * in-memory one every other test uses -- because that is the only way to make Room actually
- * run [MIGRATION_1_2] and [MIGRATION_2_3] and validate the resulting schema against what the
- * entities declare. An in-memory `Room.databaseBuilder` is always created fresh at the
- * current version and never touches migration code at all.
+ * run [MIGRATION_1_2], [MIGRATION_2_3] and [MIGRATION_3_4] and validate the resulting schema
+ * against what the entities declare. An in-memory `Room.databaseBuilder` is always created
+ * fresh at the current version and never touches migration code at all.
  *
  * Building the version-1 database by hand from `schemas/.../1.json`'s own `createSql`
  * (rather than, say, checking in a real device's file) keeps this test free of any real
@@ -81,7 +81,7 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .allowMainThreadQueries()
             .build()
 
@@ -103,6 +103,10 @@ class MigrationTest {
             assertEquals("previous error", state.lastError)
             assertEquals(0, state.triggerFailureStreak)
             assertEquals(0, state.lastTriggerAttempt)
+
+            // MIGRATION_3_4 added this table from nothing; a fresh row must round-trip.
+            db.sleepStageSegments().upsertAll(listOf(SleepStageSegment(1000, 900, 960, 4)))
+            assertEquals(1, db.sleepStageSegments().overlapping(0, Long.MAX_VALUE).size)
         } finally {
             db.close()
         }
@@ -112,7 +116,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .allowMainThreadQueries()
             .build()
 

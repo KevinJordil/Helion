@@ -12,6 +12,7 @@ import ch.kevinjordil.helion.source.Ingestor
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.MIGRATION_1_2
 import ch.kevinjordil.helion.store.MIGRATION_2_3
+import ch.kevinjordil.helion.store.MIGRATION_3_4
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 
@@ -20,7 +21,7 @@ class AppContainer(context: Context) {
 
     val database: HelionDatabase = Room
         .databaseBuilder(context, HelionDatabase::class.java, "helion.db")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
         .build()
 
     val exportLocation = ExportLocation(context)

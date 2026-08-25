@@ -24,6 +24,7 @@ class ExportSchemaTest {
             ExportSchema.TABLE_PAI,
             ExportSchema.TABLE_HRV,
             ExportSchema.TABLE_TEMPERATURE,
+            ExportSchema.TABLE_SLEEP_SESSION,
         ).forEach { assertTrue(it.isNotBlank()) }
     }
 }

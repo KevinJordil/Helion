@@ -1,0 +1,165 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "fe35db6df4f40c219dea2726e6db7e5b",
+    "entities": [
+      {
+        "tableName": "minute_sample",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`timestamp` INTEGER NOT NULL, `steps` INTEGER, `intensity` INTEGER, `rawKind` INTEGER, `heartRate` INTEGER, `sleepStage` INTEGER, PRIMARY KEY(`timestamp`))",
+        "fields": [
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "steps",
+            "columnName": "steps",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "intensity",
+            "columnName": "intensity",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rawKind",
+            "columnName": "rawKind",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "heartRate",
+            "columnName": "heartRate",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sleepStage",
+            "columnName": "sleepStage",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "timestamp"
+          ]
+        }
+      },
+      {
+        "tableName": "point_sample",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`series` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `value` REAL NOT NULL, PRIMARY KEY(`series`, `timestamp`))",
+        "fields": [
+          {
+            "fieldPath": "series",
+            "columnName": "series",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "series",
+            "timestamp"
+          ]
+        }
+      },
+      {
+        "tableName": "sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `lastSyncAttempt` INTEGER NOT NULL, `lastError` TEXT, `triggerFailureStreak` INTEGER NOT NULL, `lastTriggerAttempt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSyncAttempt",
+            "columnName": "lastSyncAttempt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "triggerFailureStreak",
+            "columnName": "triggerFailureStreak",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastTriggerAttempt",
+            "columnName": "lastTriggerAttempt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "sleep_stage_segment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionEnd` INTEGER NOT NULL, `startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, `stage` INTEGER NOT NULL, PRIMARY KEY(`sessionEnd`, `startTimestamp`))",
+        "fields": [
+          {
+            "fieldPath": "sessionEnd",
+            "columnName": "sessionEnd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startTimestamp",
+            "columnName": "startTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endTimestamp",
+            "columnName": "endTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stage",
+            "columnName": "stage",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionEnd",
+            "startTimestamp"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fe35db6df4f40c219dea2726e6db7e5b')"
+    ]
+  }
+}

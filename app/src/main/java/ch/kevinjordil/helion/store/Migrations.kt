@@ -39,3 +39,19 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+/**
+ * Adds `sleep_stage_segment`, which holds the device's own hypnogram (see
+ * [SleepStageSegment]) -- a brand new table, so nothing existing needs to be carried over
+ * or rebuilt; every other table is left untouched.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `sleep_stage_segment` (" +
+                "`sessionEnd` INTEGER NOT NULL, `startTimestamp` INTEGER NOT NULL, " +
+                "`endTimestamp` INTEGER NOT NULL, `stage` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`sessionEnd`, `startTimestamp`))",
+        )
+    }
+}
