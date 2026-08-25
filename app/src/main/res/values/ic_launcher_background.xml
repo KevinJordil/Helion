@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the artwork's own ground so the adaptive foreground has no visible seam. -->
+    <color name="ic_launcher_background">#0A0C1C</color>
+</resources>
