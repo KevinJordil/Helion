@@ -15,6 +15,11 @@ import ch.kevinjordil.helion.store.MIGRATION_1_2
 import ch.kevinjordil.helion.store.MIGRATION_2_3
 import ch.kevinjordil.helion.store.MIGRATION_3_4
 import ch.kevinjordil.helion.store.MIGRATION_4_5
+import ch.kevinjordil.helion.store.MIGRATION_5_6
+import ch.kevinjordil.helion.strava.HttpStravaApi
+import ch.kevinjordil.helion.strava.StravaAuth
+import ch.kevinjordil.helion.strava.StravaPublisher
+import ch.kevinjordil.helion.strava.StravaTokenStore
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 import java.time.ZoneId
@@ -24,10 +29,27 @@ class AppContainer(context: Context) {
 
     val database: HelionDatabase = Room
         .databaseBuilder(context, HelionDatabase::class.java, "helion.db")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .build()
 
     val exportLocation = ExportLocation(context)
+
+    /** OAuth token persistence and the browser-flow driver -- see [StravaAuth]'s own kdoc. */
+    val stravaTokenStore = StravaTokenStore(context)
+    val stravaAuth = StravaAuth(stravaTokenStore)
+
+    /**
+     * The one publish entry point the UI calls, wired to the real network implementation.
+     * See [StravaPublisher]'s own kdoc for why calling it again is always safe.
+     */
+    val stravaPublisher = StravaPublisher(
+        activities = database.activities(),
+        minuteSamples = database.minuteSamples(),
+        publications = database.publications(),
+        tokenProvider = stravaAuth,
+        api = HttpStravaApi(),
+        now = { System.currentTimeMillis() / 1000 },
+    )
 
     val stepsGoal = StepsGoal(context)
 
