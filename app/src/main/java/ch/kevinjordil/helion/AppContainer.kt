@@ -12,6 +12,8 @@ import ch.kevinjordil.helion.source.Ingestor
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.MIGRATION_1_2
 import ch.kevinjordil.helion.store.MIGRATION_2_3
+import ch.kevinjordil.helion.ui.home.OpenSyncGate
+import ch.kevinjordil.helion.ui.settings.StepsGoal
 
 /** Manual dependency wiring. The graph is small enough that a framework would cost more than it saves. */
 class AppContainer(context: Context) {
@@ -22,6 +24,8 @@ class AppContainer(context: Context) {
         .build()
 
     val exportLocation = ExportLocation(context)
+
+    val stepsGoal = StepsGoal(context)
 
     val commands = GadgetbridgeCommands(BroadcastCommandSender(context))
 
@@ -40,4 +44,7 @@ class AppContainer(context: Context) {
         db = database,
         now = { System.currentTimeMillis() / 1000 },
     )
+
+    /** Debounces Accueil's open-sync across remounts of the screen; see [OpenSyncGate]'s kdoc. */
+    val openSyncGate = OpenSyncGate()
 }

@@ -173,6 +173,27 @@ class IngestorTest {
     }
 
     @Test
+    fun `skipSyncRequest omits the sync request but still triggers and awaits the export`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+        val signal = FakeExportSignal(ExportOutcome.Success)
+
+        val result = ingestor(reader, signal).ingest("/tmp/export.db", force = true, skipSyncRequest = true)
+
+        assertEquals(listOf("nodomain.freeyourgadget.gadgetbridge.command.TRIGGER_DATABASE_EXPORT"), sent)
+        assertTrue(result is IngestResult.Ingested)
+        assertTrue((result as IngestResult.Ingested).refreshTriggered)
+    }
+
+    @Test
+    fun `without skipSyncRequest a forced ingest still sends the sync request as before`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+        ingestor(reader).ingest("/tmp/export.db", force = true, skipSyncRequest = false)
+
+        assertEquals(2, sent.size)
+        assertTrue(sent[0].endsWith("ACTIVITY_SYNC"))
+    }
+
+    @Test
     fun `an export failure signal still reads and ingests the existing file, untriggered`() = runTest {
         val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
         val signal = FakeExportSignal(ExportOutcome.Failure)

@@ -59,6 +59,15 @@ sealed interface IngestResult {
  * spending a wake-lock on it every half hour. A manual "Sync now" tap (`force = true`) always
  * attempts to trigger regardless of this backoff: it is a deliberate, user-initiated wait,
  * and it doubles as the immediate way to find out the moment triggering starts working again.
+ *
+ * [ingest]'s `skipSyncRequest` exists for exactly one caller: Accueil's pull-to-refresh and
+ * open-sync, which already drive and await Gadgetbridge's own ACTIVITY_SYNC_FINISH broadcast
+ * themselves (see [ch.kevinjordil.helion.ui.home.performRefresh]) before ever calling
+ * [ingest]. Without it, this pass would call [GadgetbridgeCommands.requestSync] a second
+ * time right as the device's Bluetooth sync had just finished -- harmless (a plain
+ * broadcast, not a stateful call) but a needless second round-trip on every such refresh.
+ * The periodic worker and a plain manual "Sync now" (Réglages) never set it: they have not
+ * pre-waited for a sync, so they still need this pass to request one itself.
  */
 class Ingestor(
     private val reader: ExportReader,
@@ -70,12 +79,12 @@ class Ingestor(
 
     private val passLock = Mutex()
 
-    suspend fun ingest(databasePath: String?, force: Boolean = false): IngestResult {
+    suspend fun ingest(databasePath: String?, force: Boolean = false, skipSyncRequest: Boolean = false): IngestResult {
         if (databasePath == null) return IngestResult.NoSource
-        return passLock.withLock { runPass(databasePath, force) }
+        return passLock.withLock { runPass(databasePath, force, skipSyncRequest) }
     }
 
-    private suspend fun runPass(databasePath: String, force: Boolean): IngestResult {
+    private suspend fun runPass(databasePath: String, force: Boolean, skipSyncRequest: Boolean): IngestResult {
         val state = db.syncState().get()
         val streak = state?.triggerFailureStreak ?: 0
         val lastAttempt = state?.lastTriggerAttempt ?: 0
@@ -109,7 +118,11 @@ class Ingestor(
             // RECEIVER_EXPORTED for cross-app delivery (see BroadcastExportSignal), so in
             // principle another app could spoof the success broadcast too -- same bounded
             // harm applies.
-            commands.requestSync()
+            //
+            // skipSyncRequest omits only this requestSync() call, not the export trigger
+            // below: the caller pre-waited for the sync itself, but Ingestor still owns
+            // triggering and awaiting the export.
+            if (!skipSyncRequest) commands.requestSync()
             val outcome = signal.awaitExport(EXPORT_TIMEOUT_MILLIS) { commands.requestExport() }
             newLastAttempt = nowSeconds
             when (outcome) {
