@@ -1,9 +1,24 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Strava's client id/secret live only in `local.properties` (git-ignored, never committed).
+// Both are blank when absent -- StravaConfig.isConfigured turns that into a plain "direct
+// upload isn't available" state at runtime rather than a build failure, so a fresh
+// checkout without those two lines still compiles and installs, just without transport A.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+val stravaClientId: String = localProperties.getProperty("strava.clientId", "")
+val stravaClientSecret: String = localProperties.getProperty("strava.clientSecret", "")
 
 android {
     namespace = "ch.kevinjordil.helion"
@@ -15,6 +30,9 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "STRAVA_CLIENT_ID", "\"$stravaClientId\"")
+        buildConfigField("String", "STRAVA_CLIENT_SECRET", "\"$stravaClientSecret\"")
     }
 
     compileOptions {
@@ -28,6 +46,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {

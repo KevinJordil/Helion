@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exposes only the cache subdirectory the TCX export writes to (see TcxShare.kt), for the
+  share-sheet intent (transport B). Nothing else in the app's storage is reachable through
+  the FileProvider.
+-->
+<paths>
+    <cache-path name="tcx" path="tcx/" />
+</paths>
