@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Exercises the real migration path against a real, file-backed database -- not the
  * in-memory one every other test uses -- because that is the only way to make Room actually
- * run [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4] and [MIGRATION_4_5] and validate the
+ * run [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4], [MIGRATION_4_5] and [MIGRATION_5_6] and validate the
  * resulting schema against what the entities declare. An in-memory `Room.databaseBuilder` is
  * always created fresh at the current version and never touches migration code at all.
  *
@@ -81,7 +81,7 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .allowMainThreadQueries()
             .build()
 
@@ -143,6 +143,21 @@ class MigrationTest {
                 ),
             )
             assertEquals(1, db.publications().forActivity(activityId).size)
+
+            // MIGRATION_5_6 added publication.uploadId from nothing; it must round-trip
+            // on a row created after the migration ran.
+            db.publications().upsert(
+                Publication(
+                    activityId = activityId,
+                    target = PublicationTarget.STRAVA,
+                    remoteId = null,
+                    uploadId = "upload-123",
+                    state = PublicationState.UPLOADING,
+                    lastAttempt = 5_000,
+                    lastError = null,
+                ),
+            )
+            assertEquals("upload-123", db.publications().get(activityId, PublicationTarget.STRAVA)?.uploadId)
         } finally {
             db.close()
         }
@@ -152,7 +167,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .allowMainThreadQueries()
             .build()
 

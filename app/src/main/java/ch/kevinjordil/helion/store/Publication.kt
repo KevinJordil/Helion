@@ -17,6 +17,16 @@ enum class PublicationState {
     /** The owner asked for this to be published; not yet attempted or not yet acknowledged. */
     PENDING,
 
+    /**
+     * The file has been submitted to the target and [Publication.uploadId] holds its
+     * asynchronous job id, but the target has not yet resolved it to a final activity.
+     * This is the state that makes an interrupted upload resumable: if the app is killed
+     * or crashes after the submit call returns but before the poll loop finishes, the next
+     * publish attempt finds this row, sees [Publication.uploadId] already set, and polls
+     * that existing job instead of submitting the file a second time.
+     */
+    UPLOADING,
+
     /** The target accepted it; [Publication.remoteId] is its id there. */
     PUBLISHED,
 
@@ -33,8 +43,12 @@ enum class PublicationState {
  * second one, and [remoteId] gives that later step a place to remember "this activity is
  * already this remote object" before it ever calls the network.
  *
- * [lastAttempt] is Unix seconds, [remoteId] and [lastError] are both null until an attempt
- * has actually been made.
+ * [lastAttempt] is Unix seconds, [remoteId], [uploadId] and [lastError] are all null until
+ * an attempt has actually been made.
+ *
+ * [uploadId] is the target's asynchronous job id for an in-flight upload (see
+ * [PublicationState.UPLOADING]'s kdoc) -- it is what makes an interrupted upload resumable
+ * rather than resubmitted from scratch.
  */
 @Entity(
     tableName = "publication",
@@ -52,6 +66,7 @@ data class Publication(
     val activityId: Long,
     val target: PublicationTarget,
     val remoteId: String?,
+    val uploadId: String? = null,
     val state: PublicationState,
     val lastAttempt: Long?,
     val lastError: String?,
