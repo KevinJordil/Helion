@@ -2,6 +2,7 @@ package ch.kevinjordil.helion
 
 import android.content.Context
 import androidx.room.Room
+import ch.kevinjordil.helion.activity.ActivityDetector
 import ch.kevinjordil.helion.source.BroadcastCommandSender
 import ch.kevinjordil.helion.source.BroadcastExportSignal
 import ch.kevinjordil.helion.source.BroadcastSyncSignal
@@ -16,6 +17,7 @@ import ch.kevinjordil.helion.store.MIGRATION_3_4
 import ch.kevinjordil.helion.store.MIGRATION_4_5
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
 import ch.kevinjordil.helion.ui.settings.StepsGoal
+import java.time.ZoneId
 
 /** Manual dependency wiring. The graph is small enough that a framework would cost more than it saves. */
 class AppContainer(context: Context) {
@@ -49,4 +51,19 @@ class AppContainer(context: Context) {
 
     /** Debounces Accueil's open-sync across remounts of the screen; see [OpenSyncGate]'s kdoc. */
     val openSyncGate = OpenSyncGate()
+
+    /**
+     * Wired onto [ingestor] rather than passed to its constructor -- see [Ingestor.detector]'s
+     * own kdoc for why. `noteFor` renders `activity_candidate_note`, the one place a
+     * detection pass' evidence (the heart-rate range it saw, against the owner's own resting
+     * rate) becomes the French sentence stored on [ch.kevinjordil.helion.store.Activity.notes].
+     */
+    init {
+        ingestor.detector = ActivityDetector(
+            db = database,
+            zone = ZoneId.systemDefault(),
+            now = { System.currentTimeMillis() / 1000 },
+            noteFor = { min, max, resting -> context.getString(R.string.activity_candidate_note, min, max, resting) },
+        )
+    }
 }

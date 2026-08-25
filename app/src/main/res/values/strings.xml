@@ -45,6 +45,7 @@
     <string name="activity_action_delete">Supprimer</string>
     <string name="activity_delete_confirm_title">Supprimer cette activité ?</string>
     <string name="activity_delete_confirm_body">Cette action est définitive.</string>
+    <string name="activity_candidate_note">Fréquence cardiaque %1$d–%2$d bpm (repos habituel ≈ %3$d bpm).</string>
 
     <string name="day_timeline_previous_day">Jour précédent</string>
     <string name="day_timeline_next_day">Jour suivant</string>

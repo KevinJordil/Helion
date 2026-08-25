@@ -596,6 +596,13 @@ private class TrueTypeFont(
  * with no `maxLines`/ellipsis, so it wraps instead of clipping regardless of length -- the
  * same reasoning [TileTextWidthTest]'s own kdoc gives for not measuring free-form prose
  * against a hard budget.
+ *
+ * `activity_candidate_note` -- the auto-generated "Fréquence cardiaque X-Y bpm (repos
+ * habituel Z bpm)" evidence line [ch.kevinjordil.helion.activity.ActivityDetector] writes
+ * onto a detected candidate's [ch.kevinjordil.helion.store.Activity.notes] -- is excluded
+ * for the same reason: `ActivityDetailScreen` renders `notes` in a plain multi-line
+ * [androidx.compose.material3.OutlinedTextField] with no `maxLines`, so it wraps rather
+ * than clips regardless of how wide any bpm figure gets.
  */
 class ActivityLabelWidthTest {
 

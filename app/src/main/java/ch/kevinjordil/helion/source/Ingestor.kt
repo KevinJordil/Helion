@@ -1,6 +1,8 @@
 package ch.kevinjordil.helion.source
 
+import ch.kevinjordil.helion.activity.ActivityDetector
 import ch.kevinjordil.helion.store.HelionDatabase
+import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.SyncState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -79,6 +81,16 @@ class Ingestor(
 ) {
 
     private val passLock = Mutex()
+
+    /**
+     * Set by [ch.kevinjordil.helion.AppContainer] after construction, not taken as a
+     * constructor parameter: a constructor slot here would sit before the trailing-lambda
+     * [now] parameter every existing caller (including every test) already relies on,
+     * forcing every one of them into named-argument syntax for no benefit. Left null, a
+     * pass simply stores whatever it read without attempting detection -- the safe default
+     * for, say, a test that has no interest in activity detection at all.
+     */
+    var detector: ActivityDetector? = null
 
     suspend fun ingest(databasePath: String?, force: Boolean = false, skipSyncRequest: Boolean = false): IngestResult {
         if (databasePath == null) return IngestResult.NoSource
@@ -173,6 +185,7 @@ class Ingestor(
                 lastTriggerAttempt = lastAttempt,
             ),
         )
+        runDetectionOver(samples.minutes)
         IngestResult.Ingested(samples.minutes.size, samples.points.size, triggered, samples.stageSegments.size)
     } catch (e: CancellationException) {
         // A cooperative stop (e.g. WorkManager tearing down the worker mid-pass) is not
@@ -181,6 +194,28 @@ class Ingestor(
         throw e
     } catch (e: Exception) {
         fail(e.message ?: e::class.simpleName.orEmpty(), streak, lastAttempt)
+    }
+
+    /**
+     * Runs [detector] (when wired) over the span this pass just stored new minute samples
+     * for, plus a day of lookback so a slot occurrence or a free session that started
+     * before this pass' own earliest new minute is still resolved against its full span
+     * rather than a truncated one. Detection failing must never turn a genuinely successful
+     * ingest pass into a reported failure -- new heart-rate and movement data is real and
+     * worth keeping either way -- so any exception from it is swallowed here, not
+     * propagated.
+     */
+    private suspend fun runDetectionOver(newMinutes: List<MinuteSample>) {
+        val detector = detector ?: return
+        val earliest = newMinutes.minOfOrNull { it.timestamp } ?: return
+        val latest = newMinutes.maxOf { it.timestamp } + 60
+        try {
+            detector.detect((earliest - DETECTION_LOOKBACK_BUFFER_SECONDS).coerceAtLeast(0), latest)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best-effort: a detection bug must not take down ingestion itself.
+        }
     }
 
     private suspend fun fail(reason: String, streak: Int, lastAttempt: Long): IngestResult.Failed {
@@ -220,5 +255,15 @@ class Ingestor(
          * every half hour in between. A manual "Sync now" tap always attempts regardless.
          */
         const val TRIGGER_RETRY_INTERVAL_SECONDS = 24 * 60 * 60L
+
+        /**
+         * How far before the earliest newly stored minute [runDetectionOver] widens the
+         * detection window, so a slot occurrence or a free session that started the day
+         * before this pass' own new data still resolves against its complete span rather
+         * than one truncated at this pass' own boundary. Re-examining a day already fully
+         * decided costs nothing extra: [ActivityDao.overlapping] makes every re-check a
+         * cheap no-op wherever the archive already has an answer.
+         */
+        const val DETECTION_LOOKBACK_BUFFER_SECONDS = 24 * 60 * 60L
     }
 }
