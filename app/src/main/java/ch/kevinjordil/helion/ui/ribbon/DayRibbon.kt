@@ -82,3 +82,10 @@ fun Modifier.tileRibbonSize(): Modifier = this.fillMaxWidth().height(28.dp)
 
 /** Preconfigured height for the full-bleed ribbon behind the hero. */
 fun Modifier.heroRibbonSize(): Modifier = this.fillMaxWidth().height(120.dp)
+
+/**
+ * Preconfigured height for Sommeil's phase ribbon -- taller than [tileRibbonSize] because,
+ * unlike a tile's decorative strand, this one now carries real meaning (which phase, not
+ * just "data present"), and needs enough height for that colour to actually read.
+ */
+fun Modifier.phaseRibbonSize(): Modifier = this.fillMaxWidth().height(40.dp)

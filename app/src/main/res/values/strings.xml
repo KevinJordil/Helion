@@ -121,10 +121,13 @@
     <string name="sleep_no_nights">Aucune nuit enregistrée pour l\'instant.</string>
     <string name="sleep_history_in_progress_tag">en cours</string>
     <string name="sleep_history_incomplete_tag">incomplet</string>
+    <string name="sleep_previous_night">Nuit précédente</string>
+    <string name="sleep_next_night">Nuit suivante</string>
 
     <string name="sleep_phase_title">Stades (estimé)</string>
     <string name="sleep_phase_deep">Profond</string>
     <string name="sleep_phase_rem">Paradoxal</string>
     <string name="sleep_phase_light">Léger</string>
+    <string name="sleep_phase_awake">Éveil</string>
     <string name="sleep_phase_not_estimable">Stades non estimables : fréquence cardiaque insuffisante cette nuit-là.</string>
 </resources>

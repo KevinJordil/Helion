@@ -12,6 +12,22 @@ import androidx.compose.ui.graphics.Color
  *   an empty state. It is never decorative; if amber is on screen, something is off.
  *
  * No third accent. Everything else in the UI is drawn from these neutrals.
+ *
+ * [phaseAwake], [phaseLight], [phaseRem] and [phaseDeep] are a scoped exception, used only
+ * by Sommeil's phase ribbon and legend: distinguishing four sleep phases legibly needs more
+ * than one hue, which [accentViolet]/[accentAmber] alone cannot give without either
+ * borrowing "live data" violet for something it does not mean or pressing "needs your
+ * attention" amber into decorative service (see [accentAmber]'s kdoc -- it must not become
+ * that). [phaseLight] and [phaseDeep] are two points on one violet ramp -- lighter/quieter
+ * for light sleep, more saturated/prominent for deep -- so the depth-of-sleep phases still
+ * read as one family related to (but visibly distinct from) [accentViolet]. [phaseRem] is a
+ * separate, harmonious cool hue (teal) rather than a third violet step, since REM is not
+ * "deeper" or "lighter" than the others, just different. [phaseAwake] is deliberately the
+ * quietest of the four, close to [divider], because being awake briefly is the least
+ * informative state on the chart. All four are chosen with distinct lightness, not just
+ * distinct hue, so the phase legend still reads correctly for colour-vision deficiency or
+ * in a grayscale screenshot -- the accompanying label is still what actually carries the
+ * name, per [ch.kevinjordil.helion.ui.sleep.SleepScreen]'s legend.
  */
 data class HelionColors(
     val ground: Color,
@@ -25,6 +41,10 @@ data class HelionColors(
     val onAccentViolet: Color,
     val accentAmber: Color,
     val onAccentAmber: Color,
+    val phaseAwake: Color,
+    val phaseLight: Color,
+    val phaseRem: Color,
+    val phaseDeep: Color,
 )
 
 /**
@@ -43,6 +63,10 @@ val HelionDarkColors = HelionColors(
     onAccentViolet = Color(0xFF10141C),
     accentAmber = Color(0xFFE8A23D),
     onAccentAmber = Color(0xFF10141C),
+    phaseAwake = Color(0xFF3D4454),
+    phaseLight = Color(0xFF6A5B99),
+    phaseRem = Color(0xFF2FBFAE),
+    phaseDeep = Color(0xFFB49CFF),
 )
 
 /**
@@ -61,4 +85,8 @@ val HelionLightColors = HelionColors(
     onAccentViolet = Color(0xFFFFFFFF),
     accentAmber = Color(0xFFB0650C),
     onAccentAmber = Color(0xFFFFFFFF),
+    phaseAwake = Color(0xFFC7CBD8),
+    phaseLight = Color(0xFFAF9BE0),
+    phaseRem = Color(0xFF1C9C89),
+    phaseDeep = Color(0xFF5A2FC9),
 )

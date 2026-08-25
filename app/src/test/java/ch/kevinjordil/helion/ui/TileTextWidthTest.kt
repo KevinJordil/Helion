@@ -66,7 +66,7 @@ class TileTextWidthTest {
 
     // "Stades (estimé)" is a full-width section title on Sommeil, not a tile label, so it
     // is not measured against the tile budget here -- see [sleepPhaseLabels]'s callers.
-    private fun sleepPhaseLabels() = listOf("Profond", "Paradoxal", "Léger")
+    private fun sleepPhaseLabels() = listOf("Profond", "Paradoxal", "Léger", "Éveil")
 
     @Test
     fun `every compact tile caption fits the tile's content width at a 1_3x font scale`() {
