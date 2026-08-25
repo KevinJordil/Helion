@@ -34,6 +34,10 @@ val MetricSource.aggregation: Aggregation
  *
  * [noteRes], when set, is a one-line explanation shown under the chart, so a metric whose
  * numbers have been aggregated or filtered says so on its own screen.
+ *
+ * [descriptionRes], when set, is the owner-approved one- or two-sentence explanation of
+ * what the metric actually measures, shown on its detail screen. Wording is fixed and
+ * must not be paraphrased -- it was reviewed and approved as written.
  */
 data class Metric(
     val id: String,
@@ -43,6 +47,7 @@ data class Metric(
     val decimals: Int = 0,
     val plausibleRange: ClosedFloatingPointRange<Double>? = null,
     val noteRes: Int? = null,
+    val descriptionRes: Int? = null,
 )
 
 object MetricCatalog {
@@ -79,6 +84,7 @@ object MetricCatalog {
             source = MetricSource.HEART_RATE,
             plausibleRange = MIN_PLAUSIBLE_HEART_RATE..MAX_PLAUSIBLE_HEART_RATE,
             noteRes = R.string.heart_rate_unmeasured_note,
+            descriptionRes = R.string.metric_description_heart_rate,
         ),
         Metric(
             id = "steps",
@@ -86,11 +92,24 @@ object MetricCatalog {
             unitRes = R.string.unit_steps,
             source = MetricSource.STEPS,
             noteRes = R.string.steps_daily_total_note,
+            descriptionRes = R.string.metric_description_steps,
         ),
-        Metric("stress", R.string.metric_stress, R.string.unit_none, MetricSource.POINT_SERIES),
-        Metric("spo2", R.string.metric_spo2, R.string.unit_percent, MetricSource.POINT_SERIES),
-        Metric("pai", R.string.metric_pai, R.string.unit_none, MetricSource.POINT_SERIES, decimals = 1),
-        Metric("hrv", R.string.metric_hrv, R.string.unit_ms, MetricSource.POINT_SERIES, decimals = 1),
+        Metric(
+            "stress", R.string.metric_stress, R.string.unit_none, MetricSource.POINT_SERIES,
+            descriptionRes = R.string.metric_description_stress,
+        ),
+        Metric(
+            "spo2", R.string.metric_spo2, R.string.unit_percent, MetricSource.POINT_SERIES,
+            descriptionRes = R.string.metric_description_spo2,
+        ),
+        Metric(
+            "pai", R.string.metric_pai, R.string.unit_none, MetricSource.POINT_SERIES, decimals = 1,
+            descriptionRes = R.string.metric_description_pai,
+        ),
+        Metric(
+            "hrv", R.string.metric_hrv, R.string.unit_ms, MetricSource.POINT_SERIES, decimals = 1,
+            descriptionRes = R.string.metric_description_hrv,
+        ),
         Metric(
             id = "temperature",
             labelRes = R.string.metric_temperature,
@@ -99,6 +118,14 @@ object MetricCatalog {
             decimals = 1,
             plausibleRange = MIN_PLAUSIBLE_SKIN_TEMPERATURE..MAX_PLAUSIBLE_SKIN_TEMPERATURE,
             noteRes = R.string.temperature_off_body_note,
+            descriptionRes = R.string.metric_description_temperature,
+        ),
+        Metric(
+            id = "respiratory_rate",
+            labelRes = R.string.metric_respiratory_rate,
+            unitRes = R.string.unit_breaths_per_minute,
+            source = MetricSource.POINT_SERIES,
+            descriptionRes = R.string.metric_description_respiratory_rate,
         ),
     )
 

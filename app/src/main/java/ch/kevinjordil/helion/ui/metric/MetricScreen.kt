@@ -129,6 +129,16 @@ fun MetricScreen(
             color = colors.textSecondary,
         )
 
+        // No maxLines/ellipsis here either: the owner-approved wording is shown in full,
+        // wrapping across as many lines as it needs. See NoTextClippingTest.
+        metric.descriptionRes?.let { descriptionRes ->
+            Text(
+                stringResource(descriptionRes),
+                style = HelionType.bodySmall,
+                color = colors.textSecondary,
+            )
+        }
+
         val state = uiState
         val displayed = scrubbed ?: state?.latest
         if (displayed != null) {

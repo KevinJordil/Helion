@@ -161,6 +161,16 @@ open class ExportReader {
             Series("pai", ExportSchema.TABLE_PAI, ExportSchema.COL_PAI_TODAY, TimeUnit.MILLISECONDS),
             Series("hrv", ExportSchema.TABLE_HRV, ExportSchema.COL_HRV_VALUE, TimeUnit.MILLISECONDS),
             Series("temperature", ExportSchema.TABLE_TEMPERATURE, ExportSchema.COL_TEMPERATURE, TimeUnit.MILLISECONDS),
+            // Verified against a real export: TIMESTAMP on this table is Unix
+            // milliseconds, like every point table above and unlike the minute table --
+            // e.g. 1786928821000 ms, the same instant the minute table around it stores
+            // as 1786928821 s.
+            Series(
+                "respiratory_rate",
+                ExportSchema.TABLE_RESPIRATORY_RATE,
+                ExportSchema.COL_RESPIRATORY_RATE,
+                TimeUnit.MILLISECONDS,
+            ),
         )
 
         /**

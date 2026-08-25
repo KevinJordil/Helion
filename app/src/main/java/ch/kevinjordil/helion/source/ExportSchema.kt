@@ -14,6 +14,7 @@ object ExportSchema {
     const val TABLE_PAI = "HUAMI_PAI_SAMPLE"
     const val TABLE_HRV = "GENERIC_HRV_VALUE_SAMPLE"
     const val TABLE_TEMPERATURE = "GENERIC_TEMPERATURE_SAMPLE"
+    const val TABLE_RESPIRATORY_RATE = "HUAMI_SLEEP_RESPIRATORY_RATE_SAMPLE"
 
     const val COL_TIMESTAMP = "TIMESTAMP"
     const val COL_STEPS = "STEPS"
@@ -27,6 +28,7 @@ object ExportSchema {
     const val COL_PAI_TODAY = "PAI_TODAY"
     const val COL_HRV_VALUE = "VALUE"
     const val COL_TEMPERATURE = "TEMPERATURE"
+    const val COL_RESPIRATORY_RATE = "RATE"
 
     val MINUTE_COLUMNS = listOf(
         COL_TIMESTAMP,
