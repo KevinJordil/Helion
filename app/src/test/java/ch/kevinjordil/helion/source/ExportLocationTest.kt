@@ -64,6 +64,52 @@ class ExportLocationTest {
     }
 
     @Test
+    fun `an unchanged export is not re-copied`() {
+        val source = File(context.cacheDir, "source-export.db")
+        source.writeBytes(byteArrayOf(1, 2, 3, 4))
+        location.uri = Uri.fromFile(source).toString()
+        val path = location.copyToCache()!!
+
+        // Prove the second call is a no-op by planting different bytes in the cached copy:
+        // if copyToCache() actually re-copies, this gets overwritten back to the source's
+        // content; if it correctly recognises the source as unchanged and skips, this
+        // survives untouched.
+        File(path).writeBytes(byteArrayOf(9, 9))
+
+        val second = location.copyToCache()
+
+        assertEquals(path, second)
+        assertEquals(listOf<Byte>(9, 9), File(path).readBytes().toList())
+    }
+
+    @Test
+    fun `a changed export is re-copied`() {
+        val source = File(context.cacheDir, "source-export.db")
+        source.writeBytes(byteArrayOf(1, 2, 3, 4))
+        location.uri = Uri.fromFile(source).toString()
+        location.copyToCache()
+
+        source.writeBytes(byteArrayOf(1, 2, 3, 4, 5))
+
+        val path = location.copyToCache()
+
+        assertEquals(listOf<Byte>(1, 2, 3, 4, 5), File(path!!).readBytes().toList())
+    }
+
+    @Test
+    fun `a missing cached copy is recreated even if the source stamp is unchanged`() {
+        val source = File(context.cacheDir, "source-export.db")
+        source.writeBytes(byteArrayOf(1, 2, 3, 4))
+        location.uri = Uri.fromFile(source).toString()
+        val path = File(location.copyToCache()!!)
+        path.delete()
+
+        val second = location.copyToCache()
+
+        assertEquals(listOf<Byte>(1, 2, 3, 4), File(second!!).readBytes().toList())
+    }
+
+    @Test
     fun `copying a configured but missing location throws ExportUnavailableException, not null`() {
         val missing = File(context.cacheDir, "does-not-exist.db")
         location.uri = Uri.fromFile(missing).toString()

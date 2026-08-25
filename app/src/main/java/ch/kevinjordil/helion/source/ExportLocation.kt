@@ -2,6 +2,8 @@ package ch.kevinjordil.helion.source
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -37,8 +39,27 @@ class ExportLocation(private val context: Context) {
         get() = prefs.getString(KEY_URI, null)
         set(value) = prefs.edit().putString(KEY_URI, value).apply()
 
+    /** Size and modification time of the source file as of the last successful copy. */
+    private var knownSize: Long
+        get() = prefs.getLong(KEY_SIZE, NO_STAMP)
+        set(value) = prefs.edit().putLong(KEY_SIZE, value).apply()
+
+    private var knownModified: Long
+        get() = prefs.getLong(KEY_MODIFIED, NO_STAMP)
+        set(value) = prefs.edit().putLong(KEY_MODIFIED, value).apply()
+
     /**
      * Returns the path of a readable copy, or null if no location has been configured yet.
+     *
+     * With no way to trigger a Gadgetbridge refresh, most passes read a source file that has
+     * not changed since the last one -- as often as every 30 minutes, forever, on a phone
+     * whose Gadgetbridge cannot be triggered. The file only grows (hundreds of KB per day),
+     * so re-copying it unconditionally every pass is real, needless I/O. When the source's
+     * size and modification time both match what was seen at the last successful copy, and
+     * the previous cached copy is still there, this returns that cached path without
+     * touching either file. Any mismatch -- size, modification time, or a missing cache --
+     * copies again; when the source's stamp cannot be determined at all, it also copies
+     * again rather than risk skipping a real change.
      *
      * The copy is staged in a temporary file and moved into place with a single rename, so
      * the cached export is only ever a complete file. Writing straight into it would leave a
@@ -55,10 +76,21 @@ class ExportLocation(private val context: Context) {
      */
     fun copyToCache(): String? {
         val source = uri ?: return null
+        val sourceUri = Uri.parse(source)
         val destination = File(context.cacheDir, "gadgetbridge-export.db")
+
+        val stamp = sourceStamp(sourceUri)
+        if (stamp != null &&
+            stamp.size == knownSize &&
+            stamp.lastModified == knownModified &&
+            destination.exists()
+        ) {
+            return destination.absolutePath
+        }
+
         val staging = File.createTempFile("gadgetbridge-export", ".part", context.cacheDir)
         try {
-            val opened = context.contentResolver.openInputStream(Uri.parse(source))
+            val opened = context.contentResolver.openInputStream(sourceUri)
                 ?: throw ExportUnavailableException("No stream for export location: $source")
             opened.use { input ->
                 staging.outputStream().use { output -> input.copyTo(output) }
@@ -79,10 +111,46 @@ class ExportLocation(private val context: Context) {
             // file so the cache does not accumulate one per failed pass.
             staging.delete()
         }
+        if (stamp != null) {
+            knownSize = stamp.size
+            knownModified = stamp.lastModified
+        }
         return destination.absolutePath
     }
 
+    /**
+     * Size and modification time of [uri], or null when either could not be determined --
+     * e.g. the document does not exist, or its provider does not report one of the two
+     * columns. Never throws: a stat failure here just means "copy again to be safe", the
+     * actual read failure (if any) is left to surface from the real copy attempt below with
+     * its established, tested error messages.
+     */
+    private fun sourceStamp(uri: Uri): SourceStamp? = try {
+        if (uri.scheme == "file") {
+            val file = uri.path?.let(::File)
+            if (file != null && file.exists()) SourceStamp(file.length(), file.lastModified()) else null
+        } else {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return null
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                val modifiedIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+                if (sizeIndex < 0 || modifiedIndex < 0 || cursor.isNull(sizeIndex) || cursor.isNull(modifiedIndex)) {
+                    null
+                } else {
+                    SourceStamp(cursor.getLong(sizeIndex), cursor.getLong(modifiedIndex))
+                }
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    private data class SourceStamp(val size: Long, val lastModified: Long)
+
     private companion object {
         const val KEY_URI = "export_uri"
+        const val KEY_SIZE = "export_size"
+        const val KEY_MODIFIED = "export_modified"
+        const val NO_STAMP = -1L
     }
 }
