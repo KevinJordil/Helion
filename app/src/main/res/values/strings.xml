@@ -105,7 +105,7 @@
     <string name="metric_description_spo2">Pourcentage d\'hémoglobine transportant de l\'oxygène. Au repos, une valeur au-dessus de 95 % est considérée comme normale. Mesure ponctuelle, sensible au mouvement et au serrage du bracelet.</string>
     <string name="metric_description_temperature">Température de la peau au poignet, et non température corporelle. Elle suit l\'ambiance autant que toi : c\'est son écart à ton habitude qui informe, pas sa valeur absolue.</string>
     <string name="metric_description_respiratory_rate">Respirations par minute pendant le sommeil. Remarquablement stable chez une même personne ; un écart durable accompagne souvent une infection ou une fatigue.</string>
-    <string name="metric_description_sleep_duration">Temps passé endormi entre l\'endormissement et le réveil, réveils déduits. Ce bracelet ne distingue pas les stades de sommeil : Helion n\'affiche donc ni sommeil profond ni paradoxal plutôt que de les inventer.</string>
+    <string name="metric_description_sleep_duration">Temps passé endormi entre l\'endormissement et le réveil, réveils déduits. Ce bracelet ne fournit pas les stades de sommeil : ceux affichés ici sont estimés par Helion à partir de ta fréquence cardiaque et de tes mouvements. C\'est une approximation, pas une mesure.</string>
 
     <string name="sleep_fell_asleep">Endormissement</string>
     <string name="sleep_woke_at">Réveil</string>
@@ -121,4 +121,10 @@
     <string name="sleep_no_nights">Aucune nuit enregistrée pour l\'instant.</string>
     <string name="sleep_history_in_progress_tag">en cours</string>
     <string name="sleep_history_incomplete_tag">incomplet</string>
+
+    <string name="sleep_phase_title">Stades (estimé)</string>
+    <string name="sleep_phase_deep">Profond</string>
+    <string name="sleep_phase_rem">Paradoxal</string>
+    <string name="sleep_phase_light">Léger</string>
+    <string name="sleep_phase_not_estimable">Stades non estimables : fréquence cardiaque insuffisante cette nuit-là.</string>
 </resources>

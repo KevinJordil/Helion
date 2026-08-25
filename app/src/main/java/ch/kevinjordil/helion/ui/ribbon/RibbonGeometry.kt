@@ -63,3 +63,31 @@ fun buildRibbon(
         )
     }
 }
+
+/**
+ * Buckets a categorical per-minute track (e.g. an estimated sleep phase) the same way
+ * [buildRibbon] buckets a continuous one, but picks each occupied bucket's most common
+ * value instead of averaging -- there is no meaningful average of a phase. [items] is
+ * `timestamp to value`; ties fall to whichever value [Map.maxByOrNull] happens to see
+ * first, which is an acceptable coin-flip for a display-only bucket.
+ */
+fun <T> buildCategoryRibbon(
+    items: List<Pair<Long, T>>,
+    windowStart: Long,
+    windowEnd: Long,
+    bucketCount: Int = 48,
+): List<Pair<Float, T>> {
+    val span = windowEnd - windowStart
+    if (span <= 0 || bucketCount <= 0 || items.isEmpty()) return emptyList()
+
+    val bucketWidth = span.toDouble() / bucketCount
+    val byBucket = items
+        .filter { it.first in windowStart until windowEnd }
+        .groupBy { (((it.first - windowStart) / bucketWidth).toInt()).coerceIn(0, bucketCount - 1) }
+    if (byBucket.isEmpty()) return emptyList()
+
+    return byBucket.toSortedMap().map { (bucket, group) ->
+        val majority = group.map { it.second }.groupingBy { it }.eachCount().maxByOrNull { it.value }!!.key
+        ((bucket + 0.5) / bucketCount).toFloat() to majority
+    }
+}

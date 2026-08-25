@@ -28,9 +28,14 @@ import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceForSleepDuration
 import ch.kevinjordil.helion.ui.quality.referenceMessage
+import ch.kevinjordil.helion.ui.ribbon.ColorBar
 import ch.kevinjordil.helion.ui.ribbon.DayRibbon
+import ch.kevinjordil.helion.ui.ribbon.PhaseRibbon
+import ch.kevinjordil.helion.ui.ribbon.buildCategoryRibbon
 import ch.kevinjordil.helion.ui.ribbon.buildRibbon
 import ch.kevinjordil.helion.ui.ribbon.heroRibbonSize
+import ch.kevinjordil.helion.ui.ribbon.tileRibbonSize
+import ch.kevinjordil.helion.ui.theme.HelionColors
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -173,7 +178,69 @@ private fun LastNightCard(episode: SleepEpisode, baseline: Baseline?) {
                 episode.avgRespiratoryRate?.let { "%.0f %s".format(it, stringResource(R.string.unit_breaths_per_minute)) } ?: "—",
             )
         }
+
+        SleepPhaseSection(episode)
     }
+}
+
+/**
+ * Estimated phase breakdown and ribbon for [episode] -- see [estimateSleepPhases]. Both
+ * the section title and the not-estimable fallback spell out "estimé" in the string
+ * itself: this is the one place Helion shows something it did not measure, and that must
+ * never read as a plain fact next to the numbers it did measure.
+ */
+@Composable
+private fun SleepPhaseSection(episode: SleepEpisode) {
+    val colors = HelionThemeTokens.colors
+    val estimate = remember(episode) { estimateSleepPhases(episode.minutes) }
+
+    Column(modifier = Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.sleep_phase_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+        when (estimate) {
+            is SleepPhaseEstimate.NotEstimable ->
+                Text(stringResource(R.string.sleep_phase_not_estimable), style = HelionType.bodySmall, color = colors.textSecondary)
+
+            is SleepPhaseEstimate.Estimated -> {
+                val phaseColor = phaseColors(colors)
+                PhaseRibbon(
+                    bars = buildCategoryRibbon(
+                        items = estimate.minutes.map { it.timestamp to it.phase },
+                        windowStart = episode.fellAsleepAt,
+                        windowEnd = episode.wokeAt + 60,
+                        bucketCount = episodeBucketCount(episode),
+                    ).map { (x, phase) -> ColorBar(x, phaseColor.getValue(phase)) },
+                    modifier = Modifier.tileRibbonSize(),
+                )
+
+                val breakdown = sleepPhaseBreakdown(estimate.minutes)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0))
+                    StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0))
+                    StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Neutral colours for the phase ribbon -- deliberately not [HelionColors.accentViolet] or
+ * [HelionColors.accentAmber]: phases are not good or bad, and amber stays reserved for
+ * "this needs your attention" (see that class's kdoc). A step of the existing text/divider
+ * neutrals reads as depth without adding a third meaning to the palette.
+ */
+private fun phaseColors(colors: HelionColors) = mapOf(
+    SleepPhase.AWAKE to colors.divider,
+    SleepPhase.LIGHT to colors.textTertiary,
+    SleepPhase.REM to colors.textSecondary,
+    SleepPhase.DEEP to colors.textPrimary,
+)
+
+private fun phaseDurationText(minutesInPhase: Int): String {
+    val hours = minutesInPhase / 60
+    val minutes = minutesInPhase % 60
+    return if (hours > 0) "%d h %02d".format(hours, minutes) else "%d min".format(minutes)
 }
 
 @Composable

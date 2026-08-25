@@ -64,6 +64,10 @@ class TileTextWidthTest {
 
     private fun tileMetricLabels() = listOf("Pas", "Stress", "SpO2", "PAI", "VFC", "Température", "Respiration")
 
+    // "Stades (estimé)" is a full-width section title on Sommeil, not a tile label, so it
+    // is not measured against the tile budget here -- see [sleepPhaseLabels]'s callers.
+    private fun sleepPhaseLabels() = listOf("Profond", "Paradoxal", "Léger")
+
     @Test
     fun `every compact tile caption fits the tile's content width at a 1_3x font scale`() {
         compactCaptions().forEach { caption ->
@@ -75,6 +79,14 @@ class TileTextWidthTest {
     @Test
     fun `every tile metric label fits the tile's content width at a 1_3x font scale`() {
         tileMetricLabels().forEach { label ->
+            val width = widthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${tileContentWidthDp}dp", width <= tileContentWidthDp)
+        }
+    }
+
+    @Test
+    fun `every sleep phase label fits the tile's content width at a 1_3x font scale`() {
+        sleepPhaseLabels().forEach { label ->
             val width = widthDp(label)
             assertTrue("\"$label\" measured ${width}dp, budget is ${tileContentWidthDp}dp", width <= tileContentWidthDp)
         }

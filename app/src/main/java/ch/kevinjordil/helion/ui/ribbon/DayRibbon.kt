@@ -46,6 +46,37 @@ fun DayRibbon(
     }
 }
 
+/**
+ * One bar of a ribbon whose colour itself is the value, rather than [RibbonBar]'s height --
+ * for a categorical track (e.g. an estimated sleep phase, see
+ * [ch.kevinjordil.helion.ui.sleep.SleepPhase]) where there is no "how much", only "which".
+ */
+data class ColorBar(val xFraction: Float, val color: Color)
+
+/**
+ * Same drawing as [DayRibbon], full height throughout since [ColorBar] carries no
+ * magnitude -- see its kdoc. Kept in this file rather than a separate chart so a
+ * categorical track still visibly shares the ribbon's spine.
+ */
+@Composable
+fun PhaseRibbon(bars: List<ColorBar>, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        if (bars.isEmpty()) return@Canvas
+
+        val strokeWidth = (size.width / 96f).coerceIn(1.5f, 4f)
+        bars.forEach { bar ->
+            val x = bar.xFraction * size.width
+            drawLine(
+                color = bar.color,
+                start = Offset(x, size.height),
+                end = Offset(x, 0f),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+        }
+    }
+}
+
 /** Preconfigured height for the small strand shown on a tile. */
 fun Modifier.tileRibbonSize(): Modifier = this.fillMaxWidth().height(28.dp)
 
