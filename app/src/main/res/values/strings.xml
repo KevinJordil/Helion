@@ -1,8 +1,7 @@
 <resources>
     <string name="app_name">Helion</string>
 
-    <string name="tab_today">Aujourd\'hui</string>
-    <string name="tab_metrics">Données</string>
+    <string name="tab_home">Accueil</string>
     <string name="tab_settings">Réglages</string>
 
     <string name="metric_heart_rate">Fréquence cardiaque</string>
@@ -38,6 +37,20 @@
     <string name="never_synced">Aucune donnée reçue pour l\'instant</string>
     <string name="last_value_minutes_ago">Dernière valeur reçue il y a %1$d min</string>
     <string name="last_sync_failed">La dernière synchronisation a échoué : %1$s</string>
+
+    <string name="accueil_no_source_title">Aucun fichier connecté</string>
+    <string name="accueil_no_source_body">Indiquez à Helion où lire l\'export de Gadgetbridge pour afficher vos données.</string>
+    <string name="accueil_no_source_action">Aller aux réglages</string>
+
+    <string name="accueil_empty_title">Rien archivé pour l\'instant</string>
+    <string name="accueil_empty_body">Le fichier est connecté mais aucune donnée n\'a encore été lue.</string>
+    <string name="accueil_empty_action">Lancer une synchronisation</string>
+
+    <string name="accueil_hero_time">Reçue à %1$s</string>
+    <string name="accueil_hero_no_reading">Aucune fréquence cardiaque reçue</string>
+
+    <string name="refresh_phase_syncing">Synchronisation avec la montre…</string>
+    <string name="refresh_phase_reading">Lecture des données…</string>
 
     <string name="export_location_label">Fichier exporté</string>
     <string name="export_location_none">Aucun fichier configuré</string>
