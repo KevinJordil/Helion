@@ -58,6 +58,15 @@
     <string name="quality_usual">Comme d\'habitude</string>
     <string name="quality_above_usual">Plus haut que d\'habitude</string>
 
+    <!-- Compact forms of the four strings above, for the tile grid: a tile is the
+         narrowest, most crowded container in the app, so the full sentence used on the
+         detail screen is replaced here with a short phrase deliberately chosen to fit at
+         320dp even with the system font scale turned up. -->
+    <string name="quality_compact_insufficient_history">Encore tôt</string>
+    <string name="quality_compact_below_usual">Plus bas</string>
+    <string name="quality_compact_usual">Habituel</string>
+    <string name="quality_compact_above_usual">Plus haut</string>
+
     <string name="reference_not_applicable">Pas de repère fiable pour cette donnée</string>
     <string name="reference_steps_reached">Objectif atteint</string>
     <string name="reference_steps_below_goal">Sous l\'objectif</string>

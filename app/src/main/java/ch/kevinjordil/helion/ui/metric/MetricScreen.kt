@@ -31,7 +31,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -121,12 +120,13 @@ fun MetricScreen(
             modifier = Modifier.clickable(onClick = onBack),
         )
 
+        // No maxLines/ellipsis: this is a section header alone on its own line, so if it
+        // ever does not fit -- a long label at a large system font scale -- it wraps to a
+        // second line instead of clipping. See NoTextClippingTest.
         Text(
             stringResource(metric.labelRes).uppercase(),
             style = HelionType.label,
             color = colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
 
         val state = uiState

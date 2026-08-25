@@ -10,12 +10,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.ui.metric.Metric
 import ch.kevinjordil.helion.ui.metric.formatValue
 import ch.kevinjordil.helion.ui.quality.PersonalBaseline
-import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
+import ch.kevinjordil.helion.ui.quality.personalBaselineCompactMessage
 import ch.kevinjordil.helion.ui.ribbon.DayRibbon
 import ch.kevinjordil.helion.ui.ribbon.RibbonBar
 import ch.kevinjordil.helion.ui.ribbon.tileRibbonSize
@@ -39,15 +39,16 @@ fun MetricTile(
     val colors = HelionThemeTokens.colors
     Column(
         modifier = modifier
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(vertical = 12.dp, horizontal = 4.dp),
     ) {
+        // No maxLines/ellipsis: labels are kept short in strings.xml specifically so they
+        // fit at 320dp, but if a larger system font scale ever still doesn't have room,
+        // this wraps to a second line rather than clipping -- see NoTextClippingTest.
         Text(
             stringResource(metric.labelRes).uppercase(),
             style = HelionType.label,
             color = colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -69,13 +70,14 @@ fun MetricTile(
             modifier = Modifier.tileRibbonSize().padding(top = 8.dp),
         )
         personalBaseline?.let { baseline ->
-            val (messageRes, isAmber) = personalBaselineMessage(baseline)
+            // The compact form (see strings.xml), not the full sentence used on the
+            // detail screen: a tile is the narrowest container in the app, and the
+            // caption was the string that first got reported clipped there.
+            val (messageRes, isAmber) = personalBaselineCompactMessage(baseline)
             Text(
                 stringResource(messageRes),
                 style = HelionType.labelSmall,
                 color = if (isAmber) colors.accentAmber else colors.textTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 4.dp),
             )
         }

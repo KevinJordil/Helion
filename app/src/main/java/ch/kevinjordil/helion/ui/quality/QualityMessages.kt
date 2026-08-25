@@ -16,6 +16,21 @@ fun personalBaselineMessage(indicator: PersonalBaseline): Pair<Int, Boolean> = w
     }
 }
 
+/**
+ * Same mapping as [personalBaselineMessage], but to the short compact_* strings meant for
+ * Accueil's tile grid rather than the full sentences used on the detail screen -- see
+ * those strings' comment in strings.xml for why a tile needs its own, shorter wording
+ * rather than relying on wrapping alone.
+ */
+fun personalBaselineCompactMessage(indicator: PersonalBaseline): Pair<Int, Boolean> = when (indicator) {
+    PersonalBaseline.InsufficientHistory -> R.string.quality_compact_insufficient_history to false
+    is PersonalBaseline.Placed -> when (indicator.position) {
+        Position.BELOW -> R.string.quality_compact_below_usual to indicator.isNotable
+        Position.USUAL -> R.string.quality_compact_usual to indicator.isNotable
+        Position.ABOVE -> R.string.quality_compact_above_usual to indicator.isNotable
+    }
+}
+
 /** [ReferenceIndicator] resolved to a string resource and whether it earns the amber accent, for the given metric. */
 fun referenceMessage(metricId: String, indicator: ReferenceIndicator): Pair<Int, Boolean> = when (indicator) {
     ReferenceIndicator.NotApplicable -> R.string.reference_not_applicable to false
