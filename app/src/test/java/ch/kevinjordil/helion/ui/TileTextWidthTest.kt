@@ -1,5 +1,7 @@
 package ch.kevinjordil.helion.ui
 
+import ch.kevinjordil.helion.ui.metric.MetricCatalog
+import ch.kevinjordil.helion.ui.metric.formatValue
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -184,6 +186,173 @@ class HypnogramLaneLabelWidthTest {
         listOf("Éveil", "Paradoxal", "Léger", "Profond").forEach { label ->
             val width = widthDp(label)
             assertTrue("\"$label\" measured ${width}dp, column is ${laneLabelWidthDp}dp", width <= laneLabelWidthDp)
+        }
+    }
+}
+
+/**
+ * Every metric's widest plausible raw value, for [MetricHeaderWidthTest] and
+ * [MetricStatsWidthTest]. Not a typical value -- the point of both tests, per the reports
+ * that prompted them, is to catch the case that actually overflows:
+ * - `heart_rate`, `temperature`: [MetricCatalog]'s own `plausibleRange` upper bound.
+ * - `steps`: a five-digit daily total (`noteRes` calls it a daily sum; a very active day
+ *   is comfortably five digits).
+ * - `stress`: its description states the scale runs 0 to 100.
+ * - `spo2`: a percentage cannot exceed 100.
+ * - `pai`, `hrv`: neither has a documented ceiling (PAI is a rolling weekly index the
+ *   description only gives a floor for; HRV/RMSSD has no upper bound in the store), so a
+ *   generously large three-digit-plus-decimal value is used rather than guessing a typical
+ *   one.
+ * - `respiratory_rate`: generously above any real breathing rate, still just two digits --
+ *   this is one of the short-number metrics the report was about.
+ */
+private fun widestMetricValues(): Map<String, Double> = mapOf(
+    "heart_rate" to 224.0,
+    "steps" to 99_999.0,
+    "stress" to 100.0,
+    "spo2" to 100.0,
+    "pai" to 999.9,
+    "hrv" to 999.9,
+    "temperature" to 42.0,
+    "respiratory_rate" to 99.0,
+)
+
+/** The unit text each metric renders next to its value, straight from `strings.xml`. */
+private fun unitFor(metricId: String): String = when (metricId) {
+    "heart_rate" -> "bpm"
+    "steps" -> "pas"
+    "stress", "pai" -> ""
+    "spo2" -> "%"
+    "hrv" -> "ms"
+    "temperature" -> "°C"
+    "respiratory_rate" -> "resp/min"
+    else -> error("unhandled metric id $metricId -- add its unit above")
+}
+
+/**
+ * The gap that let "15 resp/min" wrap through four reports: [TileTextWidthTest] and its
+ * siblings only measure strings pulled straight from `strings.xml`, never text composed at
+ * runtime from a formatted value plus a unit. MetricScreen's own header value is exactly
+ * that composition (see `DETAIL_VALUE_STYLE`'s Row in `MetricScreen.kt`): a big value in
+ * `DETAIL_VALUE_STYLE` (56sp, `ibmplexmono_semibold`) next to its unit in the much smaller
+ * `label` style (12sp, `ibmplexmono_medium`), 8dp apart. This generates that composed text
+ * for every metric in [MetricCatalog] at its widest plausible value (see
+ * [widestMetricValues]) and measures both pieces for real, the same glyph-table approach as
+ * [TileTextWidthTest].
+ *
+ * Budget: the app's narrowest supported screen (320dp) minus MetricScreen's own horizontal
+ * padding (20dp each side, see `MetricScreen`'s root `Column`): `320 - 2*20 = 280`dp.
+ */
+class MetricHeaderWidthTest {
+
+    private val screenContentWidthDp = 280f
+    private val fontScale = 1.3f
+    private val valueFontSizeSp = 56f
+    private val valueLetterSpacingSp = -1f
+    private val unitFontSizeSp = 12f
+    private val unitLetterSpacingSp = 1.5f
+    private val spacingDp = 8f
+
+    private val valueFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val unitFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String, font: TrueTypeFont, fontSizeSp: Float, letterSpacingSp: Float): Float {
+        val emPerChar = text.map { font.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * fontSizeSp
+        val letterSpacingTotalSp = letterSpacingSp * text.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    @Test
+    fun `every metric's widest header value and unit fit one line at the narrowest supported width`() {
+        MetricCatalog.all.forEach { metric ->
+            val widest = widestMetricValues().getValue(metric.id)
+            val value = metric.formatValue(widest)
+            val unit = unitFor(metric.id)
+
+            val valueWidth = widthDp(value, valueFont, valueFontSizeSp, valueLetterSpacingSp)
+            val unitWidth = if (unit.isEmpty()) 0f else widthDp(unit, unitFont, unitFontSizeSp, unitLetterSpacingSp)
+            val spacing = if (unit.isEmpty()) 0f else spacingDp * fontScale
+            val total = valueWidth + spacing + unitWidth
+
+            assertTrue(
+                "\"$value $unit\" for ${metric.id} measured ${total}dp, budget is ${screenContentWidthDp}dp",
+                total <= screenContentWidthDp,
+            )
+        }
+    }
+}
+
+/**
+ * Same composed-string gap as [MetricHeaderWidthTest], for the min/max/average row
+ * (`StatsRow`/`StatItem` in `MetricScreen.kt`). Each `StatItem` is an equal-weight column of
+ * the row (three columns, 8dp apart) with the value (`valueMedium`, 22sp,
+ * `ibmplexmono_semibold`) and its unit (`labelSmall`, 11sp, `ibmplexmono_medium`) stacked on
+ * separate lines rather than side by side, so what has to fit a column is the value alone
+ * and the unit alone, not the two concatenated.
+ *
+ * Budget: the same 280dp content width as [MetricHeaderWidthTest], split across three
+ * columns with two 8dp gaps between them: `(280 - 2*8) / 3 = 88`dp per column.
+ */
+class MetricStatsWidthTest {
+
+    private val columnWidthDp = 88f
+    private val fontScale = 1.3f
+    private val valueFontSizeSp = 22f
+    private val unitFontSizeSp = 11f
+    private val unitLetterSpacingSp = 1f
+
+    private val valueFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val unitFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String, font: TrueTypeFont, fontSizeSp: Float, letterSpacingSp: Float): Float {
+        val emPerChar = text.map { font.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * fontSizeSp
+        val letterSpacingTotalSp = letterSpacingSp * text.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    @Test
+    fun `every metric's widest min-max-average value fits its stats column at the narrowest supported width`() {
+        MetricCatalog.all.forEach { metric ->
+            val widest = widestMetricValues().getValue(metric.id)
+            val value = metric.formatValue(widest)
+            val width = widthDp(value, valueFont, valueFontSizeSp, 0f)
+            assertTrue(
+                "\"$value\" for ${metric.id} measured ${width}dp, column is ${columnWidthDp}dp",
+                width <= columnWidthDp,
+            )
+        }
+    }
+
+    @Test
+    fun `every metric's unit fits its stats column at the narrowest supported width`() {
+        MetricCatalog.all.forEach { metric ->
+            val unit = unitFor(metric.id)
+            if (unit.isEmpty()) return@forEach
+            val width = widthDp(unit, unitFont, unitFontSizeSp, unitLetterSpacingSp)
+            assertTrue(
+                "\"$unit\" for ${metric.id} measured ${width}dp, column is ${columnWidthDp}dp",
+                width <= columnWidthDp,
+            )
         }
     }
 }

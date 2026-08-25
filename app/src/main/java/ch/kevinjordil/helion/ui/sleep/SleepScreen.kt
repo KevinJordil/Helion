@@ -36,6 +36,7 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.source.SleepStage
 import ch.kevinjordil.helion.ui.metric.Reading
+import ch.kevinjordil.helion.ui.metric.chartYRange
 import ch.kevinjordil.helion.ui.quality.Baseline
 import ch.kevinjordil.helion.ui.quality.computeBaseline
 import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
@@ -451,10 +452,9 @@ private fun RespiratoryRateChart(readings: List<Reading>, lineColor: androidx.co
         val rawMax = readings.maxOf { it.value }.toFloat()
         // 20% padding around the real range, with a 1-breath/minute floor for a
         // near-constant night (rawMax == rawMin), so the line never touches the edges
-        // and never divides by a zero span.
-        val padding = ((rawMax - rawMin) * 0.2f).let { if (it > 0f) it else 1f }
-        val minY = rawMin - padding
-        val maxY = rawMax + padding
+        // and never divides by a zero span. Shared with the metric detail screen's
+        // chart -- see [chartYRange]'s kdoc.
+        val (minY, maxY) = chartYRange(rawMin, rawMax, zeroBased = false)
         val ySpan = maxY - minY
 
         fun xOf(t: Float) = (t - minX) / xSpan * size.width

@@ -142,11 +142,28 @@ fun MetricScreen(
         val state = uiState
         val displayed = scrubbed ?: state?.latest
         if (displayed != null) {
-            Text(
-                "${metric.formatValue(displayed.value)} ${stringResource(metric.unitRes)}".trim(),
-                style = DETAIL_VALUE_STYLE,
-                color = colors.accentViolet,
-            )
+            // Value and unit are two separate Text composables at two different sizes,
+            // not one string in one style -- exactly the pattern Accueil's hero already
+            // uses (see HomeScreen's own value+unit Row). Setting the unit in the much
+            // smaller `label` style rather than at the value's own 56sp is what keeps
+            // even the widest composed line ("224 bpm", "99999 pas") on one line at the
+            // narrowest supported width; see MetricHeaderWidthTest.
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    metric.formatValue(displayed.value),
+                    style = DETAIL_VALUE_STYLE,
+                    color = colors.accentViolet,
+                )
+                val unit = stringResource(metric.unitRes)
+                if (unit.isNotEmpty()) {
+                    Text(
+                        unit,
+                        style = HelionType.label,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+            }
             Text(
                 TIMESTAMP_FORMAT.format(Instant.ofEpochSecond(displayed.timestamp)),
                 style = HelionType.bodySmall,
@@ -204,13 +221,40 @@ private fun RangeSelector(selected: Range, onSelect: (Range) -> Unit, modifier: 
     }
 }
 
+/**
+ * Three labelled figures side by side is the layout that collided: at a narrow width with a
+ * long unit ("resp/min") or a wide value ("99999"), same-size min/max/average text in a
+ * plain `SpaceBetween` row has no bound on how wide each figure can grow, so neighbours ran
+ * into each other. Giving each [StatItem] an equal [Modifier.weight] fixes each one to its
+ * own third of the row -- they can never collide -- and [StatItem] itself puts the unit on
+ * its own line below the value rather than beside it, so the widest value alone (not
+ * "value unit" together) is what has to fit that third. See MetricStatsWidthTest.
+ */
 @Composable
 private fun StatsRow(stats: MetricStats, metric: Metric, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        StatItem(stringResource(R.string.stat_min), metric.formatValue(stats.min), metric, colors.textPrimary)
-        StatItem(stringResource(R.string.stat_max), metric.formatValue(stats.max), metric, colors.textPrimary)
-        StatItem(stringResource(R.string.stat_average), metric.formatValue(stats.average), metric, colors.accentViolet)
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatItem(
+            stringResource(R.string.stat_min),
+            metric.formatValue(stats.min),
+            metric,
+            colors.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        StatItem(
+            stringResource(R.string.stat_max),
+            metric.formatValue(stats.max),
+            metric,
+            colors.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        StatItem(
+            stringResource(R.string.stat_average),
+            metric.formatValue(stats.average),
+            metric,
+            colors.accentViolet,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -219,11 +263,11 @@ private fun StatItem(label: String, value: String, metric: Metric, valueColor: C
     val colors = HelionThemeTokens.colors
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
-        Text(
-            "$value ${stringResource(metric.unitRes)}".trim(),
-            style = HelionType.valueMedium,
-            color = valueColor,
-        )
+        Text(value, style = HelionType.valueMedium, color = valueColor)
+        val unit = stringResource(metric.unitRes)
+        if (unit.isNotEmpty()) {
+            Text(unit, style = HelionType.labelSmall, color = colors.textTertiary)
+        }
     }
 }
 
@@ -268,6 +312,10 @@ private fun QualityRow(
  * - a single reading: drawn as a single point rather than a lineless path.
  * - identical values (zero-height range): all points sit on a flat mid-height line instead
  *   of dividing by a zero y-range.
+ *
+ * The Y-axis itself scales via [chartYRange]: the data's own range plus padding for every
+ * metric except steps, whose zero baseline is kept because a daily total's zero is real
+ * information. See [chartYRange]'s kdoc for why.
  *
  * Adds a drag gesture: dragging anywhere over the canvas calls [onScrub] with the reading
  * closest to that horizontal position (see [scrubReading]). While the drag is active, a
@@ -326,8 +374,10 @@ private fun ScrubbableChart(
         val maxX = readings.last().timestamp.toFloat()
         val xSpan = (maxX - minX).takeIf { it > 0f }
 
-        val minY = readings.minOf { it.value }.toFloat()
-        val maxY = readings.maxOf { it.value }.toFloat()
+        val rawMin = readings.minOf { it.value }.toFloat()
+        val rawMax = readings.maxOf { it.value }.toFloat()
+        val zeroBased = metric.source.aggregation == Aggregation.DAILY_SUM
+        val (minY, maxY) = chartYRange(rawMin, rawMax, zeroBased)
         val ySpan = (maxY - minY).takeIf { it > 0f }
 
         fun xOf(t: Float): Float =
