@@ -15,7 +15,9 @@ import ch.kevinjordil.helion.source.IngestResult
 sealed interface SyncOutcome {
     data object NotConfigured : SyncOutcome
     data class Unavailable(val reason: String) : SyncOutcome
-    data class Ingested(val minutes: Int, val points: Int) : SyncOutcome
+
+    /** See [IngestResult.Ingested.refreshTriggered]: false means this is stale-but-good data. */
+    data class Ingested(val minutes: Int, val points: Int, val refreshTriggered: Boolean = true) : SyncOutcome
     data class Failed(val reason: String) : SyncOutcome
 }
 
@@ -35,7 +37,7 @@ suspend fun runSync(
     }
     return when (val result = ingest(path)) {
         IngestResult.NoSource -> SyncOutcome.NotConfigured
-        is IngestResult.Ingested -> SyncOutcome.Ingested(result.minutes, result.points)
+        is IngestResult.Ingested -> SyncOutcome.Ingested(result.minutes, result.points, result.refreshTriggered)
         is IngestResult.Failed -> SyncOutcome.Failed(result.reason)
     }
 }
@@ -48,6 +50,13 @@ suspend fun runSync(
 fun syncMessage(outcome: SyncOutcome): Pair<Int, List<Any>> = when (outcome) {
     is SyncOutcome.NotConfigured -> R.string.sync_result_not_configured to emptyList()
     is SyncOutcome.Unavailable -> R.string.sync_result_unavailable to emptyList()
-    is SyncOutcome.Ingested -> R.string.sync_result_success to listOf(outcome.minutes, outcome.points)
+    is SyncOutcome.Ingested -> if (outcome.refreshTriggered) {
+        R.string.sync_result_success to listOf(outcome.minutes, outcome.points)
+    } else {
+        // Gadgetbridge could not be triggered this pass -- this is whatever it last wrote
+        // on its own schedule, not confirmed fresh. A working, less-fresh state, said
+        // outright rather than presented as if a refresh had just happened.
+        R.string.sync_result_success_stale to listOf(outcome.minutes, outcome.points)
+    }
     is SyncOutcome.Failed -> R.string.sync_result_failed to listOf(outcome.reason)
 }

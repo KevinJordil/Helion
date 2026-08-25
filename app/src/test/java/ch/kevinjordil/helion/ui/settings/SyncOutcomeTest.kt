@@ -37,6 +37,15 @@ class SyncOutcomeTest {
     }
 
     @Test
+    fun `a pass that ingested without triggering a refresh carries that through`() = runTest {
+        val outcome = runSync(
+            copyToCache = { "/cache/export.db" },
+            ingest = { IngestResult.Ingested(minutes = 3, points = 1, refreshTriggered = false) },
+        )
+        assertEquals(SyncOutcome.Ingested(3, 1, refreshTriggered = false), outcome)
+    }
+
+    @Test
     fun `a failed ingestion pass carries its reason through`() = runTest {
         val outcome = runSync(
             copyToCache = { "/cache/export.db" },
@@ -60,6 +69,17 @@ class SyncOutcomeTest {
         val (resId, args) = syncMessage(SyncOutcome.Ingested(minutes = 5, points = 7))
         assertEquals(R.string.sync_result_success, resId)
         assertEquals(listOf(5, 7), args)
+    }
+
+    @Test
+    fun `an untriggered success maps to a different message than a triggered one`() {
+        val (triggeredRes, _) = syncMessage(SyncOutcome.Ingested(5, 7, refreshTriggered = true))
+        val (staleRes, args) = syncMessage(SyncOutcome.Ingested(5, 7, refreshTriggered = false))
+
+        assertEquals(R.string.sync_result_success, triggeredRes)
+        assertEquals(R.string.sync_result_success_stale, staleRes)
+        assertEquals(listOf(5, 7), args)
+        assert(triggeredRes != staleRes)
     }
 
     @Test

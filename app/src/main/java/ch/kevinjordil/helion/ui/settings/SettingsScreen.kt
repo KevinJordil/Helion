@@ -106,7 +106,11 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
                     val outcome = withContext(Dispatchers.IO) {
                         runSync(
                             copyToCache = { container.exportLocation.copyToCache() },
-                            ingest = { path -> container.ingestor.ingest(path) },
+                            // A manual tap always attempts to trigger a refresh, backoff or
+                            // not: the user is actively waiting for the result, and this is
+                            // also how they find out the moment triggering starts working
+                            // again (a Gadgetbridge update, enabling the Intent API).
+                            ingest = { path -> container.ingestor.ingest(path, force = true) },
                         )
                     }
                     resultMessage = syncMessage(outcome)
