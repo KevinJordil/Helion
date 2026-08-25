@@ -105,6 +105,90 @@ class TileTextWidthTest {
 }
 
 /**
+ * Same real-glyph-measurement approach as [TileTextWidthTest], for the one report that
+ * prompted this file's twin: Sommeil's duration numeral wrapping onto a second line for a
+ * ten-hour-plus night (see `SLEEP_DURATION_STYLE` in `SleepScreen.kt`).
+ *
+ * Budget: the app's narrowest supported screen (320dp) minus Sommeil's own horizontal
+ * padding (20dp each side, see `SleepScreen`'s root `Column`): `320 - 2*20 = 280`dp.
+ *
+ * Widest value: "23 h 59" -- the format is `"%d h %02d"`, and a night's *asleep* duration
+ * cannot exceed its own span, which itself cannot exceed a calendar day's worth of
+ * continuously-asleep minutes in any real recording. Two-digit hours and two-digit minutes
+ * is therefore the genuinely widest case this format is engineered to guarantee, not just
+ * the typical one -- see [TileTextWidthTest]'s own kdoc on why a real measurement, not an
+ * assertion, is what "verified" means here.
+ */
+class DurationTextWidthTest {
+
+    private val screenContentWidthDp = 280f
+    private val fontScale = 1.3f
+    private val fontSizeSp = 40f
+    private val letterSpacingSp = -1f
+
+    private val font: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String): Float {
+        val emPerChar = text.map { font.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * fontSizeSp
+        val letterSpacingTotalSp = letterSpacingSp * text.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    @Test
+    fun `the widest possible sleep duration fits one line at the narrowest supported width`() {
+        val widest = "23 h 59"
+        val width = widthDp(widest)
+        assertTrue(
+            "\"$widest\" measured ${width}dp at ${fontSizeSp}sp, budget is ${screenContentWidthDp}dp -- " +
+                "shrink SLEEP_DURATION_STYLE further",
+            width <= screenContentWidthDp,
+        )
+    }
+}
+
+/**
+ * Confirms the hypnogram's fixed lane-label column (`HypnogramRibbon`'s 90dp label width,
+ * in `DayRibbon.kt`) actually fits the longest of the four stage labels at
+ * `HelionType.labelSmall` -- the style the lane labels are set in -- at the same 1.3x
+ * accessibility font scale [TileTextWidthTest] checks tile captions against. Same
+ * real-glyph measurement approach; see [TileTextWidthTest]'s kdoc for why.
+ */
+class HypnogramLaneLabelWidthTest {
+
+    private val laneLabelWidthDp = 90f
+    private val fontScale = 1.3f
+    private val fontSizeSp = 11f
+    private val letterSpacingSp = 1f
+
+    private val font: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { font.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * fontSizeSp
+        val letterSpacingTotalSp = letterSpacingSp * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    @Test
+    fun `every hypnogram lane label fits its 90dp column at a 1_3x font scale`() {
+        listOf("Éveil", "Paradoxal", "Léger", "Profond").forEach { label ->
+            val width = widthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, column is ${laneLabelWidthDp}dp", width <= laneLabelWidthDp)
+        }
+    }
+}
+
+/**
  * The minimum of a TrueType font needed to answer one question: how wide, in em units, is
  * a given character's glyph. Parses only `head` (unitsPerEm), `maxp` (glyph count), `hhea`
  * (how many `hmtx` entries carry their own width), `hmtx` (the widths), and a `cmap`

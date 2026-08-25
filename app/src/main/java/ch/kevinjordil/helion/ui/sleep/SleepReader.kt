@@ -1,6 +1,7 @@
 package ch.kevinjordil.helion.ui.sleep
 
 import ch.kevinjordil.helion.store.HelionDatabase
+import ch.kevinjordil.helion.ui.metric.Reading
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,8 +15,9 @@ private const val RESPIRATORY_RATE_SERIES = "respiratory_rate"
 /**
  * Reads minute samples for the lookback window, segments them into [SleepEpisode]s (see
  * [segmentSleepEpisodes]), keeps only the ones classified as a night, and attaches each
- * one's average respiratory rate from the point-series table -- a join [segmentSleepEpisodes]
- * itself cannot do, since it only ever sees [ch.kevinjordil.helion.store.MinuteSample]s.
+ * one's respiratory rate readings from the point-series table -- a join
+ * [segmentSleepEpisodes] itself cannot do, since it only ever sees
+ * [ch.kevinjordil.helion.store.MinuteSample]s.
  *
  * [zone] follows the same pattern as [ch.kevinjordil.helion.ui.metric.MetricReader]:
  * defaults to the device's zone, and tests pass a fixed one so date attribution does not
@@ -39,9 +41,9 @@ class SleepReader(
             .map { episode ->
                 val respiratoryRate = db.pointSamples()
                     .between(RESPIRATORY_RATE_SERIES, episode.fellAsleepAt, episode.wokeAt)
-                    .map { it.value }
-                val average = respiratoryRate.takeIf { it.isNotEmpty() }?.let { values -> values.sum() / values.size }
-                episode.copy(avgRespiratoryRate = average)
+                    .map { Reading(it.timestamp, it.value) }
+                    .sortedBy { it.timestamp }
+                episode.copy(respiratoryRateReadings = respiratoryRate)
             }
     }
 }

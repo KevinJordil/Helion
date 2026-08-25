@@ -2,6 +2,7 @@ package ch.kevinjordil.helion.ui.sleep
 
 import ch.kevinjordil.helion.source.SleepStage
 import ch.kevinjordil.helion.store.MinuteSample
+import ch.kevinjordil.helion.ui.metric.Reading
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -47,14 +48,18 @@ data class SleepEpisode(
     val minHeartRate: Int?,
     val minutes: List<MinuteSample>,
     /**
-     * Average respiratory rate over the episode's span, from the `respiratory_rate` point
-     * series -- a different table on a different cadence than the minute samples above, so
-     * [segmentSleepEpisodes] never sets this; it is filled in afterwards by whichever
-     * caller also has access to [ch.kevinjordil.helion.store.PointSample] data (see
-     * [SleepReader]).
+     * Every respiratory rate point over the episode's span, from the `respiratory_rate`
+     * point series -- a different table on a different cadence than the minute samples
+     * above, so [segmentSleepEpisodes] never sets this; it is filled in afterwards by
+     * whichever caller also has access to [ch.kevinjordil.helion.store.PointSample] data
+     * (see [SleepReader]). Sorted ascending by timestamp, for [SleepScreen]'s own chart.
      */
-    val avgRespiratoryRate: Double? = null,
-)
+    val respiratoryRateReadings: List<Reading> = emptyList(),
+) {
+    /** Average of [respiratoryRateReadings], or null when the night has none. */
+    val avgRespiratoryRate: Double?
+        get() = respiratoryRateReadings.takeIf { it.isNotEmpty() }?.let { values -> values.sumOf { it.value } / values.size }
+}
 
 /**
  * Every threshold [segmentSleepEpisodes] and its classification depend on, bundled so a
