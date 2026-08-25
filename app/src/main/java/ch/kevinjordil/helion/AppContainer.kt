@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import ch.kevinjordil.helion.source.BroadcastCommandSender
 import ch.kevinjordil.helion.source.BroadcastExportSignal
+import ch.kevinjordil.helion.source.BroadcastSyncSignal
 import ch.kevinjordil.helion.source.ExportLocation
 import ch.kevinjordil.helion.source.ExportReader
 import ch.kevinjordil.helion.source.GadgetbridgeCommands
@@ -22,9 +23,19 @@ class AppContainer(context: Context) {
 
     val exportLocation = ExportLocation(context)
 
+    val commands = GadgetbridgeCommands(BroadcastCommandSender(context))
+
+    /**
+     * Used only by the home screen's pull-to-refresh, to wait for Gadgetbridge's Bluetooth
+     * sync to actually finish before the export is triggered. [Ingestor] itself does not
+     * hold a reference to this -- see [Ingestor]'s kdoc for why its own periodic pass does
+     * not wait on this broadcast.
+     */
+    val syncSignal = BroadcastSyncSignal(context)
+
     val ingestor = Ingestor(
         reader = ExportReader(),
-        commands = GadgetbridgeCommands(BroadcastCommandSender(context)),
+        commands = commands,
         signal = BroadcastExportSignal(context),
         db = database,
         now = { System.currentTimeMillis() / 1000 },
