@@ -20,19 +20,31 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.quality.Baseline
+import ch.kevinjordil.helion.ui.quality.PersonalBaseline
+import ch.kevinjordil.helion.ui.quality.ReferenceIndicator
+import ch.kevinjordil.helion.ui.quality.computeBaseline
+import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
+import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
+import ch.kevinjordil.helion.ui.quality.referenceIndicatorFor
+import ch.kevinjordil.helion.ui.quality.referenceMessage
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -74,10 +86,26 @@ fun MetricScreen(
     var range by rememberSaveable { mutableStateOf(Range.WEEK) }
     var uiState by remember(metric.id) { mutableStateOf<MetricUiState?>(null) }
     var scrubbed by remember(metric.id, range) { mutableStateOf<Reading?>(null) }
+    // Whether this metric has ever had a single reading, independent of the selected
+    // range: distinguishes "nothing in this window" (a fine, temporary state) from
+    // "this device has never sent this data at all" (e.g. SpO2 on this strap), which
+    // needs an honest, different message rather than reading like a stuck loading state.
+    var everHadData by remember(metric.id) { mutableStateOf<Boolean?>(null) }
+    // The personal baseline is always computed over the fixed ~30-day window (Range.MONTH),
+    // independent of the selected Jour/Semaine/Mois range -- "usual" would otherwise shift
+    // meaning depending on which chart range happened to be selected.
+    var monthBaseline by remember(metric.id) { mutableStateOf<Baseline?>(null) }
 
     LaunchedEffect(metric.id, range) {
         scrubbed = null
         uiState = reader.load(metric, range, now = System.currentTimeMillis() / 1000)
+    }
+
+    LaunchedEffect(metric.id) {
+        val now = System.currentTimeMillis() / 1000
+        val yearState = reader.load(metric, Range.YEAR, now = now)
+        everHadData = yearState.latest != null
+        monthBaseline = computeBaseline(reader.load(metric, Range.MONTH, now = now).readings)
     }
 
     Column(
@@ -119,10 +147,12 @@ fun MetricScreen(
         RangeSelector(selected = range, onSelect = { range = it })
 
         if (state != null && state.readings.isEmpty()) {
-            Text(stringResource(R.string.no_data), style = HelionType.body, color = colors.textSecondary)
+            val emptyMessageRes = if (everHadData == false) R.string.no_data_never else R.string.no_data
+            Text(stringResource(emptyMessageRes), style = HelionType.body, color = colors.textSecondary)
         } else if (state != null) {
             ScrubbableChart(
                 readings = state.readings,
+                metric = metric,
                 lineColor = colors.accentViolet,
                 onScrub = { scrubbed = it },
                 modifier = Modifier.fillMaxWidth(),
@@ -130,6 +160,14 @@ fun MetricScreen(
 
             state.stats?.let { stats ->
                 StatsRow(stats, metric)
+            }
+
+            state.latest?.let { latest ->
+                QualityRow(
+                    metricId = metric.id,
+                    personalBaseline = placeAgainstBaseline(latest.value, monthBaseline),
+                    reference = referenceIndicatorFor(metric.id, latest.value, container.stepsGoal.value),
+                )
             }
 
             metric.noteRes?.let { noteRes ->
@@ -180,6 +218,37 @@ private fun StatItem(label: String, value: String, metric: Metric, valueColor: C
 }
 
 /**
+ * The two quality axes for the currently displayed value: [personalBaseline] (always
+ * present, may be "not enough history yet") and [reference] (only for the metrics that
+ * genuinely have one -- see [ReferenceIndicator]'s kdoc). Both are purely descriptive text,
+ * amber only when notable, never a verdict.
+ */
+@Composable
+private fun QualityRow(
+    metricId: String,
+    personalBaseline: PersonalBaseline,
+    reference: ReferenceIndicator,
+    modifier: Modifier = Modifier,
+) {
+    val colors = HelionThemeTokens.colors
+    val (personalRes, personalAmber) = personalBaselineMessage(personalBaseline)
+    val (referenceRes, referenceAmber) = referenceMessage(metricId, reference)
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            stringResource(personalRes),
+            style = HelionType.bodySmall,
+            color = if (personalAmber) colors.accentAmber else colors.textSecondary,
+        )
+        Text(
+            stringResource(referenceRes),
+            style = HelionType.bodySmall,
+            color = if (referenceAmber) colors.accentAmber else colors.textTertiary,
+        )
+    }
+}
+
+/**
  * A minimal line chart on a plain Canvas, deliberately not a charting library: one screen
  * shared by all seven metrics does not justify a new dependency.
  *
@@ -191,17 +260,27 @@ private fun StatItem(label: String, value: String, metric: Metric, valueColor: C
  *   of dividing by a zero y-range.
  *
  * Adds a drag gesture: dragging anywhere over the canvas calls [onScrub] with the reading
- * closest to that horizontal position (see [scrubReading]); releasing or cancelling the
- * drag calls [onScrub] with null, which falls back to showing the latest reading again.
+ * closest to that horizontal position (see [scrubReading]). While the drag is active, a
+ * vertical guide line is drawn at the touch position, the sample it resolved to is marked
+ * on the curve, and a small readout chip shows its value and timestamp -- clamped so it
+ * never runs past the canvas edges when scrubbing right at the extremes. Releasing or
+ * cancelling the drag clears all of that and calls [onScrub] with null, which falls back to
+ * showing the latest reading again (see the caller, [MetricScreen]).
  */
 @Composable
 private fun ScrubbableChart(
     readings: List<Reading>,
+    metric: Metric,
     lineColor: Color,
     onScrub: (Reading?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = HelionThemeTokens.colors
+    val textMeasurer = rememberTextMeasurer()
+    val unit = stringResource(metric.unitRes)
     var canvasWidthPx by remember { mutableStateOf(0f) }
+    var scrubX by remember { mutableStateOf<Float?>(null) }
+    var scrubbedReading by remember { mutableStateOf<Reading?>(null) }
 
     Canvas(
         modifier = modifier
@@ -209,12 +288,24 @@ private fun ScrubbableChart(
             .onSizeChanged { size: IntSize -> canvasWidthPx = size.width.toFloat() }
             .pointerInput(readings) {
                 detectDragGestures(
-                    onDragEnd = { onScrub(null) },
-                    onDragCancel = { onScrub(null) },
+                    onDragEnd = {
+                        scrubX = null
+                        scrubbedReading = null
+                        onScrub(null)
+                    },
+                    onDragCancel = {
+                        scrubX = null
+                        scrubbedReading = null
+                        onScrub(null)
+                    },
                 ) { change, _ ->
                     if (canvasWidthPx > 0f) {
-                        val fraction = (change.position.x / canvasWidthPx).coerceIn(0f, 1f)
-                        onScrub(scrubReading(readings, fraction))
+                        val x = change.position.x.coerceIn(0f, canvasWidthPx)
+                        val fraction = x / canvasWidthPx
+                        scrubX = x
+                        val reading = scrubReading(readings, fraction)
+                        scrubbedReading = reading
+                        onScrub(reading)
                     }
                 }
             },
@@ -248,5 +339,51 @@ private fun ScrubbableChart(
             if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
         drawPath(path, color = lineColor, style = Stroke(width = 4f))
+
+        val markedReading = scrubbedReading
+        if (scrubX != null && markedReading != null) {
+            val pointX = xOf(markedReading.timestamp.toFloat())
+            val pointY = yOf(markedReading.value.toFloat())
+
+            drawLine(
+                color = colors.textSecondary,
+                start = Offset(pointX, 0f),
+                end = Offset(pointX, size.height),
+                strokeWidth = 2f,
+            )
+            drawCircle(color = lineColor, radius = 7f, center = Offset(pointX, pointY))
+            drawCircle(color = colors.ground, radius = 3f, center = Offset(pointX, pointY))
+
+            val valueText = "${metric.formatValue(markedReading.value)} $unit".trim()
+            val timeText = TIMESTAMP_FORMAT.format(Instant.ofEpochSecond(markedReading.timestamp))
+            val valueLayout = textMeasurer.measure(valueText, HelionType.labelSmall.copy(color = colors.accentViolet))
+            val timeLayout = textMeasurer.measure(timeText, HelionType.labelSmall.copy(color = colors.textSecondary))
+
+            val padding = 8f
+            val chipWidth = maxOf(valueLayout.size.width, timeLayout.size.width) + padding * 2
+            val chipHeight = valueLayout.size.height + timeLayout.size.height + padding * 2
+
+            // Centre the chip on the touch, then clamp it fully inside the canvas: without
+            // this, scrubbing to the first or last sample pushes the readout half off the
+            // edge and clips it -- exactly the "keep it inside the chart bounds" requirement.
+            val chipLeft = (pointX - chipWidth / 2f).coerceIn(0f, (size.width - chipWidth).coerceAtLeast(0f))
+            val chipTop = padding
+
+            drawRoundRect(
+                color = colors.surfaceRaised,
+                topLeft = Offset(chipLeft, chipTop),
+                size = Size(chipWidth, chipHeight),
+                cornerRadius = CornerRadius(6f, 6f),
+            )
+            drawRoundRect(
+                color = colors.divider,
+                topLeft = Offset(chipLeft, chipTop),
+                size = Size(chipWidth, chipHeight),
+                cornerRadius = CornerRadius(6f, 6f),
+                style = Stroke(width = 1f),
+            )
+            drawText(valueLayout, topLeft = Offset(chipLeft + padding, chipTop + padding / 2f))
+            drawText(timeLayout, topLeft = Offset(chipLeft + padding, chipTop + padding / 2f + valueLayout.size.height))
+        }
     }
 }

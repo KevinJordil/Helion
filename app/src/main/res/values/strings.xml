@@ -7,10 +7,10 @@
     <string name="metric_heart_rate">Fréquence cardiaque</string>
     <string name="metric_steps">Pas</string>
     <string name="metric_stress">Stress</string>
-    <string name="metric_spo2">Oxygène sanguin</string>
+    <string name="metric_spo2">SpO2</string>
     <string name="metric_pai">PAI</string>
-    <string name="metric_hrv">Variabilité cardiaque</string>
-    <string name="metric_temperature">Température cutanée</string>
+    <string name="metric_hrv">VFC</string>
+    <string name="metric_temperature">Température</string>
 
     <string name="unit_bpm">bpm</string>
     <string name="unit_steps">pas</string>
@@ -29,6 +29,7 @@
     <string name="stat_average">Moyenne</string>
 
     <string name="no_data">Aucune donnée sur cette période</string>
+    <string name="no_data_never">Aucune valeur reçue depuis le début : ce bracelet n\'enregistre peut-être pas cette donnée.</string>
     <string name="action_back">Retour</string>
     <string name="temperature_off_body_note">Les mesures proches de la température ambiante (bracelet non porté) sont exclues du graphique et des statistiques.</string>
     <string name="heart_rate_unmeasured_note">Les valeurs hors plage physiologique (capteur sans mesure) sont exclues du graphique et des statistiques.</string>
@@ -51,6 +52,19 @@
 
     <string name="refresh_phase_syncing">Synchronisation avec la montre…</string>
     <string name="refresh_phase_reading">Lecture des données…</string>
+
+    <string name="quality_insufficient_history">Historique insuffisant pour l\'instant</string>
+    <string name="quality_below_usual">Plus bas que d\'habitude</string>
+    <string name="quality_usual">Comme d\'habitude</string>
+    <string name="quality_above_usual">Plus haut que d\'habitude</string>
+
+    <string name="reference_not_applicable">Pas de repère fiable pour cette donnée</string>
+    <string name="reference_steps_reached">Objectif atteint</string>
+    <string name="reference_steps_below_goal">Sous l\'objectif</string>
+    <string name="reference_spo2_on_threshold">Dans la plage habituelle (≥ 95 %)</string>
+    <string name="reference_spo2_below_threshold">Sous le repère habituel (95 %)</string>
+
+    <string name="steps_goal_label">Objectif quotidien de pas</string>
 
     <string name="export_location_label">Fichier exporté</string>
     <string name="export_location_none">Aucun fichier configuré</string>
