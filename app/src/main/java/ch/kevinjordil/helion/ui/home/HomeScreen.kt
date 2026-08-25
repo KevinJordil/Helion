@@ -133,6 +133,35 @@ fun HomeScreen(
         }
     }
 
+    /**
+     * The open-sync's own loop (see [runOpenSyncLoop]): unlike [refresh], which is one
+     * pass, this repeats passes -- each one built exactly like [refresh]'s single pass --
+     * until a pass ingests nothing new or a cap is hit. Still invisible except for the
+     * freshness line's phase text, same as before; [loadAll] and the banner are refreshed
+     * after every individual pass, not just once at the end, so the screen visibly updates
+     * as each pass lands rather than only when the whole loop finishes.
+     */
+    fun openSync() {
+        scope.launch {
+            runOpenSyncLoop(
+                runPass = {
+                    performRefresh(
+                        onPhase = { phase -> refreshPhase = phase },
+                        requestSync = { container.commands.requestSync() },
+                        awaitSyncFinish = { trigger -> container.syncSignal.awaitSyncFinish(SYNC_FINISH_TIMEOUT_MILLIS, trigger) },
+                        copyToCache = { container.exportLocation.copyToCache() },
+                        ingest = { path -> container.ingestor.ingest(path, force = true, skipSyncRequest = true) },
+                    )
+                },
+                onPass = { outcome ->
+                    banner = refreshBanner(outcome)
+                    if (outcome is SyncOutcome.Ingested) loadAll()
+                },
+            )
+            refreshPhase = null
+        }
+    }
+
     LaunchedEffect(Unit) { loadAll() }
 
     // Sync on every ON_RESUME, not just the first composition: a `LaunchedEffect(Unit)`
@@ -145,11 +174,18 @@ fun HomeScreen(
     // resumed) and on every later foreground return, which is what "kicks off a sync
     // when the app opens" actually has to mean. OpenSyncGate's debounce (ten minutes) is
     // what keeps this from re-syncing on every quick foreground bounce.
+    //
+    // This is [openSync] (the repeating loop), not the single-pass [refresh]: an open is
+    // exactly the moment worth catching all the way up, whereas pull-to-refresh stays one
+    // pass -- it is a deliberate, watched gesture, not "make sure everything is current".
+    // scope.launch (inside openSync) is tied to rememberCoroutineScope's composition
+    // lifetime, so leaving Accueil for good (the Activity being torn down) cancels a
+    // loop mid-flight the same way any other coroutine here already is.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         val now = System.currentTimeMillis() / 1000
         if (exportConfigured && container.openSyncGate.shouldSync(now)) {
             container.openSyncGate.recordAttempt(now)
-            refresh(showSpinner = false)
+            openSync()
         }
     }
 
