@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,6 +22,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
+import ch.kevinjordil.helion.ui.theme.HelionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -75,27 +76,31 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         }
     }
 
+    val colors = HelionThemeTokens.colors
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.tab_settings).uppercase(), style = HelionType.label, color = colors.textSecondary)
 
-        Text(stringResource(R.string.export_location_label), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.export_location_label), style = HelionType.body, color = colors.textPrimary)
         Text(
             locationUri?.let { stringResource(R.string.export_location_set, it) }
                 ?: stringResource(R.string.export_location_none),
+            style = HelionType.bodySmall,
+            color = colors.textSecondary,
         )
         Button(onClick = { pickExportFile.launch(arrayOf("*/*")) }) {
             Text(stringResource(R.string.choose_export_file))
         }
         if (pickRefused) {
-            Text(stringResource(R.string.export_location_grant_refused))
+            Text(stringResource(R.string.export_location_grant_refused), style = HelionType.bodySmall, color = colors.accentAmber)
         }
 
-        HorizontalDivider()
+        HorizontalDivider(color = colors.divider)
 
         Button(
             enabled = !syncing,
@@ -122,7 +127,7 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         }
 
         resultMessage?.let { (resId, args) ->
-            Text(stringResource(resId, *args.toTypedArray()))
+            Text(stringResource(resId, *args.toTypedArray()), style = HelionType.bodySmall, color = colors.textSecondary)
         }
     }
 }
