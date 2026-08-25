@@ -6,14 +6,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 /** A metric's value at a point in time, ready to plot. */
 data class Reading(val timestamp: Long, val value: Double)
 
 data class MetricStats(val min: Double, val max: Double, val average: Double)
 
+/**
+ * [readings] is the real, ungrouped-beyond-source-aggregation series -- what [stats] and
+ * [latest] are computed from, so those numbers always describe the actual window, never a
+ * downsampled stand-in for it. [chartReadings] is what the chart actually draws: for the
+ * Semaine/Mois ranges on a continuous metric this is a coarser, bucketed-average series
+ * (see [MetricReader.chartReadingsFor]) so a chart's few hundred pixels are not fighting
+ * tens of thousands of raw points; for Jour, or for an already-daily metric like steps, the
+ * two lists are identical.
+ */
 data class MetricUiState(
     val readings: List<Reading> = emptyList(),
+    val chartReadings: List<Reading> = emptyList(),
     val latest: Reading? = null,
     val stats: MetricStats? = null,
 )
@@ -65,10 +76,41 @@ class MetricReader(
 
         MetricUiState(
             readings = readings,
+            chartReadings = chartReadingsFor(metric, range, readings),
             latest = readings.lastOrNull(),
             stats = statsOf(readings),
         )
     }
+
+    /**
+     * What the chart actually plots for [range]: [readings] itself for Jour (raw resolution
+     * is exactly what a one-day window needs), and for a metric already reduced to one
+     * point per day ([Aggregation.DAILY_SUM], i.e. steps) at every range -- bucketing an
+     * already-daily series by day again would just be the identity, and by hour makes no
+     * sense at all, so it is never re-aggregated here.
+     *
+     * For a continuous metric (heart rate and the point-series metrics) over Semaine or
+     * Mois, [readings] is bucketed by hour or by day respectively and each bucket
+     * averaged -- see [averageByBucket]. This is a chart-only concern: [stats] and
+     * [latest] are computed from [readings] itself in [load], never from this.
+     */
+    private fun chartReadingsFor(metric: Metric, range: Range, readings: List<Reading>): List<Reading> {
+        if (metric.source.aggregation == Aggregation.DAILY_SUM) return readings
+        return when (range) {
+            Range.WEEK -> averageByBucket(readings, ::hourStart)
+            Range.MONTH -> averageByBucket(readings, ::dayStart)
+            Range.DAY, Range.YEAR -> readings
+        }
+    }
+
+    private fun averageByBucket(readings: List<Reading>, bucketStart: (Long) -> Long): List<Reading> =
+        readings
+            .groupBy { bucketStart(it.timestamp) }
+            .toSortedMap()
+            .map { (bucket, group) -> Reading(bucket, group.sumOf { it.value } / group.size) }
+
+    private fun hourStart(timestamp: Long): Long =
+        Instant.ofEpochSecond(timestamp).atZone(zone).truncatedTo(ChronoUnit.HOURS).toEpochSecond()
 
     private suspend fun rawReadings(metric: Metric, from: Long, to: Long): List<Reading> =
         when (metric.source) {

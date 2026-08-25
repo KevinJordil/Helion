@@ -82,7 +82,7 @@ fun MetricScreen(
 ) {
     val colors = HelionThemeTokens.colors
     val reader = remember(container) { MetricReader(container.database) }
-    var range by rememberSaveable { mutableStateOf(Range.WEEK) }
+    var range by rememberSaveable { mutableStateOf(Range.DAY) }
     var uiState by remember(metric.id) { mutableStateOf<MetricUiState?>(null) }
     var scrubbed by remember(metric.id, range) { mutableStateOf<Reading?>(null) }
     // Whether this metric has ever had a single reading, independent of the selected
@@ -161,7 +161,7 @@ fun MetricScreen(
             Text(stringResource(emptyMessageRes), style = HelionType.body, color = colors.textSecondary)
         } else if (state != null) {
             ScrubbableChart(
-                readings = state.readings,
+                readings = state.chartReadings,
                 metric = metric,
                 lineColor = colors.accentViolet,
                 onScrub = { scrubbed = it },

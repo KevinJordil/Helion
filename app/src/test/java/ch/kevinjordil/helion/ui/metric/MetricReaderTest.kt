@@ -275,4 +275,77 @@ class MetricReaderTest {
         assertEquals(30.0, stats.max, 0.0)
         assertEquals(30.0, stats.average, 0.0)
     }
+
+    @Test
+    fun `Semaine buckets a continuous metric's chart into hourly averages`() = runTest {
+        val now = ZonedDateTime.of(2024, 1, 10, 12, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        val hour0 = ZonedDateTime.of(2024, 1, 10, 8, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        val hour1 = ZonedDateTime.of(2024, 1, 10, 9, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        db.minuteSamples().upsertAll(
+            listOf(
+                minute(hour0, heartRate = 60),
+                minute(hour0 + 1_800, heartRate = 70),
+                minute(hour1, heartRate = 80),
+                minute(hour1 + 1_800, heartRate = 100),
+            ),
+        )
+
+        val state = reader.load(heartRate, Range.WEEK, now)
+
+        // The chart shows one averaged point per hour...
+        assertEquals(listOf(hour0 to 65.0, hour1 to 90.0), state.chartReadings.map { it.timestamp to it.value })
+        // ...but the real per-minute readings are what min/max/average and the latest
+        // value on screen are computed from, not the hourly buckets.
+        assertEquals(4, state.readings.size)
+        assertEquals(Reading(hour1 + 1_800, 100.0), state.latest)
+        val stats = state.stats
+        assertNotNull(stats)
+        checkNotNull(stats)
+        assertEquals(60.0, stats.min, 0.0)
+        assertEquals(100.0, stats.max, 0.0)
+        assertEquals(77.5, stats.average, 0.0)
+    }
+
+    @Test
+    fun `Mois buckets a continuous metric's chart into daily averages`() = runTest {
+        val now = ZonedDateTime.of(2024, 1, 20, 12, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        val day0 = ZonedDateTime.of(2024, 1, 10, 0, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        val day1 = ZonedDateTime.of(2024, 1, 11, 0, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        db.minuteSamples().upsertAll(
+            listOf(
+                minute(day0 + 3_600, heartRate = 50),
+                minute(day0 + 7_200, heartRate = 70),
+                minute(day1 + 3_600, heartRate = 90),
+            ),
+        )
+
+        val state = reader.load(heartRate, Range.MONTH, now)
+
+        assertEquals(listOf(day0 to 60.0, day1 to 90.0), state.chartReadings.map { it.timestamp to it.value })
+        assertEquals(3, state.readings.size)
+        val stats = state.stats
+        assertNotNull(stats)
+        checkNotNull(stats)
+        assertEquals(70.0, stats.average, 0.0)
+    }
+
+    @Test
+    fun `steps are already one point per day and are never bucketed again for the chart`() = runTest {
+        val now = ZonedDateTime.of(2024, 1, 20, 12, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        val day0 = ZonedDateTime.of(2024, 1, 10, 8, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond()
+        db.minuteSamples().upsertAll(listOf(minute(day0, steps = 100)))
+
+        val state = reader.load(steps, Range.MONTH, now)
+
+        assertEquals(state.readings, state.chartReadings)
+    }
+
+    @Test
+    fun `Jour never buckets the chart, even for a continuous metric`() = runTest {
+        db.minuteSamples().upsertAll(listOf(minute(1_000, heartRate = 60), minute(1_060, heartRate = 70)))
+
+        val state = reader.load(heartRate, Range.DAY, now = 1_060)
+
+        assertEquals(state.readings, state.chartReadings)
+    }
 }
