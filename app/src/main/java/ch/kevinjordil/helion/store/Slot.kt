@@ -65,10 +65,51 @@ interface SlotDao {
     @Query("SELECT * FROM slot WHERE id = :id")
     suspend fun get(id: Long): Slot?
 
-    @Query("SELECT * FROM slot ORDER BY dayOfWeek, startSecondOfDay")
+    /**
+     * Ordered by the real calendar week (Monday first, matching [java.time.DayOfWeek]'s own
+     * order), not by [Slot.dayOfWeek] as TEXT. [dayOfWeek] is stored as the enum constant's
+     * name (see [Converters]), and `ORDER BY dayOfWeek` alphabetises those names --
+     * "dimanche, jeudi, lundi, mardi..." -- which reads as scrambled to anyone looking at a
+     * real week. The `CASE` expression below maps each name to its Monday-first position
+     * before sorting, exactly the order [R.array.weekday_short] already uses.
+     */
+    @Query(
+        """
+        SELECT * FROM slot ORDER BY
+        CASE dayOfWeek
+            WHEN 'MONDAY' THEN 1
+            WHEN 'TUESDAY' THEN 2
+            WHEN 'WEDNESDAY' THEN 3
+            WHEN 'THURSDAY' THEN 4
+            WHEN 'FRIDAY' THEN 5
+            WHEN 'SATURDAY' THEN 6
+            WHEN 'SUNDAY' THEN 7
+        END, startSecondOfDay
+        """,
+    )
     suspend fun all(): List<Slot>
 
-    /** Only the slots still generating occurrences -- what detection should iterate. */
-    @Query("SELECT * FROM slot WHERE active = 1 ORDER BY dayOfWeek, startSecondOfDay")
+    /**
+     * Only the slots still generating occurrences -- what detection should iterate. Same
+     * Monday-first ordering as [all]; see its kdoc.
+     */
+    @Query(
+        """
+        SELECT * FROM slot WHERE active = 1 ORDER BY
+        CASE dayOfWeek
+            WHEN 'MONDAY' THEN 1
+            WHEN 'TUESDAY' THEN 2
+            WHEN 'WEDNESDAY' THEN 3
+            WHEN 'THURSDAY' THEN 4
+            WHEN 'FRIDAY' THEN 5
+            WHEN 'SATURDAY' THEN 6
+            WHEN 'SUNDAY' THEN 7
+        END, startSecondOfDay
+        """,
+    )
     suspend fun active(): List<Slot>
+
+    /** Removing a slot never touches a past [Activity] generated from it -- see [Activity.slotId]'s `ON DELETE SET NULL`. */
+    @Query("DELETE FROM slot WHERE id = :id")
+    suspend fun delete(id: Long)
 }

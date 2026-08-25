@@ -124,4 +124,11 @@ interface ActivityDao {
 
     @Query("SELECT * FROM activity WHERE status = :status ORDER BY startTimestamp")
     suspend fun withStatus(status: ActivityStatus): List<Activity>
+
+    /** Every activity, most recent first -- what the Activités list screen shows. */
+    @Query("SELECT * FROM activity ORDER BY startTimestamp DESC")
+    suspend fun all(): List<Activity>
+
+    @Query("DELETE FROM activity WHERE id = :id")
+    suspend fun delete(id: Long)
 }
