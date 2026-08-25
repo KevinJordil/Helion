@@ -3,6 +3,10 @@ package ch.kevinjordil.helion.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -14,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
@@ -30,9 +35,9 @@ private const val METRIC_ROUTE_PREFIX = "metric:"
  * fourth destination (Sommeil, Activités) can be appended here later without touching the
  * bar's rendering or the back-stack logic below.
  */
-enum class RootDestination(val route: String, val labelRes: Int) {
-    HOME("home", R.string.tab_home),
-    SETTINGS("settings", R.string.tab_settings),
+enum class RootDestination(val route: String, val labelRes: Int, val icon: ImageVector) {
+    HOME("home", R.string.tab_home, Icons.Filled.Home),
+    SETTINGS("settings", R.string.tab_settings, Icons.Filled.Settings),
 }
 
 /**
@@ -77,7 +82,7 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                     NavigationBarItem(
                         selected = selected,
                         onClick = { selectRoot(entry.route) },
-                        icon = {},
+                        icon = { Icon(entry.icon, contentDescription = null) },
                         label = { Text(stringResource(entry.labelRes)) },
                     )
                 }
