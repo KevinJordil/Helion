@@ -583,3 +583,112 @@ private class TrueTypeFont(
         }
     }
 }
+
+/**
+ * Activités' own fixed-width labels: sport names, activity status labels and slot
+ * active-state labels, all short single tokens shown either uppercase in [HelionType.label]
+ * (sport, in `SportPicker`) or uppercase in [HelionType.labelSmall] (activity status, in
+ * `ActivityListScreen`/`ActivityDetailScreen`; slot active/suspended, in `SlotListScreen`).
+ * Same real-glyph measurement as [TileTextWidthTest]; see its kdoc for why.
+ *
+ * The composed "sport · time range · duration" line each row also shows (see
+ * `ActivityRow`/`SlotRow`) is deliberately not measured here: it is a single [androidx.compose.material3.Text]
+ * with no `maxLines`/ellipsis, so it wraps instead of clipping regardless of length -- the
+ * same reasoning [TileTextWidthTest]'s own kdoc gives for not measuring free-form prose
+ * against a hard budget.
+ */
+class ActivityLabelWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val mediumFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String, font: TrueTypeFont, fontSizeSp: Float, letterSpacingSp: Float): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { font.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * fontSizeSp
+        val letterSpacingTotalSp = letterSpacingSp * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun sportLabels() = listOf("Badminton", "Course à pied", "Vélo", "Marche", "Natation", "Autre")
+    private fun activityStatusLabels() = listOf("À confirmer", "Confirmée", "Publiée", "Ignorée")
+    private fun slotActiveLabels() = listOf("Active", "Suspendue")
+
+    @Test
+    fun `every sport label fits a full-width row at a 1_3x font scale`() {
+        sportLabels().forEach { label ->
+            val width = widthDp(label, mediumFont, fontSizeSp = 12f, letterSpacingSp = 1.5f)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `every activity status label fits a full-width row at a 1_3x font scale`() {
+        activityStatusLabels().forEach { label ->
+            val width = widthDp(label, mediumFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `every slot active-state label fits a full-width row at a 1_3x font scale`() {
+        slotActiveLabels().forEach { label ->
+            val width = widthDp(label, mediumFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+}
+
+/**
+ * The day timeline's live selection readout (`SelectionReadout`/`ReadoutItem` in
+ * `DayTimelineScreen.kt`): start and end share a two-column row, each a label over a
+ * [HelionType.valueMedium] value; duration gets its own full-width row below rather than a
+ * third column, precisely because "23 h 59" does not fit a three-way split at this font size
+ * (see `SelectionReadout`'s own kdoc) -- the same two-plus-one split
+ * [SleepScreenWidthTest] already validates for Sommeil's own duration figures.
+ *
+ * Budgets mirror [SleepScreenWidthTest]: the screen's own 20dp-each-side padding gives the
+ * same 280dp content width. Two columns with one 8dp gap: `(280 - 8) / 2 = 136`dp each; the
+ * duration row gets the full 280dp.
+ *
+ * Widest values: a clock time is always `HH:mm` (5 characters, "23:59" is already the worst
+ * case). A selection's duration cannot exceed the calendar day the timeline draws
+ * ([DayTimelineReader.load] windows exactly one local day), so "23 h 59" is the same
+ * genuinely-widest case [DurationTextWidthTest] uses for a night's sleep duration.
+ */
+class DayTimelineReadoutWidthTest {
+
+    private val fontScale = 1.3f
+
+    private val valueFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String): Float {
+        val emPerChar = text.map { valueFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 22f
+        return glyphWidthSp * fontScale
+    }
+
+    @Test
+    fun `the widest clock time fits the two-column start-end row`() {
+        val columnWidthDp = 136f
+        val width = widthDp("23:59")
+        assertTrue("\"23:59\" measured ${width}dp, column is ${columnWidthDp}dp", width <= columnWidthDp)
+    }
+
+    @Test
+    fun `the widest possible selection duration fits its own full-width row`() {
+        val rowWidthDp = 280f
+        val width = widthDp("23 h 59")
+        assertTrue("\"23 h 59\" measured ${width}dp, row is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+}

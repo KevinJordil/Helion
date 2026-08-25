@@ -3,7 +3,73 @@
 
     <string name="tab_home">Accueil</string>
     <string name="tab_sleep">Sommeil</string>
+    <string name="tab_activities">Activités</string>
     <string name="tab_settings">Réglages</string>
+
+    <string name="action_cancel">Annuler</string>
+
+    <string name="sport_picker_label">Sport</string>
+    <string name="sport_badminton">Badminton</string>
+    <string name="sport_running">Course à pied</string>
+    <string name="sport_cycling">Vélo</string>
+    <string name="sport_walking">Marche</string>
+    <string name="sport_swimming">Natation</string>
+    <string name="sport_other">Autre</string>
+
+    <string name="activity_status_candidate">À confirmer</string>
+    <string name="activity_status_confirmed">Confirmée</string>
+    <string name="activity_status_published">Publiée</string>
+    <string name="activity_status_dismissed">Ignorée</string>
+
+    <string name="activity_new_action">Nouvelle activité</string>
+    <string name="activity_manage_slots">Séances récurrentes</string>
+    <string name="activity_group_today">Aujourd\'hui</string>
+    <string name="activity_group_yesterday">Hier</string>
+    <string name="activity_list_empty_title">Aucune activité enregistrée</string>
+    <string name="activity_list_empty_body">Choisissez une journée et sélectionnez une plage sur son graphique pour créer votre première activité.</string>
+    <string name="activity_list_empty_action">Nouvelle activité</string>
+
+    <string name="activity_detail_title">Activité</string>
+    <string name="activity_not_found">Cette activité n\'existe plus.</string>
+    <string name="activity_title_label">Titre</string>
+    <string name="activity_notes_label">Notes</string>
+    <string name="activity_start_label">Début</string>
+    <string name="activity_end_label">Fin</string>
+    <string name="activity_datetime_invalid">Format invalide (jj/mm/aaaa hh:mm). Pas encore enregistré.</string>
+    <string name="activity_end_before_start">La fin doit être après le début. Pas encore enregistré.</string>
+    <string name="activity_duration_hours_minutes">%1$d h %2$02d</string>
+    <string name="activity_duration_minutes">%1$d min</string>
+    <string name="activity_action_confirm">Confirmer</string>
+    <string name="activity_action_dismiss">Ignorer</string>
+    <string name="activity_action_reopen">Rouvrir</string>
+    <string name="activity_action_delete">Supprimer</string>
+    <string name="activity_delete_confirm_title">Supprimer cette activité ?</string>
+    <string name="activity_delete_confirm_body">Cette action est définitive.</string>
+
+    <string name="day_timeline_previous_day">Jour précédent</string>
+    <string name="day_timeline_next_day">Jour suivant</string>
+    <string name="day_timeline_selection_hint">Faites glisser sur le graphique pour sélectionner une plage.</string>
+    <string name="day_timeline_no_data">Aucune donnée ce jour-là.</string>
+    <string name="day_timeline_no_selection">Aucune plage sélectionnée</string>
+    <string name="day_timeline_selection_duration">Durée</string>
+    <string name="day_timeline_clear_selection">Effacer la sélection</string>
+    <string name="day_timeline_create_action">Créer l\'activité</string>
+
+    <string name="slot_new_action">Nouvelle séance</string>
+    <string name="slot_list_empty_title">Aucune séance déclarée</string>
+    <string name="slot_list_empty_body">Déclarez vos rendez-vous récurrents pour que Helion sache où les chercher.</string>
+    <string name="slot_label_field">Nom</string>
+    <string name="slot_day_label">Jour</string>
+    <string name="slot_start_label">Début</string>
+    <string name="slot_end_label">Fin</string>
+    <string name="slot_time_invalid">Format invalide (hh:mm). Pas encore enregistré.</string>
+    <string name="slot_active_label">Active</string>
+    <string name="slot_active_on">Active</string>
+    <string name="slot_active_off">Suspendue</string>
+    <string name="slot_action_create">Créer la séance</string>
+    <string name="slot_action_delete">Supprimer</string>
+    <string name="slot_delete_confirm_title">Supprimer cette séance ?</string>
+    <string name="slot_delete_confirm_body">Les activités déjà enregistrées à partir de cette séance ne seront pas supprimées.</string>
 
     <string name="metric_heart_rate">Fréquence cardiaque</string>
     <string name="metric_steps">Pas</string>
