@@ -111,7 +111,6 @@
     <string name="sleep_awakenings">Réveils</string>
     <string name="sleep_awakenings_value">%1$d · %2$d min</string>
     <string name="sleep_efficiency">Efficacité</string>
-    <string name="sleep_min_heart_rate">FC min</string>
     <string name="sleep_history_title">Nuits récentes</string>
     <string name="sleep_duration_format">%1$d h %2$02d</string>
     <string name="sleep_in_progress_note">Nuit en cours : la durée n\'est pas encore définitive.</string>
@@ -128,4 +127,23 @@
     <string name="sleep_phase_light">Léger</string>
     <string name="sleep_phase_awake">Éveil</string>
     <string name="sleep_phase_not_estimable">Stades non estimables : fréquence cardiaque insuffisante cette nuit-là.</string>
+
+    <string name="sleep_night_chart_title">Fréquence cardiaque</string>
+    <string name="sleep_chart_bands_note">Bandes en arrière-plan : stades de sommeil estimés (voir Stades ci-dessous).</string>
+    <string name="sleep_overlay_scale_note">Chaque courbe superposée est à sa propre échelle.</string>
+    <string name="sleep_overlay_respiratory">Respiration</string>
+    <string name="sleep_overlay_movement">Mouvement</string>
+
+    <!-- Abbreviated French weekday names, Monday first (java.time.DayOfWeek order), for
+         the date shown next to each night, kept short so it never crowds the date on a
+         narrow screen. -->
+    <string-array name="weekday_short">
+        <item>Lun</item>
+        <item>Mar</item>
+        <item>Mer</item>
+        <item>Jeu</item>
+        <item>Ven</item>
+        <item>Sam</item>
+        <item>Dim</item>
+    </string-array>
 </resources>

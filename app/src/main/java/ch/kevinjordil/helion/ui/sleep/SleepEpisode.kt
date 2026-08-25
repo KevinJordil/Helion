@@ -31,8 +31,9 @@ enum class SleepEpisodeKind { NIGHT, NAP }
  * missing minutes, only that something is missing.
  *
  * [minutes] is every minute sample (asleep, awake, or in between) spanning
- * `[fellAsleepAt, wokeAt]`, for building the episode's own ribbon -- see
- * [ch.kevinjordil.helion.ui.sleep.sleepEpisodeReadings].
+ * `[fellAsleepAt, wokeAt]`, the source for the night's heart-rate chart and estimated
+ * sleep phases -- see [ch.kevinjordil.helion.ui.sleep.NightChartSection] and
+ * [estimateSleepPhases].
  */
 data class SleepEpisode(
     val date: LocalDate,

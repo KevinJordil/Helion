@@ -23,18 +23,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
-import ch.kevinjordil.helion.source.SleepStage
 import ch.kevinjordil.helion.ui.metric.Reading
 import ch.kevinjordil.helion.ui.metric.chartYRange
 import ch.kevinjordil.helion.ui.quality.Baseline
@@ -43,20 +44,28 @@ import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceForSleepDuration
 import ch.kevinjordil.helion.ui.quality.referenceMessage
-import ch.kevinjordil.helion.ui.ribbon.DayRibbon
 import ch.kevinjordil.helion.ui.ribbon.HypnogramRibbon
 import ch.kevinjordil.helion.ui.ribbon.buildCategoryRibbon
-import ch.kevinjordil.helion.ui.ribbon.buildRibbon
-import ch.kevinjordil.helion.ui.ribbon.heroRibbonSize
 import ch.kevinjordil.helion.ui.theme.HelionColors
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM")
+
+/**
+ * [date] prefixed with its French weekday abbreviation (see `R.array.weekday_short`,
+ * Monday-first exactly like [java.time.DayOfWeek.getValue]) -- e.g. "Mer 24/08" -- so a
+ * night's date is never shown without which day of the week it was. Abbreviated to three
+ * letters to stay inside the same width budget as the bare date; see
+ * SleepDateWidthTest.
+ */
+private fun weekdayDateText(date: LocalDate, weekdayAbbreviations: List<String>): String =
+    "${weekdayAbbreviations[date.dayOfWeek.value - 1]} ${DATE_FORMAT.format(date)}"
 
 /** Buckets an episode's own span into roughly ten-minute slices, clamped to a sane range for very short or very long episodes. */
 private const val EPISODE_BUCKET_MINUTES = 10
@@ -105,6 +114,13 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
     // the last index is the most recent, which is also this state's initial value.
     var selectedIndex by remember { mutableStateOf(0) }
 
+    // Overlay toggles for the night chart, hoisted here rather than remembered inside
+    // SelectedNightCard so they survive stepping to a different night -- exactly what
+    // "persist while he browses between nights" requires. Off by default; heart rate
+    // itself is not a toggle, it is always shown.
+    var showRespiratoryOverlay by rememberSaveable { mutableStateOf(false) }
+    var showMovementOverlay by rememberSaveable { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         val now = System.currentTimeMillis() / 1000
         val loaded = reader.loadNights(now)
@@ -152,6 +168,10 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
                     hasNext = selectedIndex < loaded.lastIndex,
                     onPrevious = { selectedIndex -= 1 },
                     onNext = { selectedIndex += 1 },
+                    showRespiratoryOverlay = showRespiratoryOverlay,
+                    onShowRespiratoryOverlayChange = { showRespiratoryOverlay = it },
+                    showMovementOverlay = showMovementOverlay,
+                    onShowMovementOverlayChange = { showMovementOverlay = it },
                 )
             }
             if (history.isNotEmpty()) {
@@ -179,10 +199,15 @@ private fun SelectedNightCard(
     hasNext: Boolean,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    showRespiratoryOverlay: Boolean,
+    onShowRespiratoryOverlayChange: (Boolean) -> Unit,
+    showMovementOverlay: Boolean,
+    onShowMovementOverlayChange: (Boolean) -> Unit,
 ) {
     val colors = HelionThemeTokens.colors
     val hours = episode.durationAsleepMinutes / 60
     val minutes = episode.durationAsleepMinutes % 60
+    val weekdays = stringArrayResource(R.array.weekday_short).toList()
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
@@ -197,7 +222,7 @@ private fun SelectedNightCard(
                     tint = if (hasPrevious) colors.textSecondary else colors.textTertiary,
                 )
             }
-            Text(DATE_FORMAT.format(episode.date), style = HelionType.label, color = colors.textSecondary)
+            Text(weekdayDateText(episode.date, weekdays), style = HelionType.label, color = colors.textSecondary)
             IconButton(onClick = onNext, enabled = hasNext) {
                 Icon(
                     Icons.Filled.ArrowForward,
@@ -207,17 +232,6 @@ private fun SelectedNightCard(
             }
         }
 
-        DayRibbon(
-            bars = buildRibbon(
-                sleepEpisodeReadings(episode),
-                windowStart = episode.fellAsleepAt,
-                windowEnd = episode.wokeAt + 60,
-                bucketCount = episodeBucketCount(episode),
-            ),
-            barColor = colors.accentViolet,
-            modifier = Modifier.heroRibbonSize(),
-        )
-
         Text(
             stringResource(R.string.sleep_duration_format, hours.toInt(), minutes.toInt()),
             style = SLEEP_DURATION_STYLE,
@@ -225,9 +239,9 @@ private fun SelectedNightCard(
             softWrap = false,
         )
 
-        Row(horizontalArrangement = Arrangement.spacedBy(32.dp), modifier = Modifier.padding(top = 4.dp)) {
-            StatItem(stringResource(R.string.sleep_fell_asleep), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)))
-            StatItem(stringResource(R.string.sleep_woke_at), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatItem(stringResource(R.string.sleep_fell_asleep), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)), Modifier.weight(1f))
+            StatItem(stringResource(R.string.sleep_woke_at), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)), Modifier.weight(1f))
         }
 
         if (episode.isInProgress) {
@@ -264,22 +278,28 @@ private fun SelectedNightCard(
             Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
         }
 
-        // Two rows of two, not one row of four: four instrument-style stat pairs (a short
-        // uppercase label above a mono value) crowded into a single SpaceBetween row leaves
-        // too little width for the longer ones ("12 · 24 min") and forces an ugly mid-value
-        // wrap. Halving the row width per item is what actually gives the numbers room.
-        Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatItem(stringResource(R.string.sleep_awakenings), stringResource(R.string.sleep_awakenings_value, episode.awakenings, episode.awakeningsDurationMinutes))
-                StatItem(stringResource(R.string.sleep_efficiency), "${(episode.sleepEfficiency * 100).toInt()} %")
-            }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                // Respiratory rate's own average now lives in RespiratoryRateSection below,
-                // next to its chart -- showing it twice on the same card was exactly the
-                // cluttered layout being fixed here.
-                StatItem(stringResource(R.string.sleep_min_heart_rate), episode.minHeartRate?.let { "$it ${stringResource(R.string.unit_bpm)}" } ?: "—")
-            }
+        // Each on its own full-width line, not sharing a row: "12 · 24 min" is already a
+        // composed count-plus-duration phrase, and a disturbed night's widest plausible
+        // form of it does not fit a half-width column at this value size (see
+        // SleepScreenWidthTest) -- the same composed-string wrapping this screen's other
+        // fixes are for. The full row width is what actually gives it room.
+        Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatItem(
+                stringResource(R.string.sleep_awakenings),
+                stringResource(R.string.sleep_awakenings_value, episode.awakenings, episode.awakeningsDurationMinutes),
+                Modifier.fillMaxWidth(),
+            )
+            StatItem(stringResource(R.string.sleep_efficiency), "${(episode.sleepEfficiency * 100).toInt()} %", Modifier.fillMaxWidth())
         }
+
+        NightChartSection(
+            episode = episode,
+            showRespiratory = showRespiratoryOverlay,
+            onShowRespiratoryChange = onShowRespiratoryOverlayChange,
+            showMovement = showMovementOverlay,
+            onShowMovementChange = onShowMovementOverlayChange,
+            modifier = Modifier.padding(top = 16.dp),
+        )
 
         SleepPhaseSection(episode)
         RespiratoryRateSection(episode)
@@ -326,11 +346,19 @@ private fun SleepPhaseSection(episode: SleepEpisode) {
                     modifier = Modifier.fillMaxWidth(),
                 )
 
+                // Two columns, not three: at this value size, a single phase's widest
+                // plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
+                // for the whole night) does not fit a third-width column -- see
+                // SleepScreenWidthTest. Two rows of two, the same fix already used above,
+                // one column short: three items into two columns leaves the third
+                // ([SleepPhase.LIGHT]) alone on its own full-width row.
                 val breakdown = sleepPhaseBreakdown(estimate.minutes)
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0))
-                    StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0))
-                    StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0))
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
+                        StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
+                    }
+                    StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.fillMaxWidth())
                 }
             }
         }
@@ -343,14 +371,14 @@ private fun SleepPhaseSection(episode: SleepEpisode) {
  * [HelionColors.phaseDeep] for why these four exist and are not [HelionColors.accentViolet]
  * or [HelionColors.accentAmber].
  */
-private fun phaseColors(colors: HelionColors) = mapOf(
+internal fun phaseColors(colors: HelionColors) = mapOf(
     SleepPhase.AWAKE to colors.phaseAwake,
     SleepPhase.LIGHT to colors.phaseLight,
     SleepPhase.REM to colors.phaseRem,
     SleepPhase.DEEP to colors.phaseDeep,
 )
 
-private fun phaseLabelRes(phase: SleepPhase): Int = when (phase) {
+internal fun phaseLabelRes(phase: SleepPhase): Int = when (phase) {
     SleepPhase.AWAKE -> R.string.sleep_phase_awake
     SleepPhase.REM -> R.string.sleep_phase_rem
     SleepPhase.LIGHT -> R.string.sleep_phase_light
@@ -363,12 +391,22 @@ private fun phaseDurationText(minutesInPhase: Int): String {
     return if (hours > 0) "%d h %02d".format(hours, minutes) else "%d min".format(minutes)
 }
 
+/**
+ * [unit], when non-empty, is drawn on its own line below [value] rather than appended to it
+ * -- exactly the fix for "resp/min" wrapping the max respiratory value onto a third line
+ * (see [RespiratoryRateSection]): what has to fit a column is the value alone and the unit
+ * alone, never the two concatenated. Same split MetricScreen's own `StatItem` already uses;
+ * see MetricStatsWidthTest's kdoc.
+ */
 @Composable
-private fun StatItem(label: String, value: String) {
+private fun StatItem(label: String, value: String, modifier: Modifier = Modifier, unit: String = "") {
     val colors = HelionThemeTokens.colors
-    Column {
+    Column(modifier = modifier) {
         Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
         Text(value, style = HelionType.valueMedium, color = colors.textPrimary)
+        if (unit.isNotEmpty()) {
+            Text(unit, style = HelionType.labelSmall, color = colors.textTertiary)
+        }
     }
 }
 
@@ -377,6 +415,7 @@ private fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit) {
     val colors = HelionThemeTokens.colors
     val hours = episode.durationAsleepMinutes / 60
     val minutes = episode.durationAsleepMinutes % 60
+    val weekdays = stringArrayResource(R.array.weekday_short).toList()
     val tag = when {
         episode.isInProgress -> stringResource(R.string.sleep_history_in_progress_tag)
         episode.hasDataGap -> stringResource(R.string.sleep_history_incomplete_tag)
@@ -389,7 +428,7 @@ private fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit) {
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(DATE_FORMAT.format(episode.date), style = HelionType.body, color = colors.textSecondary)
+        Text(weekdayDateText(episode.date, weekdays), style = HelionType.body, color = colors.textSecondary)
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 stringResource(R.string.sleep_duration_format, hours.toInt(), minutes.toInt()),
@@ -423,10 +462,10 @@ private fun RespiratoryRateSection(episode: SleepEpisode) {
 
         RespiratoryRateChart(readings = readings, lineColor = colors.accentViolet, modifier = Modifier.fillMaxWidth().height(64.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            StatItem(stringResource(R.string.stat_min), "%.0f %s".format(min, unit))
-            StatItem(stringResource(R.string.stat_average), "%.0f %s".format(average, unit))
-            StatItem(stringResource(R.string.stat_max), "%.0f %s".format(max, unit))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatItem(stringResource(R.string.stat_min), "%.0f".format(min), Modifier.weight(1f), unit)
+            StatItem(stringResource(R.string.stat_average), "%.0f".format(average), Modifier.weight(1f), unit)
+            StatItem(stringResource(R.string.stat_max), "%.0f".format(max), Modifier.weight(1f), unit)
         }
     }
 }
@@ -469,10 +508,6 @@ private fun RespiratoryRateChart(readings: List<Reading>, lineColor: androidx.co
         drawPath(path, color = lineColor, style = Stroke(width = 4f))
     }
 }
-
-/** [episode]'s own minutes as a binary asleep/awake reading, for [buildRibbon]'s bucketing. */
-private fun sleepEpisodeReadings(episode: SleepEpisode): List<Reading> =
-    episode.minutes.map { Reading(it.timestamp, if (it.sleepStage == SleepStage.ASLEEP) 1.0 else 0.0) }
 
 private fun episodeBucketCount(episode: SleepEpisode): Int {
     val spanMinutes = (episode.wokeAt - episode.fellAsleepAt) / 60 + 1

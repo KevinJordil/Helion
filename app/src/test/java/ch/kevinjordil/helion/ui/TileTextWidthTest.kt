@@ -358,6 +358,121 @@ class MetricStatsWidthTest {
 }
 
 /**
+ * Same composed-string gap as [MetricHeaderWidthTest]/[MetricStatsWidthTest], now closed for
+ * Sommeil's own stat blocks. The report that prompted this class was specifically
+ * "resp/min" wrapping the respiratory max onto a third line, but that gap was never
+ * screen-specific: every value-plus-unit and stat figure on Sommeil
+ * (the weekday+date header, awakenings, efficiency, the fell-asleep/woke times, the
+ * deep/REM/light phase durations, respiratory min/average/max, and the night chart's own
+ * heart-rate min/average/max) is measured here the same real-glyph way, at its own widest
+ * plausible value, so the next four-times-reported clipping bug is caught before a fifth
+ * report.
+ *
+ * Budgets mirror [MetricHeaderWidthTest]/[MetricStatsWidthTest]: Sommeil's root `Column` has
+ * the same 20dp-each-side padding, so the same 280dp content width applies. Rows of two
+ * equal-weight columns (8dp apart, see `SleepScreen.kt`) get `(280 - 8) / 2 = 136`dp each;
+ * rows of three ((280 - 16) / 3 = 88dp) match [MetricStatsWidthTest]'s own column exactly,
+ * since `StatItem` here now uses the identical value/unit-on-its-own-line split.
+ *
+ * The weekday+date header sits between two Material3 `IconButton`s (48dp minimum touch
+ * target each, previous/next night), not the full content width:
+ * `280 - 2*48 = 184`dp.
+ */
+class SleepScreenWidthTest {
+
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val valueFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String, font: TrueTypeFont, fontSizeSp: Float, letterSpacingSp: Float): Float {
+        val emPerChar = text.map { font.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * fontSizeSp
+        val letterSpacingTotalSp = letterSpacingSp * text.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    @Test
+    fun `every weekday abbreviation next to the widest date fits between the two nav icon buttons`() {
+        val headerBudgetDp = 184f
+        listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim").forEach { weekday ->
+            val text = "$weekday 30/08"
+            val width = widthDp(text, labelFont, fontSizeSp = 12f, letterSpacingSp = 1.5f)
+            assertTrue("\"$text\" measured ${width}dp, budget is ${headerBudgetDp}dp", width <= headerBudgetDp)
+        }
+    }
+
+    @Test
+    fun `awakenings and efficiency fit their own full-width row at the widest plausible values`() {
+        // Each is its own full-width line (see SleepScreen.kt) rather than sharing a row:
+        // "12 · 24 min" is already a composed count-plus-duration phrase, and a single
+        // awakening is capped just under SleepThresholds.maxBriefAwakeningMinutes (20) --
+        // a generous, still-plausible disturbed night is used here rather than an
+        // unbounded worst case, the same judgement call MetricStatsWidthTest's own kdoc
+        // makes for PAI/HRV.
+        val rowWidthDp = 280f
+        val awakenings = "20 · 250 min"
+        val efficiency = "100 %"
+        listOf(awakenings, efficiency).forEach { value ->
+            val width = widthDp(value, valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
+            assertTrue("\"$value\" measured ${width}dp, row is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `fell-asleep and woke times fit their two-column row`() {
+        val columnWidthDp = 136f
+        val width = widthDp("23:59", valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
+        assertTrue("\"23:59\" measured ${width}dp, column is ${columnWidthDp}dp", width <= columnWidthDp)
+    }
+
+    @Test
+    fun `deep and REM phase durations fit their two-column row at the widest plausible value`() {
+        // Two columns, not three (see SleepScreen.kt): the third, light sleep, gets its own
+        // full-width row below instead.
+        val columnWidthDp = 136f
+        // Same reasoning as DurationTextWidthTest's "23 h 59": no phase can occupy more of
+        // the night than the night's own (bounded) span.
+        val width = widthDp("23 h 59", valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
+        assertTrue("\"23 h 59\" measured ${width}dp, column is ${columnWidthDp}dp", width <= columnWidthDp)
+    }
+
+    @Test
+    fun `light phase duration fits its own full-width row at the widest plausible value`() {
+        val rowWidthDp = 280f
+        val width = widthDp("23 h 59", valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
+        assertTrue("\"23 h 59\" measured ${width}dp, row is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `respiratory min average and max fit their three-column row, value and unit each on their own line`() {
+        val columnWidthDp = 88f
+        val valueWidth = widthDp("99", valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
+        val unitWidth = widthDp("resp/min", labelFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+        assertTrue("\"99\" measured ${valueWidth}dp, column is ${columnWidthDp}dp", valueWidth <= columnWidthDp)
+        assertTrue("\"resp/min\" measured ${unitWidth}dp, column is ${columnWidthDp}dp", unitWidth <= columnWidthDp)
+    }
+
+    @Test
+    fun `the night chart's heart-rate min average and max fit their three-column row`() {
+        val columnWidthDp = 88f
+        val valueWidth = widthDp("224", valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
+        val unitWidth = widthDp("bpm", labelFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+        assertTrue("\"224\" measured ${valueWidth}dp, column is ${columnWidthDp}dp", valueWidth <= columnWidthDp)
+        assertTrue("\"bpm\" measured ${unitWidth}dp, column is ${columnWidthDp}dp", unitWidth <= columnWidthDp)
+    }
+}
+
+/**
  * The minimum of a TrueType font needed to answer one question: how wide, in em units, is
  * a given character's glyph. Parses only `head` (unitsPerEm), `maxp` (glyph count), `hhea`
  * (how many `hmtx` entries carry their own width), `hmtx` (the widths), and a `cmap`
