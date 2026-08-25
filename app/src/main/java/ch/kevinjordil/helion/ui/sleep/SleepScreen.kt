@@ -257,8 +257,8 @@ private fun SelectedNightCard(
         }
 
         // Computed once here (rather than inside SleepPhaseSection) so the same
-        // measured-vs-estimated source drives both the breakdown placed right below the
-        // duration reference line and the title/hypnogram further down.
+        // measured-vs-estimated source drives both the title/hypnogram and the
+        // per-stage breakdown placed right after it.
         val phaseSource = remember(episode) { resolveSleepPhases(episode) }
 
         if (!episode.isInProgress && !episode.hasDataGap) {
@@ -277,6 +277,11 @@ private fun SelectedNightCard(
             )
             Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
         }
+
+        // The hypnogram sits between the recommended-range caption above and the
+        // per-stage breakdown below -- see SleepPhaseSection's kdoc for why its title
+        // stays paired with it.
+        SleepPhaseSection(episode, phaseSource)
 
         when (phaseSource) {
             is SleepPhaseSource.Measured -> SleepPhaseBreakdown(phaseSource.minutes)
@@ -306,8 +311,6 @@ private fun SelectedNightCard(
             onShowMovementChange = onShowMovementOverlayChange,
             modifier = Modifier.padding(top = 16.dp),
         )
-
-        SleepPhaseSection(episode, phaseSource)
     }
 }
 
@@ -316,7 +319,7 @@ private fun SelectedNightCard(
  * (the device's own measured segments, or the heuristic estimator) is actually in use,
  * and why an episode can only ever be in one of those two states plus
  * [SleepPhaseSource.NotEstimable]. [source] is resolved once by the caller so it stays in
- * sync with the per-stage breakdown rendered separately, higher up the screen (see
+ * sync with the per-stage breakdown rendered separately, right after it (see
  * [SleepPhaseBreakdown]). Only the estimated path spells out "estimé", both in its own
  * section title and its own not-estimable fallback: that is the one place Helion shows
  * something it did not measure, and it must never read as a plain fact next to the
@@ -374,8 +377,8 @@ private fun SleepPhaseHypnogram(episode: SleepEpisode, minutes: List<PhaseMinute
 
 /**
  * The per-stage breakdown (profond, paradoxal, léger) for either [SleepPhaseSource.Measured]
- * or [SleepPhaseSource.Estimated] -- placed directly below the sleep-duration reference
- * line in [SelectedNightCard], ahead of the title and hypnogram it used to sit under.
+ * or [SleepPhaseSource.Estimated] -- placed directly below [SleepPhaseSection]'s title and
+ * hypnogram in [SelectedNightCard], which it used to sit above.
  *
  * Two columns, not three: at this value size, a single phase's widest
  * plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
