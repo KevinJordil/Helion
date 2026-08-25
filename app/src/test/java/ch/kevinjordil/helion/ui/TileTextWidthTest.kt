@@ -62,7 +62,7 @@ class TileTextWidthTest {
 
     private fun compactCaptions() = listOf("Encore tôt", "Plus bas", "Habituel", "Plus haut")
 
-    private fun tileMetricLabels() = listOf("Pas", "Stress", "SpO2", "PAI", "VFC", "Température")
+    private fun tileMetricLabels() = listOf("Pas", "Stress", "SpO2", "PAI", "VFC", "Température", "Respiration")
 
     @Test
     fun `every compact tile caption fits the tile's content width at a 1_3x font scale`() {

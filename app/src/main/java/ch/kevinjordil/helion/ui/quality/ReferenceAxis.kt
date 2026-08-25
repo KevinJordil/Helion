@@ -13,11 +13,10 @@ package ch.kevinjordil.helion.ui.quality
  * `stress` has no reference axis: it is a proprietary Amazfit index with no public
  * definition to compare against. `temperature` has no reference axis: skin temperature
  * depends on measurement site and conditions in a way a single published range cannot
- * capture. `pai` has no reference axis either: PAI is already a normalised score with a
- * commonly cited target elsewhere in the industry, but Helion cannot confirm that this
- * strap's PAI is computed to match that target, and stating one anyway would be exactly
- * the fabricated-precision failure this indicator exists to avoid. `heart_rate` has no
- * reference axis: it is a live instantaneous value here, not a resting measurement, so a
+ * capture. `pai` DOES have a reference axis, unlike the metrics above: a weekly PAI of
+ * 100 is the target established and validated by the HUNT cohort study, and is associated
+ * with reduced cardiovascular risk -- see [referenceForPai]. `heart_rate` has no reference
+ * axis: it is a live instantaneous value here, not a resting measurement, so a
  * resting-heart-rate reference does not apply to it (a resting-HR series exists in the
  * Gadgetbridge export and is not currently ingested -- a legitimate future reference axis,
  * but a new series to ingest, not a rewording of this one).
@@ -46,6 +45,19 @@ fun referenceForSteps(current: Double, goal: Int, notableShortfallFraction: Doub
 }
 
 /**
+ * `pai` against the weekly target of 100 -- the level established and validated by the
+ * HUNT cohort study as associated with reduced cardiovascular risk, independent of any
+ * one manufacturer's implementation. At or above it is [Position.USUAL]; below it is
+ * [Position.BELOW], notable once the shortfall passes [notableShortfallFraction] of the
+ * target.
+ */
+fun referenceForPai(current: Double, target: Double = 100.0, notableShortfallFraction: Double = 0.3): ReferenceIndicator {
+    if (current >= target) return ReferenceIndicator.Placed(Position.USUAL, isNotable = false)
+    val shortfall = (target - current) / target
+    return ReferenceIndicator.Placed(Position.BELOW, isNotable = shortfall > notableShortfallFraction)
+}
+
+/**
  * `spo2` against the widely used >=95% resting threshold. At or above it is
  * [Position.USUAL]; below it is [Position.BELOW], notable once the shortfall passes
  * [notableMarginPoints] percentage points.
@@ -57,14 +69,40 @@ fun referenceForSpo2(current: Double, thresholdPercent: Double = 95.0, notableMa
 }
 
 /**
+ * `sleep_duration` (a night's total time asleep, in hours) against the adult range widely
+ * cited across sleep-medicine bodies regardless of measurement method -- roughly 7 to 9
+ * hours. This is the clearest case in the app for a reference axis: unlike every other
+ * series, a personal baseline alone is not enough here, because a personal baseline only
+ * ever answers "is this usual for you" -- someone who habitually sleeps three hours a
+ * night would see "usual for you" on that axis and could read it as fine. The reference
+ * axis is what says otherwise.
+ *
+ * Within `[minHours, maxHours]` is [Position.USUAL]. Outside it, [Position.BELOW] or
+ * [Position.ABOVE], notable once the margin passes [notableMarginHours] on that side --
+ * a few minutes under or over the range is not treated as a call-out, a full hour is.
+ */
+fun referenceForSleepDuration(
+    currentHours: Double,
+    minHours: Double = 7.0,
+    maxHours: Double = 9.0,
+    notableMarginHours: Double = 1.0,
+): ReferenceIndicator = when {
+    currentHours in minHours..maxHours -> ReferenceIndicator.Placed(Position.USUAL, isNotable = false)
+    currentHours < minHours -> ReferenceIndicator.Placed(Position.BELOW, isNotable = (minHours - currentHours) > notableMarginHours)
+    else -> ReferenceIndicator.Placed(Position.ABOVE, isNotable = (currentHours - maxHours) > notableMarginHours)
+}
+
+/**
  * Single dispatch point: which metrics get a reference axis, and how it is computed for
- * each. Everything not listed here -- `hrv`, `stress`, `temperature`, `pai`, `heart_rate`,
- * and any future metric -- falls through to [ReferenceIndicator.NotApplicable] by default,
+ * each. Everything not listed here -- `hrv`, `stress`, `temperature`, `heart_rate`, and
+ * any future metric -- falls through to [ReferenceIndicator.NotApplicable] by default,
  * which is the safe direction: a metric only gets a reference axis by deliberate addition
  * here, never by omission.
  */
 fun referenceIndicatorFor(metricId: String, current: Double, stepsGoal: Int): ReferenceIndicator = when (metricId) {
     "steps" -> referenceForSteps(current, stepsGoal)
     "spo2" -> referenceForSpo2(current)
+    "pai" -> referenceForPai(current)
+    "sleep_duration" -> referenceForSleepDuration(current)
     else -> ReferenceIndicator.NotApplicable
 }

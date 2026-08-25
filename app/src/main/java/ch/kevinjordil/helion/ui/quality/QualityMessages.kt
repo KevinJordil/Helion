@@ -45,6 +45,16 @@ fun referenceMessage(metricId: String, indicator: ReferenceIndicator): Pair<Int,
         } else {
             R.string.reference_spo2_below_threshold to indicator.isNotable
         }
+        "pai" -> if (indicator.position == Position.USUAL) {
+            R.string.reference_pai_reached to false
+        } else {
+            R.string.reference_pai_below_target to indicator.isNotable
+        }
+        "sleep_duration" -> when (indicator.position) {
+            Position.USUAL -> R.string.reference_sleep_within_range to false
+            Position.BELOW -> R.string.reference_sleep_below_range to indicator.isNotable
+            Position.ABOVE -> R.string.reference_sleep_above_range to indicator.isNotable
+        }
         else -> R.string.reference_not_applicable to false
     }
 }

@@ -53,17 +53,47 @@ class ReferenceAxisTest {
     }
 
     @Test
-    fun `steps and spo2 get a reference axis, everything else does not`() {
+    fun `hrv, stress, temperature and heart rate have no reference axis`() {
         assertEquals(ReferenceIndicator.NotApplicable, referenceIndicatorFor("hrv", current = 45.0, stepsGoal = 8000))
         assertEquals(ReferenceIndicator.NotApplicable, referenceIndicatorFor("stress", current = 40.0, stepsGoal = 8000))
         assertEquals(ReferenceIndicator.NotApplicable, referenceIndicatorFor("temperature", current = 36.5, stepsGoal = 8000))
-        assertEquals(ReferenceIndicator.NotApplicable, referenceIndicatorFor("pai", current = 80.0, stepsGoal = 8000))
         assertEquals(ReferenceIndicator.NotApplicable, referenceIndicatorFor("heart_rate", current = 65.0, stepsGoal = 8000))
     }
 
     @Test
-    fun `dispatch routes steps and spo2 to their own comparisons`() {
+    fun `pai at or above the weekly target of 100 is USUAL`() {
+        assertEquals(ReferenceIndicator.Placed(Position.USUAL, isNotable = false), referenceForPai(current = 100.0))
+        assertEquals(ReferenceIndicator.Placed(Position.USUAL, isNotable = false), referenceForPai(current = 130.0))
+    }
+
+    @Test
+    fun `pai well under the weekly target is BELOW and notable`() {
+        val indicator = referenceForPai(current = 50.0)
+        assertEquals(ReferenceIndicator.Placed(Position.BELOW, isNotable = true), indicator)
+    }
+
+    @Test
+    fun `sleep duration within 7 to 9 hours is USUAL`() {
+        assertEquals(ReferenceIndicator.Placed(Position.USUAL, isNotable = false), referenceForSleepDuration(currentHours = 8.0))
+    }
+
+    @Test
+    fun `sleep duration well under 7 hours is BELOW and notable`() {
+        val indicator = referenceForSleepDuration(currentHours = 5.5)
+        assertEquals(ReferenceIndicator.Placed(Position.BELOW, isNotable = true), indicator)
+    }
+
+    @Test
+    fun `sleep duration well over 9 hours is ABOVE and notable`() {
+        val indicator = referenceForSleepDuration(currentHours = 10.5)
+        assertEquals(ReferenceIndicator.Placed(Position.ABOVE, isNotable = true), indicator)
+    }
+
+    @Test
+    fun `dispatch routes steps, spo2, pai and sleep duration to their own comparisons`() {
         assertEquals(referenceForSteps(9000.0, 8000), referenceIndicatorFor("steps", current = 9000.0, stepsGoal = 8000))
         assertEquals(referenceForSpo2(97.0), referenceIndicatorFor("spo2", current = 97.0, stepsGoal = 8000))
+        assertEquals(referenceForPai(110.0), referenceIndicatorFor("pai", current = 110.0, stepsGoal = 8000))
+        assertEquals(referenceForSleepDuration(8.0), referenceIndicatorFor("sleep_duration", current = 8.0, stepsGoal = 8000))
     }
 }
