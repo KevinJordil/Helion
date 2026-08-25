@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,8 +24,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
@@ -104,7 +108,7 @@ fun HomeScreen(
     /**
      * [showSpinner] separates the two callers of the same refresh: a user's pull gesture
      * wants to see the pull-to-refresh indicator spin, but the automatic open-sync (see
-     * the `LaunchedEffect` below) must stay invisible except for the freshness line's
+     * the `LifecycleEventEffect` below) must stay invisible except for the freshness line's
      * phase text -- "show the existing data immediately... show the refresh in progress in
      * the freshness line", never a blocking spinner on every launch.
      */
@@ -129,12 +133,19 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        loadAll()
-        // Sync once per app open, in the background: existing data is already on screen
-        // from loadAll() above, so this never blocks the first paint. Debounced by
-        // OpenSyncGate (ten minutes) so remounting Accueil after a quick detour to
-        // Réglages, or a brief app-switch, does not fire a second sync moments later.
+    LaunchedEffect(Unit) { loadAll() }
+
+    // Sync on every ON_RESUME, not just the first composition: a `LaunchedEffect(Unit)`
+    // here only ever fires once per composition lifetime, which covers a genuine cold
+    // start but NOT the far more common "open the app" -- bringing an already-running
+    // process back to the foreground from recents, which resumes the existing Activity
+    // without recomposing Accueil from scratch, so a mount-only effect would silently
+    // never run again for the rest of the process's life. ON_RESUME fires both on cold
+    // start (the lifecycle replays it immediately since the observer attaches already-
+    // resumed) and on every later foreground return, which is what "kicks off a sync
+    // when the app opens" actually has to mean. OpenSyncGate's debounce (ten minutes) is
+    // what keeps this from re-syncing on every quick foreground bounce.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         val now = System.currentTimeMillis() / 1000
         if (exportConfigured && container.openSyncGate.shouldSync(now)) {
             container.openSyncGate.recordAttempt(now)
@@ -182,6 +193,7 @@ fun HomeScreen(
                         personalBaseline = latestByMetricId[HEART_RATE_ID]?.value?.let { value ->
                             placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[HEART_RATE_ID].orEmpty()))
                         },
+                        onClick = { onOpenMetric(HEART_RATE_ID) },
                     )
                 }
                 item {
@@ -232,12 +244,22 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HeroHeartRate(latest: Reading?, ribbonBars: List<RibbonBar>, personalBaseline: PersonalBaseline?) {
+private fun HeroHeartRate(
+    latest: Reading?,
+    ribbonBars: List<RibbonBar>,
+    personalBaseline: PersonalBaseline?,
+    onClick: () -> Unit,
+) {
     val colors = HelionThemeTokens.colors
     val metric = MetricCatalog.byId(HEART_RATE_ID) ?: return
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            // The most prominent element on the screen must not be the one dead tap
+            // target: tapping the hero opens the same detail screen as tapping a tile,
+            // with the same clickable mechanics (ripple via LocalIndication) and the
+            // same Role.Button semantics for accessibility/switch access.
+            .clickable(onClick = onClick, role = Role.Button)
             .padding(bottom = 8.dp),
     ) {
         DayRibbon(
