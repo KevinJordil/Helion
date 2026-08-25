@@ -2,6 +2,7 @@
     <string name="app_name">Helion</string>
 
     <string name="tab_home">Accueil</string>
+    <string name="tab_sleep">Sommeil</string>
     <string name="tab_settings">Réglages</string>
 
     <string name="metric_heart_rate">Fréquence cardiaque</string>
@@ -11,6 +12,7 @@
     <string name="metric_pai">PAI</string>
     <string name="metric_hrv">VFC</string>
     <string name="metric_temperature">Température</string>
+    <string name="metric_respiratory_rate">Respiration</string>
 
     <string name="unit_bpm">bpm</string>
     <string name="unit_steps">pas</string>
@@ -18,6 +20,7 @@
     <string name="unit_percent" formatted="false">%</string>
     <string name="unit_ms">ms</string>
     <string name="unit_celsius">°C</string>
+    <string name="unit_breaths_per_minute">resp/min</string>
 
     <string name="range_day">Jour</string>
     <string name="range_week">Semaine</string>
@@ -72,6 +75,11 @@
     <string name="reference_steps_below_goal">Sous l\'objectif</string>
     <string name="reference_spo2_on_threshold">Dans la plage habituelle (≥ 95 %)</string>
     <string name="reference_spo2_below_threshold">Sous le repère habituel (95 %)</string>
+    <string name="reference_pai_reached">Objectif hebdomadaire atteint</string>
+    <string name="reference_pai_below_target">Sous l\'objectif hebdomadaire (100)</string>
+    <string name="reference_sleep_within_range">Dans la plage recommandée (7-9 h)</string>
+    <string name="reference_sleep_below_range">Sous la plage recommandée (7-9 h)</string>
+    <string name="reference_sleep_above_range">Au-dessus de la plage recommandée (7-9 h)</string>
 
     <string name="steps_goal_label">Objectif quotidien de pas</string>
 
@@ -88,4 +96,29 @@
     <string name="sync_result_success">%1$d minutes et %2$d points synchronisés.</string>
     <string name="sync_result_success_stale">Gadgetbridge n\'a pas pu être actualisé : %1$d minutes et %2$d points lus depuis son dernier export.</string>
     <string name="sync_result_failed">Échec de la synchronisation : %1$s</string>
+
+    <string name="metric_description_heart_rate">Nombre de battements par minute. Le bracelet en enregistre une mesure par minute, pas en continu : les pics très brefs peuvent lui échapper.</string>
+    <string name="metric_description_hrv">Variation des intervalles entre deux battements. Une variabilité plus élevée traduit en général une meilleure récupération. Très personnelle : seule son évolution chez toi a du sens, pas sa comparaison avec autrui. Le mode de calcul du bracelet n\'est pas documenté.</string>
+    <string name="metric_description_stress">Indice propre à Amazfit, dérivé de la variabilité cardiaque, sur une échelle de 0 à 100. Utile pour suivre une tendance, mais sans équivalent chez les autres fabricants.</string>
+    <string name="metric_description_steps">Nombre de pas, comptés minute par minute et additionnés par journée.</string>
+    <string name="metric_description_pai">Score hebdomadaire calculé à partir du temps passé à différentes intensités cardiaques, ajusté à ton âge, ton sexe et tes fréquences de repos et maximale. Il glisse sur sept jours. Un score maintenu au-dessus de 100 est associé à un risque cardiovasculaire réduit.</string>
+    <string name="metric_description_spo2">Pourcentage d\'hémoglobine transportant de l\'oxygène. Au repos, une valeur au-dessus de 95 % est considérée comme normale. Mesure ponctuelle, sensible au mouvement et au serrage du bracelet.</string>
+    <string name="metric_description_temperature">Température de la peau au poignet, et non température corporelle. Elle suit l\'ambiance autant que toi : c\'est son écart à ton habitude qui informe, pas sa valeur absolue.</string>
+    <string name="metric_description_respiratory_rate">Respirations par minute pendant le sommeil. Remarquablement stable chez une même personne ; un écart durable accompagne souvent une infection ou une fatigue.</string>
+    <string name="metric_description_sleep_duration">Temps passé endormi entre l\'endormissement et le réveil, réveils déduits. Ce bracelet ne distingue pas les stades de sommeil : Helion n\'affiche donc ni sommeil profond ni paradoxal plutôt que de les inventer.</string>
+
+    <string name="sleep_fell_asleep">Endormissement</string>
+    <string name="sleep_woke_at">Réveil</string>
+    <string name="sleep_awakenings">Réveils</string>
+    <string name="sleep_awakenings_value">%1$d · %2$d min</string>
+    <string name="sleep_efficiency">Efficacité</string>
+    <string name="sleep_min_heart_rate">FC min</string>
+    <string name="sleep_avg_respiratory_rate">Resp. moy.</string>
+    <string name="sleep_history_title">Nuits récentes</string>
+    <string name="sleep_duration_format">%1$d h %2$02d</string>
+    <string name="sleep_in_progress_note">Nuit en cours : la durée n\'est pas encore définitive.</string>
+    <string name="sleep_data_gap_note">Données manquantes pendant cette nuit : la durée n\'est pas fiable.</string>
+    <string name="sleep_no_nights">Aucune nuit enregistrée pour l\'instant.</string>
+    <string name="sleep_history_in_progress_tag">en cours</string>
+    <string name="sleep_history_incomplete_tag">incomplet</string>
 </resources>
