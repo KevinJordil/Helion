@@ -50,7 +50,6 @@
     <string name="accueil_empty_body">Le fichier est connecté mais aucune donnée n\'a encore été lue.</string>
     <string name="accueil_empty_action">Lancer une synchronisation</string>
 
-    <string name="accueil_hero_time">Reçue à %1$s</string>
     <string name="accueil_hero_no_reading">Aucune fréquence cardiaque reçue</string>
 
     <string name="refresh_phase_syncing">Synchronisation avec la montre…</string>

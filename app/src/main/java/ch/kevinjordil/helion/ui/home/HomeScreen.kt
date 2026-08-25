@@ -48,13 +48,7 @@ import ch.kevinjordil.helion.ui.ribbon.heroRibbonSize
 import ch.kevinjordil.helion.ui.settings.SyncOutcome
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
-
-private val HERO_TIME_FORMAT: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(ZoneId.systemDefault())
 
 /** How long Accueil's pull-to-refresh waits for Gadgetbridge's sync-finish broadcast. */
 private const val SYNC_FINISH_TIMEOUT_MILLIS = 25_000L
@@ -233,22 +227,30 @@ fun HomeScreen(
                     )
                 }
                 item {
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
-                        val phaseRes = refreshPhase?.let(::refreshPhaseLabel)
-                        Text(
-                            phaseRes?.let { stringResource(it) } ?: freshnessLine(newestSample),
-                            style = HelionType.bodySmall,
-                            color = colors.textSecondary,
-                        )
-                        banner?.let { b ->
-                            Text(
-                                stringResource(b.messageRes, *b.args.toTypedArray()),
-                                style = HelionType.bodySmall,
-                                color = if (b.isAttention) colors.accentAmber else colors.textSecondary,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        }
+                    // One line, not the four the owner reported ("Reçue à…" / "Comme
+                    // d'habitude" / a blank line from stacked padding / "Dernière valeur
+                    // reçue…"): a refresh in progress, a completed pass's outcome, and the
+                    // ordinary freshness line all describe the same thing -- how fresh and
+                    // reliable what is on screen right now is -- so only one of them is
+                    // ever shown at a time, picked in that priority order. The amber state
+                    // for a failed or degraded refresh survives as this line's colour,
+                    // rather than a second banner line underneath it. The distinct,
+                    // genuinely different fact -- the personal-baseline caption -- stays on
+                    // its own line inside HeroHeartRate.
+                    val phaseRes = refreshPhase?.let(::refreshPhaseLabel)
+                    val currentBanner = banner
+                    val text = when {
+                        phaseRes != null -> stringResource(phaseRes)
+                        currentBanner != null -> stringResource(currentBanner.messageRes, *currentBanner.args.toTypedArray())
+                        else -> freshnessLine(newestSample)
                     }
+                    val isAmber = phaseRes == null && currentBanner?.isAttention == true
+                    Text(
+                        text,
+                        style = HelionType.bodySmall,
+                        color = if (isAmber) colors.accentAmber else colors.textSecondary,
+                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+                    )
                 }
                 items(tiles.chunked(2)) { pair ->
                     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -314,18 +316,17 @@ private fun HeroHeartRate(
                         modifier = Modifier.padding(bottom = 16.dp),
                     )
                 }
-                Text(
-                    stringResource(R.string.accueil_hero_time, HERO_TIME_FORMAT.format(Instant.ofEpochSecond(latest.timestamp))),
-                    style = HelionType.bodySmall,
-                    color = colors.textSecondary,
-                )
+                // The absolute "Reçue à HH:MM" line used to sit here, right above the
+                // freshness line below the hero -- two ways of saying the same "how fresh"
+                // fact. Only the personal-baseline caption, genuinely distinct
+                // information, stays on this card; see the freshness item's own comment
+                // for the full account of the four-line report this was.
                 personalBaseline?.let { baseline ->
                     val (messageRes, isAmber) = personalBaselineMessage(baseline)
                     Text(
                         stringResource(messageRes),
                         style = HelionType.bodySmall,
                         color = if (isAmber) colors.accentAmber else colors.textSecondary,
-                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             } else {
