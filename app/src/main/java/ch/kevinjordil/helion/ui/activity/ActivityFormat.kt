@@ -4,7 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.store.ActivityStatus
+import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.SportType
+import ch.kevinjordil.helion.strava.PublicationFailureReason
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -37,6 +39,27 @@ fun statusLabelRes(status: ActivityStatus): Int = when (status) {
  * exactly that.
  */
 fun needsAttention(status: ActivityStatus): Boolean = status == ActivityStatus.CANDIDATE
+
+/** The French label for a Strava [PublicationState], shown on the activity detail screen. */
+fun publicationStateLabelRes(state: PublicationState): Int = when (state) {
+    PublicationState.PENDING -> R.string.strava_state_pending
+    PublicationState.UPLOADING -> R.string.strava_state_uploading
+    PublicationState.PUBLISHED -> R.string.strava_state_published
+    PublicationState.FAILED -> R.string.strava_state_failed
+}
+
+/**
+ * The French explanation for a stored [ch.kevinjordil.helion.store.Publication.lastError]
+ * reason code (see [PublicationFailureReason]). Falls back to the generic remote-error
+ * message for anything unrecognised, so a future reason code added elsewhere never renders
+ * as a blank string.
+ */
+fun publicationFailureReasonRes(reason: String?): Int = when (reason) {
+    PublicationFailureReason.AUTH_REQUIRED -> R.string.strava_reason_auth_required
+    PublicationFailureReason.NOT_CONFIGURED -> R.string.strava_reason_not_configured
+    PublicationFailureReason.NETWORK_ERROR -> R.string.strava_reason_network_error
+    else -> R.string.strava_reason_remote_error
+}
 
 /**
  * "1 h 30" / "45 min": [seconds] rendered as a human duration, hours only shown once there

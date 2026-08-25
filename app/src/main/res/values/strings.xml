@@ -47,6 +47,19 @@
     <string name="activity_delete_confirm_body">Cette action est définitive.</string>
     <string name="activity_candidate_note">Fréquence cardiaque %1$d–%2$d bpm (repos habituel ≈ %3$d bpm).</string>
 
+    <string name="strava_section_title">Strava</string>
+    <string name="strava_publish_action">Publier</string>
+    <string name="strava_share_action">Partager (TCX)</string>
+    <string name="strava_connect_action">Se connecter à Strava</string>
+    <string name="strava_state_pending">En attente</string>
+    <string name="strava_state_uploading">Envoi en cours…</string>
+    <string name="strava_state_published">Publiée sur Strava</string>
+    <string name="strava_state_failed">Échec de la publication</string>
+    <string name="strava_reason_auth_required">Autorisation Strava expirée ou manquante. Reconnectez-vous.</string>
+    <string name="strava_reason_not_configured">Strava n\'est pas configuré sur cet appareil. Utilisez le partage.</string>
+    <string name="strava_reason_network_error">Connexion à Strava impossible. Réessayez plus tard.</string>
+    <string name="strava_reason_remote_error">Strava a refusé la publication.</string>
+
     <string name="day_timeline_previous_day">Jour précédent</string>
     <string name="day_timeline_next_day">Jour suivant</string>
     <string name="day_timeline_selection_hint">Faites glisser sur le graphique pour sélectionner une plage.</string>

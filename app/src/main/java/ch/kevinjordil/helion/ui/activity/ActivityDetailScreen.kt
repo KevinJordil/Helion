@@ -1,5 +1,7 @@
 package ch.kevinjordil.helion.ui.activity
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,16 +24,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityStatus
+import ch.kevinjordil.helion.store.Publication
+import ch.kevinjordil.helion.store.PublicationState
+import ch.kevinjordil.helion.store.PublicationTarget
+import ch.kevinjordil.helion.strava.PublicationFailureReason
+import ch.kevinjordil.helion.strava.StravaConfig
+import ch.kevinjordil.helion.strava.buildShareIntent
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * One activity, fully editable: title, sport, notes, start and end, plus delete and the
@@ -55,15 +66,46 @@ fun ActivityDetailScreen(
 ) {
     val colors = HelionThemeTokens.colors
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val zone = remember { ZoneId.systemDefault() }
 
     var activity by remember(activityId) { mutableStateOf<Activity?>(null) }
     var loadedOnce by remember(activityId) { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var publication by remember(activityId) { mutableStateOf<Publication?>(null) }
+    var publishing by remember(activityId) { mutableStateOf(false) }
+
+    suspend fun reloadPublication() {
+        publication = container.database.publications().get(activityId, PublicationTarget.STRAVA)
+    }
 
     LaunchedEffect(activityId) {
         activity = container.database.activities().get(activityId)
+        reloadPublication()
         loadedOnce = true
+    }
+
+    fun publishToStrava() {
+        if (publishing) return
+        publishing = true
+        scope.launch {
+            withContext(Dispatchers.IO) { container.stravaPublisher.publish(activityId) }
+            reloadPublication()
+            publishing = false
+        }
+    }
+
+    fun connectToStrava() {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(container.stravaAuth.authorizeUrl())))
+    }
+
+    fun shareTcx(current: Activity) {
+        scope.launch {
+            val samples = withContext(Dispatchers.IO) {
+                container.database.minuteSamples().between(current.startTimestamp, current.endTimestamp)
+            }
+            context.startActivity(buildShareIntent(context, current, samples))
+        }
     }
 
     fun save(updated: Activity) {
@@ -192,6 +234,43 @@ fun ActivityDetailScreen(
                 }
 
                 ActivityStatus.CONFIRMED, ActivityStatus.PUBLISHED -> Unit
+            }
+        }
+
+        HorizontalDivider(color = colors.divider)
+
+        Text(stringResource(R.string.strava_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+        val currentPublication = publication
+        if (currentPublication != null) {
+            Text(
+                stringResource(publicationStateLabelRes(currentPublication.state)),
+                style = HelionType.bodySmall,
+                color = if (currentPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
+            )
+            if (currentPublication.state == PublicationState.FAILED) {
+                Text(
+                    stringResource(publicationFailureReasonRes(currentPublication.lastError)),
+                    style = HelionType.bodySmall,
+                    color = colors.accentAmber,
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val authNeedsReconnect = currentPublication?.state == PublicationState.FAILED &&
+                currentPublication.lastError == PublicationFailureReason.AUTH_REQUIRED
+            if (authNeedsReconnect && StravaConfig.isConfigured) {
+                Button(onClick = { connectToStrava() }) {
+                    Text(stringResource(R.string.strava_connect_action))
+                }
+            } else {
+                Button(onClick = { publishToStrava() }, enabled = !publishing) {
+                    Text(stringResource(R.string.strava_publish_action))
+                }
+            }
+            OutlinedButton(onClick = { shareTcx(current) }) {
+                Text(stringResource(R.string.strava_share_action))
             }
         }
 

@@ -699,3 +699,90 @@ class DayTimelineReadoutWidthTest {
         assertTrue("\"23 h 59\" measured ${width}dp, row is ${rowWidthDp}dp", width <= rowWidthDp)
     }
 }
+
+/**
+ * The Strava publish section added to the activity detail screen (`ActivityDetailScreen.kt`):
+ * the uppercase "STRAVA" section label (`HelionType.label`, same style
+ * [ActivityLabelWidthTest] already checks other short uppercase labels against) and the
+ * publication-state/failure-reason prose lines (`HelionType.bodySmall`, `strings.xml`'s
+ * `strava_state_*` and `strava_reason_*` entries) that sit below it as full-width `Text`.
+ *
+ * Budget: the same 280dp content width as every other screen with 20dp-each-side padding
+ * (see [SleepScreenWidthTest]'s own kdoc for the derivation). Real `Text` wraps rather than
+ * clipping (see [NoTextClippingTest]), so this checks the single-line width every one of
+ * these strings would need to *not* wrap at the narrowest supported screen and the 1.3x
+ * accessibility font scale -- the same standard [ActivityLabelWidthTest] holds its own
+ * short labels to, extended here per the reported pattern of clipped/wrapped strings.
+ */
+class StravaLabelWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun proseWidthDp(text: String): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 13f * fontScale
+    }
+
+    private fun stateLabels() = listOf(
+        "En attente",
+        "Envoi en cours…",
+        "Publiée sur Strava",
+        "Échec de la publication",
+    )
+
+    private fun reasonMessages() = listOf(
+        "Autorisation Strava expirée ou manquante. Reconnectez-vous.",
+        "Strava n'est pas configuré sur cet appareil. Utilisez le partage.",
+        "Connexion à Strava impossible. Réessayez plus tard.",
+        "Strava a refusé la publication.",
+    )
+
+    @Test
+    fun `the Strava section label fits a full-width row at a 1_3x font scale`() {
+        val width = labelWidthDp("Strava")
+        assertTrue("\"Strava\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `every publication-state label fits one line at the narrowest supported width`() {
+        stateLabels().forEach { label ->
+            val width = proseWidthDp(label)
+            // Prose wraps rather than clipping (NoTextClippingTest); this only confirms
+            // none of these short state labels are so wide they would look broken even on
+            // a single-line-sized status area.
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `the longest failure-reason sentence still fits within two lines at the narrowest width`() {
+        reasonMessages().forEach { message ->
+            val width = proseWidthDp(message)
+            // These are full sentences, expected to wrap onto a second line -- the budget
+            // here is 2x the row width, so a report of one wrapping to three-plus lines
+            // (the actual clipping-adjacent failure mode for prose) would show up here.
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+}
