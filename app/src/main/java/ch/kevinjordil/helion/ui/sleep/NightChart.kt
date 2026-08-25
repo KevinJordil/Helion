@@ -67,8 +67,7 @@ private data class NightOverlay(
  * rate and movement intensity as extra lines on the same axis.
  *
  * Omitted entirely when the episode has fewer than two heart-rate readings: a chart with
- * fewer than two points has no line to draw and nothing to scrub, matching how
- * [RespiratoryRateChart] already treats the same degenerate case.
+ * fewer than two points has no line to draw and nothing to scrub.
  *
  * Heart rate, respiratory rate and movement intensity are three different units (bpm,
  * breaths/minute, an unlabelled intensity count) with no shared zero or scale -- plotting

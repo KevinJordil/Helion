@@ -1,6 +1,5 @@
 package ch.kevinjordil.helion.ui.sleep
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,8 +25,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -37,7 +33,6 @@ import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.metric.Reading
-import ch.kevinjordil.helion.ui.metric.chartYRange
 import ch.kevinjordil.helion.ui.quality.Baseline
 import ch.kevinjordil.helion.ui.quality.computeBaseline
 import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
@@ -261,6 +256,11 @@ private fun SelectedNightCard(
             )
         }
 
+        // Computed once here (rather than inside SleepPhaseSection) so the same
+        // measured-vs-estimated source drives both the breakdown placed right below the
+        // duration reference line and the title/hypnogram further down.
+        val phaseSource = remember(episode) { resolveSleepPhases(episode) }
+
         if (!episode.isInProgress && !episode.hasDataGap) {
             val (personalRes, personalAmber) = personalBaselineMessage(
                 placeAgainstBaseline(episode.durationAsleepMinutes / 60.0, baseline),
@@ -276,6 +276,12 @@ private fun SelectedNightCard(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
+        }
+
+        when (phaseSource) {
+            is SleepPhaseSource.Measured -> SleepPhaseBreakdown(phaseSource.minutes)
+            is SleepPhaseSource.Estimated -> SleepPhaseBreakdown(phaseSource.minutes)
+            SleepPhaseSource.NotEstimable -> Unit
         }
 
         // Each on its own full-width line, not sharing a row: "12 · 24 min" is already a
@@ -301,25 +307,25 @@ private fun SelectedNightCard(
             modifier = Modifier.padding(top = 16.dp),
         )
 
-        SleepPhaseSection(episode)
-        RespiratoryRateSection(episode)
+        SleepPhaseSection(episode, phaseSource)
     }
 }
 
 /**
- * Phase breakdown and hypnogram for [episode] -- see [resolveSleepPhases] for which
- * source (the device's own measured segments, or the heuristic estimator) is actually in
- * use, and why an episode can only ever be in one of those two states plus
- * [SleepPhaseSource.NotEstimable]. Only the estimated path spells out "estimé", both in
- * its own section title and its own not-estimable fallback: that is the one place Helion
- * shows something it did not measure, and it must never read as a plain fact next to the
+ * Phase title and hypnogram for [episode] -- see [resolveSleepPhases] for which source
+ * (the device's own measured segments, or the heuristic estimator) is actually in use,
+ * and why an episode can only ever be in one of those two states plus
+ * [SleepPhaseSource.NotEstimable]. [source] is resolved once by the caller so it stays in
+ * sync with the per-stage breakdown rendered separately, higher up the screen (see
+ * [SleepPhaseBreakdown]). Only the estimated path spells out "estimé", both in its own
+ * section title and its own not-estimable fallback: that is the one place Helion shows
+ * something it did not measure, and it must never read as a plain fact next to the
  * numbers it did measure. The measured path uses a plain title and never mentions
  * estimation at all.
  */
 @Composable
-private fun SleepPhaseSection(episode: SleepEpisode) {
+private fun SleepPhaseSection(episode: SleepEpisode, source: SleepPhaseSource) {
     val colors = HelionThemeTokens.colors
-    val source = remember(episode) { resolveSleepPhases(episode) }
 
     val titleRes = if (source is SleepPhaseSource.Estimated) {
         R.string.sleep_phase_title_estimated
@@ -334,15 +340,15 @@ private fun SleepPhaseSection(episode: SleepEpisode) {
             is SleepPhaseSource.NotEstimable ->
                 Text(stringResource(R.string.sleep_phase_not_estimable), style = HelionType.bodySmall, color = colors.textSecondary)
 
-            is SleepPhaseSource.Measured -> SleepPhaseDetail(episode, source.minutes)
-            is SleepPhaseSource.Estimated -> SleepPhaseDetail(episode, source.minutes)
+            is SleepPhaseSource.Measured -> SleepPhaseHypnogram(episode, source.minutes)
+            is SleepPhaseSource.Estimated -> SleepPhaseHypnogram(episode, source.minutes)
         }
     }
 }
 
-/** The hypnogram and per-stage breakdown shared by [SleepPhaseSource.Measured] and [SleepPhaseSource.Estimated] -- only the section title and label above differ between the two. */
+/** The hypnogram shared by [SleepPhaseSource.Measured] and [SleepPhaseSource.Estimated] -- only the section title above differs between the two. */
 @Composable
-private fun SleepPhaseDetail(episode: SleepEpisode, minutes: List<PhaseMinute>) {
+private fun SleepPhaseHypnogram(episode: SleepEpisode, minutes: List<PhaseMinute>) {
     val colors = HelionThemeTokens.colors
     val phaseColor = phaseColors(colors)
     val lanes = listOf(SleepPhase.AWAKE, SleepPhase.REM, SleepPhase.LIGHT, SleepPhase.DEEP)
@@ -364,13 +370,22 @@ private fun SleepPhaseDetail(episode: SleepEpisode, minutes: List<PhaseMinute>) 
         labelColor = colors.textSecondary,
         modifier = Modifier.fillMaxWidth(),
     )
+}
 
-    // Two columns, not three: at this value size, a single phase's widest
-    // plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
-    // for the whole night) does not fit a third-width column -- see
-    // SleepScreenWidthTest. Two rows of two, the same fix already used above,
-    // one column short: three items into two columns leaves the third
-    // ([SleepPhase.LIGHT]) alone on its own full-width row.
+/**
+ * The per-stage breakdown (profond, paradoxal, léger) for either [SleepPhaseSource.Measured]
+ * or [SleepPhaseSource.Estimated] -- placed directly below the sleep-duration reference
+ * line in [SelectedNightCard], ahead of the title and hypnogram it used to sit under.
+ *
+ * Two columns, not three: at this value size, a single phase's widest
+ * plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
+ * for the whole night) does not fit a third-width column -- see
+ * SleepScreenWidthTest. Two rows of two, the same fix already used above,
+ * one column short: three items into two columns leaves the third
+ * ([SleepPhase.LIGHT]) alone on its own full-width row.
+ */
+@Composable
+private fun SleepPhaseBreakdown(minutes: List<PhaseMinute>) {
     val breakdown = sleepPhaseBreakdown(minutes)
     Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -407,22 +422,12 @@ private fun phaseDurationText(minutesInPhase: Int): String {
     return if (hours > 0) "%d h %02d".format(hours, minutes) else "%d min".format(minutes)
 }
 
-/**
- * [unit], when non-empty, is drawn on its own line below [value] rather than appended to it
- * -- exactly the fix for "resp/min" wrapping the max respiratory value onto a third line
- * (see [RespiratoryRateSection]): what has to fit a column is the value alone and the unit
- * alone, never the two concatenated. Same split MetricScreen's own `StatItem` already uses;
- * see MetricStatsWidthTest's kdoc.
- */
 @Composable
-private fun StatItem(label: String, value: String, modifier: Modifier = Modifier, unit: String = "") {
+private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Column(modifier = modifier) {
         Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
         Text(value, style = HelionType.valueMedium, color = colors.textPrimary)
-        if (unit.isNotEmpty()) {
-            Text(unit, style = HelionType.labelSmall, color = colors.textTertiary)
-        }
     }
 }
 
@@ -453,75 +458,6 @@ private fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit) {
             )
             tag?.let { Text(it, style = HelionType.labelSmall, color = colors.accentAmber) }
         }
-    }
-}
-
-/**
- * Respiratory rate for the night: a small self-scaled chart plus its real min/average/max,
- * shown only when the point series actually has readings for this episode -- an episode
- * with none (e.g. too short, or a gap in that series) simply omits the whole section rather
- * than showing an empty chart and a row of dashes.
- */
-@Composable
-private fun RespiratoryRateSection(episode: SleepEpisode) {
-    val readings = episode.respiratoryRateReadings
-    if (readings.isEmpty()) return
-
-    val colors = HelionThemeTokens.colors
-    val unit = stringResource(R.string.unit_breaths_per_minute)
-    val min = readings.minOf { it.value }
-    val max = readings.maxOf { it.value }
-    val average = episode.avgRespiratoryRate ?: return
-
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.metric_respiratory_rate).uppercase(), style = HelionType.label, color = colors.textSecondary)
-
-        RespiratoryRateChart(readings = readings, lineColor = colors.accentViolet, modifier = Modifier.fillMaxWidth().height(64.dp))
-
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatItem(stringResource(R.string.stat_min), "%.0f".format(min), Modifier.weight(1f), unit)
-            StatItem(stringResource(R.string.stat_average), "%.0f".format(average), Modifier.weight(1f), unit)
-            StatItem(stringResource(R.string.stat_max), "%.0f".format(max), Modifier.weight(1f), unit)
-        }
-    }
-}
-
-/**
- * A minimal line chart on a plain Canvas, scaled to the data's own range plus a little
- * padding rather than from zero: nightly respiratory rate is a narrow-range series
- * (roughly 10-20 breaths/minute), so a zero-based y-axis flattens every real night into a
- * near-flat line near the top of the chart -- the exact bug this fixes. Draws nothing for
- * fewer than two readings, matching [ch.kevinjordil.helion.ui.metric.MetricScreen]'s chart
- * handling of the same degenerate case.
- */
-@Composable
-private fun RespiratoryRateChart(readings: List<Reading>, lineColor: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        if (readings.size < 2) return@Canvas
-
-        val minX = readings.first().timestamp.toFloat()
-        val maxX = readings.last().timestamp.toFloat()
-        val xSpan = (maxX - minX).takeIf { it > 0f } ?: return@Canvas
-
-        val rawMin = readings.minOf { it.value }.toFloat()
-        val rawMax = readings.maxOf { it.value }.toFloat()
-        // 20% padding around the real range, with a 1-breath/minute floor for a
-        // near-constant night (rawMax == rawMin), so the line never touches the edges
-        // and never divides by a zero span. Shared with the metric detail screen's
-        // chart -- see [chartYRange]'s kdoc.
-        val (minY, maxY) = chartYRange(rawMin, rawMax, zeroBased = false)
-        val ySpan = maxY - minY
-
-        fun xOf(t: Float) = (t - minX) / xSpan * size.width
-        fun yOf(v: Float) = size.height - (v - minY) / ySpan * size.height
-
-        val path = Path()
-        readings.forEachIndexed { index, reading ->
-            val x = xOf(reading.timestamp.toFloat())
-            val y = yOf(reading.value.toFloat())
-            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-        drawPath(path, color = lineColor, style = Stroke(width = 4f))
     }
 }
 
