@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.sleep
 
+import ch.kevinjordil.helion.source.DeviceSleepStage
 import ch.kevinjordil.helion.source.SleepStage
 import ch.kevinjordil.helion.store.MinuteSample
 import kotlin.math.max
@@ -175,3 +176,95 @@ fun sleepPhaseBreakdown(minutes: List<PhaseMinute>): Map<SleepPhase, Int> =
         .filter { it.phase != SleepPhase.AWAKE }
         .groupingBy { it.phase }
         .eachCount()
+
+/**
+ * One contiguous stretch of a single stage over an episode's own span, as reported by the
+ * device itself -- see [ch.kevinjordil.helion.source.parseSleepSessionBlob]. [startTimestamp]
+ * and [endTimestamp] are both Unix seconds and both inclusive, matching
+ * [ch.kevinjordil.helion.store.SleepStageSegment].
+ */
+data class StageSegment(val startTimestamp: Long, val endTimestamp: Long, val phase: SleepPhase)
+
+/**
+ * Maps the device's own stage type code (see
+ * [ch.kevinjordil.helion.source.DeviceSleepStage]) to [SleepPhase]. Returns null for a code
+ * this app does not know how to display, so a caller can drop that segment rather than
+ * guess -- [parseSleepSessionBlob] already rejects a blob with an unknown type outright, so
+ * in practice this is never null for a segment that made it this far; it stays defensive
+ * for the same reason [SleepReader] does not otherwise trust export data unconditionally.
+ */
+fun devicePhaseOf(deviceStage: Int): SleepPhase? = when (deviceStage) {
+    DeviceSleepStage.LIGHT -> SleepPhase.LIGHT
+    DeviceSleepStage.DEEP -> SleepPhase.DEEP
+    DeviceSleepStage.AWAKE -> SleepPhase.AWAKE
+    DeviceSleepStage.REM -> SleepPhase.REM
+    else -> null
+}
+
+/**
+ * Where a [SleepEpisode]'s displayed phase track actually came from -- the one thing a
+ * caller must never blur, because only [Estimated] is a guess.
+ *
+ * [Measured] wins whenever [SleepEpisode.stageSegments] is non-empty (see
+ * [resolveSleepPhases]): those minutes came from the device's own hypnogram, already
+ * validated by [ch.kevinjordil.helion.source.parseSleepSessionBlob] before they ever
+ * reached the store, so there is nothing left to hedge about them in the UI -- no
+ * "estimé" label, no italics, nothing that would put a measurement and a guess on equal
+ * footing.
+ */
+sealed class SleepPhaseSource {
+    data class Measured(val minutes: List<PhaseMinute>) : SleepPhaseSource()
+    data class Estimated(val minutes: List<PhaseMinute>) : SleepPhaseSource()
+    data object NotEstimable : SleepPhaseSource()
+}
+
+/**
+ * Resolves [episode]'s displayed phase track: the device's own segments when
+ * [SleepEpisode.stageSegments] carries any (see [SleepReader] for how those are matched to
+ * an episode), falling back to [estimateSleepPhases] only when there are none -- a night
+ * with no session blob at all, or whose blob failed
+ * [ch.kevinjordil.helion.source.parseSleepSessionBlob]'s validation upstream and so never
+ * produced any segments in the first place. This is the one place that decision is made;
+ * every caller (the hypnogram, the breakdown, the night chart overlay) goes through this
+ * instead of choosing for itself, so they can never disagree about which source is in use
+ * for a given night.
+ */
+fun resolveSleepPhases(episode: SleepEpisode): SleepPhaseSource {
+    if (episode.stageSegments.isNotEmpty()) {
+        return SleepPhaseSource.Measured(measuredPhaseMinutes(episode))
+    }
+    return when (val estimate = estimateSleepPhases(episode.minutes)) {
+        is SleepPhaseEstimate.Estimated -> SleepPhaseSource.Estimated(estimate.minutes)
+        SleepPhaseEstimate.NotEstimable -> SleepPhaseSource.NotEstimable
+    }
+}
+
+/**
+ * One [PhaseMinute] per minute of [episode]'s own span, looked up against its
+ * [SleepEpisode.stageSegments]. A minute the device's segments do not cover (the episode's
+ * own minute-derived boundaries and the session's rarely disagree by more than a few
+ * minutes, but they are not guaranteed to line up exactly -- see [SleepReader]) falls back
+ * to that single minute's own coarse ASLEEP/AWAKE reading rather than being guessed into a
+ * specific asleep phase: [SleepPhase.AWAKE] when the raw minute says so, [SleepPhase.LIGHT]
+ * otherwise, the same "least specific asleep phase" default [estimateSleepPhases] itself
+ * uses for a minute it cannot classify.
+ */
+private fun measuredPhaseMinutes(episode: SleepEpisode): List<PhaseMinute> {
+    val byMinute = episode.minutes.associateBy { it.timestamp }
+    val segments = episode.stageSegments.sortedBy { it.startTimestamp }
+    var segmentIndex = 0
+
+    var timestamp = episode.fellAsleepAt
+    val result = mutableListOf<PhaseMinute>()
+    while (timestamp <= episode.wokeAt) {
+        while (segmentIndex < segments.size && segments[segmentIndex].endTimestamp < timestamp) segmentIndex++
+        val covering = segments.getOrNull(segmentIndex)?.takeIf { timestamp in it.startTimestamp..it.endTimestamp }
+        val phase = covering?.phase ?: run {
+            val rawStage = byMinute[timestamp]?.sleepStage
+            if (rawStage == SleepStage.ASLEEP) SleepPhase.LIGHT else SleepPhase.AWAKE
+        }
+        result.add(PhaseMinute(timestamp, phase))
+        timestamp += 60L
+    }
+    return result
+}

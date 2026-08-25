@@ -59,9 +59,10 @@ private data class NightOverlay(
 )
 
 /**
- * The night's heart rate as a line, with its estimated sleep phases (see
- * [estimateSleepPhases]) drawn behind it as background bands on the same time axis, so the
- * shape of the night and its stages read together -- the centrepiece of this screen. Below
+ * The night's heart rate as a line, with its sleep phases (see [resolveSleepPhases] --
+ * measured when the device's own hypnogram is available, estimated otherwise) drawn behind
+ * it as background bands on the same time axis, so the shape of the night and its stages
+ * read together -- the centrepiece of this screen. Below
  * the chart: min/average/max heart rate for the night, and checkboxes to add respiratory
  * rate and movement intensity as extra lines on the same axis.
  *
@@ -100,7 +101,7 @@ fun NightChartSection(
     }
     if (heartRateReadings.size < 2) return
 
-    val estimate = remember(episode) { estimateSleepPhases(episode.minutes) }
+    val phaseSource = remember(episode) { resolveSleepPhases(episode) }
     val movementReadings = remember(episode) {
         episode.minutes.mapNotNull { minute -> minute.intensity?.let { Reading(minute.timestamp, it.toDouble()) } }
             .sortedBy { it.timestamp }
@@ -125,7 +126,7 @@ fun NightChartSection(
 
         NightChartCanvas(
             heartRateReadings = heartRateReadings,
-            estimate = estimate,
+            phaseSource = phaseSource,
             overlays = overlays.values.toList(),
             phaseColor = phaseColor,
             lineColor = colors.accentViolet,
@@ -164,7 +165,12 @@ fun NightChartSection(
             NightStatItem(stringResource(R.string.stat_average), "%.0f".format(average), bpmUnit, colors.accentViolet, Modifier.weight(1f))
         }
 
-        Text(stringResource(R.string.sleep_chart_bands_note), style = HelionType.bodySmall, color = colors.textTertiary)
+        val bandsNoteRes = if (phaseSource is SleepPhaseSource.Estimated || phaseSource is SleepPhaseSource.NotEstimable) {
+            R.string.sleep_chart_bands_note_estimated
+        } else {
+            R.string.sleep_chart_bands_note
+        }
+        Text(stringResource(bandsNoteRes), style = HelionType.bodySmall, color = colors.textTertiary)
         if (overlays.isNotEmpty()) {
             Text(stringResource(R.string.sleep_overlay_scale_note), style = HelionType.bodySmall, color = colors.textTertiary)
         }
@@ -200,13 +206,13 @@ private fun NightStatItem(label: String, value: String, unit: String, valueColor
  * and any active [overlays] drawn as thin dashed lines each normalised to its own range
  * (see [NightChartSection]'s kdoc for why). Scrubbing reuses [scrubReading] against the
  * heart-rate series -- the same geometry [ch.kevinjordil.helion.ui.metric.MetricScreen]'s
- * chart already uses -- and looks up the estimated phase closest to the resolved timestamp
+ * chart already uses -- and looks up the phase (measured or estimated) closest to the resolved timestamp
  * for the chip.
  */
 @Composable
 private fun NightChartCanvas(
     heartRateReadings: List<Reading>,
-    estimate: SleepPhaseEstimate,
+    phaseSource: SleepPhaseSource,
     overlays: List<NightOverlay>,
     phaseColor: Map<SleepPhase, Color>,
     lineColor: Color,
@@ -224,7 +230,7 @@ private fun NightChartCanvas(
     val maxX = heartRateReadings.last().timestamp.toFloat()
     val xSpan = (maxX - minX).takeIf { it > 0f }
 
-    val phaseSegments = remember(estimate) { phaseSegments(estimate) }
+    val phaseSegments = remember(phaseSource) { phaseSegments(phaseSource) }
 
     Canvas(
         modifier = modifier
@@ -354,13 +360,16 @@ private fun NightChartCanvas(
     }
 }
 
-/** One contiguous run of the same estimated phase, in `[startTimestamp, endTimestamp]`. */
+/** One contiguous run of the same phase (measured or estimated), in `[startTimestamp, endTimestamp]`. */
 private data class PhaseSegment(val startTimestamp: Long, val endTimestamp: Long, val phase: SleepPhase)
 
-/** Collapses [SleepPhaseEstimate.Estimated]'s per-minute track into contiguous runs, for [NightChartCanvas]'s bands. */
-private fun phaseSegments(estimate: SleepPhaseEstimate): List<PhaseSegment> {
-    if (estimate !is SleepPhaseEstimate.Estimated) return emptyList()
-    val minutes = estimate.minutes.sortedBy { it.timestamp }
+/** Collapses [SleepPhaseSource]'s per-minute track (measured or estimated alike) into contiguous runs, for [NightChartCanvas]'s bands. Empty for [SleepPhaseSource.NotEstimable]. */
+private fun phaseSegments(source: SleepPhaseSource): List<PhaseSegment> {
+    val minutes = when (source) {
+        is SleepPhaseSource.Measured -> source.minutes
+        is SleepPhaseSource.Estimated -> source.minutes
+        SleepPhaseSource.NotEstimable -> return emptyList()
+    }.sortedBy { it.timestamp }
     if (minutes.isEmpty()) return emptyList()
 
     val segments = mutableListOf<PhaseSegment>()

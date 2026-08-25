@@ -56,6 +56,17 @@ data class SleepEpisode(
      * (see [SleepReader]). Sorted ascending by timestamp, for [SleepScreen]'s own chart.
      */
     val respiratoryRateReadings: List<Reading> = emptyList(),
+    /**
+     * The device's own stage segments for this episode, clipped to its span -- from
+     * `HUAMI_SLEEP_SESSION_SAMPLE`, a different table on its own cadence, so
+     * [segmentSleepEpisodes] never sets this either; [SleepReader] fills it in the same
+     * way it fills [respiratoryRateReadings], by matching this episode against the best
+     * overlapping session (see [SleepReader]'s kdoc for how ties and near-duplicates are
+     * broken). Empty when no session blob exists for this night or the one that does
+     * failed validation -- see [resolveSleepPhases], the only place this list is read,
+     * for what an empty list means for display: the estimator takes over.
+     */
+    val stageSegments: List<StageSegment> = emptyList(),
 ) {
     /** Average of [respiratoryRateReadings], or null when the night has none. */
     val avgRespiratoryRate: Double?

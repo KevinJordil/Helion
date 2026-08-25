@@ -307,61 +307,77 @@ private fun SelectedNightCard(
 }
 
 /**
- * Estimated phase breakdown and hypnogram for [episode] -- see [estimateSleepPhases]. Both
- * the section title and the not-estimable fallback spell out "estimé" in the string itself:
- * this is the one place Helion shows something it did not measure, and that must never
- * read as a plain fact next to the numbers it did measure.
+ * Phase breakdown and hypnogram for [episode] -- see [resolveSleepPhases] for which
+ * source (the device's own measured segments, or the heuristic estimator) is actually in
+ * use, and why an episode can only ever be in one of those two states plus
+ * [SleepPhaseSource.NotEstimable]. Only the estimated path spells out "estimé", both in
+ * its own section title and its own not-estimable fallback: that is the one place Helion
+ * shows something it did not measure, and it must never read as a plain fact next to the
+ * numbers it did measure. The measured path uses a plain title and never mentions
+ * estimation at all.
  */
 @Composable
 private fun SleepPhaseSection(episode: SleepEpisode) {
     val colors = HelionThemeTokens.colors
-    val estimate = remember(episode) { estimateSleepPhases(episode.minutes) }
+    val source = remember(episode) { resolveSleepPhases(episode) }
+
+    val titleRes = if (source is SleepPhaseSource.Estimated) {
+        R.string.sleep_phase_title_estimated
+    } else {
+        R.string.sleep_phase_title
+    }
 
     Column(modifier = Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.sleep_phase_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(stringResource(titleRes).uppercase(), style = HelionType.label, color = colors.textSecondary)
 
-        when (estimate) {
-            is SleepPhaseEstimate.NotEstimable ->
+        when (source) {
+            is SleepPhaseSource.NotEstimable ->
                 Text(stringResource(R.string.sleep_phase_not_estimable), style = HelionType.bodySmall, color = colors.textSecondary)
 
-            is SleepPhaseEstimate.Estimated -> {
-                val phaseColor = phaseColors(colors)
-                val lanes = listOf(SleepPhase.AWAKE, SleepPhase.REM, SleepPhase.LIGHT, SleepPhase.DEEP)
-                val phaseLabel = lanes.associateWith { phase -> stringResource(phaseLabelRes(phase)) }
-                // One lane per stage, éveil to profond, so a transition between stages is
-                // a visible jump between lanes -- a single blended track (or a stacked
-                // share breakdown) never shows *when* the night switched stages, only how
-                // much of each it had. See HypnogramRibbon's kdoc.
-                HypnogramRibbon(
-                    bars = buildCategoryRibbon(
-                        items = estimate.minutes.map { it.timestamp to it.phase },
-                        windowStart = episode.fellAsleepAt,
-                        windowEnd = episode.wokeAt + 60,
-                        bucketCount = episodeBucketCount(episode),
-                    ),
-                    lanes = lanes,
-                    laneColor = { phase -> phaseColor.getValue(phase) },
-                    laneLabel = { phase -> phaseLabel.getValue(phase) },
-                    labelColor = colors.textSecondary,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-
-                // Two columns, not three: at this value size, a single phase's widest
-                // plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
-                // for the whole night) does not fit a third-width column -- see
-                // SleepScreenWidthTest. Two rows of two, the same fix already used above,
-                // one column short: three items into two columns leaves the third
-                // ([SleepPhase.LIGHT]) alone on its own full-width row.
-                val breakdown = sleepPhaseBreakdown(estimate.minutes)
-                Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
-                        StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
-                    }
-                    StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.fillMaxWidth())
-                }
-            }
+            is SleepPhaseSource.Measured -> SleepPhaseDetail(episode, source.minutes)
+            is SleepPhaseSource.Estimated -> SleepPhaseDetail(episode, source.minutes)
         }
+    }
+}
+
+/** The hypnogram and per-stage breakdown shared by [SleepPhaseSource.Measured] and [SleepPhaseSource.Estimated] -- only the section title and label above differ between the two. */
+@Composable
+private fun SleepPhaseDetail(episode: SleepEpisode, minutes: List<PhaseMinute>) {
+    val colors = HelionThemeTokens.colors
+    val phaseColor = phaseColors(colors)
+    val lanes = listOf(SleepPhase.AWAKE, SleepPhase.REM, SleepPhase.LIGHT, SleepPhase.DEEP)
+    val phaseLabel = lanes.associateWith { phase -> stringResource(phaseLabelRes(phase)) }
+    // One lane per stage, éveil to profond, so a transition between stages is
+    // a visible jump between lanes -- a single blended track (or a stacked
+    // share breakdown) never shows *when* the night switched stages, only how
+    // much of each it had. See HypnogramRibbon's kdoc.
+    HypnogramRibbon(
+        bars = buildCategoryRibbon(
+            items = minutes.map { it.timestamp to it.phase },
+            windowStart = episode.fellAsleepAt,
+            windowEnd = episode.wokeAt + 60,
+            bucketCount = episodeBucketCount(episode),
+        ),
+        lanes = lanes,
+        laneColor = { phase -> phaseColor.getValue(phase) },
+        laneLabel = { phase -> phaseLabel.getValue(phase) },
+        labelColor = colors.textSecondary,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    // Two columns, not three: at this value size, a single phase's widest
+    // plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
+    // for the whole night) does not fit a third-width column -- see
+    // SleepScreenWidthTest. Two rows of two, the same fix already used above,
+    // one column short: three items into two columns leaves the third
+    // ([SleepPhase.LIGHT]) alone on its own full-width row.
+    val breakdown = sleepPhaseBreakdown(minutes)
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
+            StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
+        }
+        StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.fillMaxWidth())
     }
 }
 
