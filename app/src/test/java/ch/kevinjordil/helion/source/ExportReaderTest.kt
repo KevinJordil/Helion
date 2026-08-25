@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.source
 
+import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import org.junit.Assert.assertEquals
@@ -9,6 +10,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 @RunWith(RobolectricTestRunner::class)
 class ExportReaderTest {
@@ -144,6 +147,63 @@ class ExportReaderTest {
         }
         db.close()
         return file.absolutePath
+    }
+
+
+    /** Builds an export carrying only the sleep session table, one row per (TIMESTAMP millis, blob) pair. */
+    private fun buildExportWithSessions(rows: List<Pair<Long, ByteArray>>): String {
+        val file = File.createTempFile("export", ".db")
+        file.delete()
+        val db = SQLiteDatabase.openOrCreateDatabase(file, null)
+        db.execSQL(
+            "CREATE TABLE ${ExportSchema.TABLE_SLEEP_SESSION} (" +
+                "${ExportSchema.COL_TIMESTAMP} INTEGER, ${ExportSchema.COL_DATA} BLOB)",
+        )
+        rows.forEach { (timestampMillis, data) ->
+            val values = ContentValues()
+            values.put(ExportSchema.COL_TIMESTAMP, timestampMillis)
+            values.put(ExportSchema.COL_DATA, data)
+            db.insert(ExportSchema.TABLE_SLEEP_SESSION, null, values)
+        }
+        db.close()
+        return file.absolutePath
+    }
+
+    /**
+     * Builds a session blob in the real layout: an 8-byte header (session-end seconds,
+     * midnight-of-day-ends seconds), a zero-padding run, the segment count and array, more
+     * padding, then the 8-byte footer of totals -- the same shape verified against a real
+     * export (see [ch.kevinjordil.helion.source.SleepSessionBlobTest] for the decoder's own
+     * fixtures; this one exercises the reader's header handling on top of that).
+     */
+    private fun buildSessionBlob(
+        sessionEndSeconds: Long,
+        dayEndsMidnightSeconds: Long,
+        segments: List<Triple<Int, Int, Int>>,
+        totals: IntArray, // rem, light, deep, awake
+    ): ByteArray {
+        val paddingBeforeCount = 20
+        val trailingPadding = 40
+        val headerAndPadding = 8 + paddingBeforeCount
+        val size = headerAndPadding + 2 + 5 * segments.size + trailingPadding + 8
+        val data = ByteArray(size)
+        val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.putInt(0, sessionEndSeconds.toInt())
+        buffer.putInt(4, dayEndsMidnightSeconds.toInt())
+
+        var offset = headerAndPadding
+        buffer.putShort(offset, segments.size.toShort())
+        offset += 2
+        segments.forEach { (start, end, type) ->
+            buffer.putShort(offset, start.toShort())
+            buffer.putShort(offset + 2, end.toShort())
+            data[offset + 4] = type.toByte()
+            offset += 5
+        }
+
+        val footerStart = size - 8
+        totals.forEachIndexed { index, value -> buffer.putShort(footerStart + index * 2, value.toShort()) }
+        return data
     }
 
     @Test
@@ -376,5 +436,74 @@ class ExportReaderTest {
         val emitted = ExportReader().read(path, Watermarks.NONE).points.map { it.series }.toSet()
         assertTrue(ExportReader.POINT_SERIES_NAMES.containsAll(emitted))
         assertEquals(ExportReader.POINT_SERIES_NAMES.size, ExportReader.POINT_SERIES_NAMES.toSet().size)
+    }
+
+    @Test
+    fun `a well-formed session blob decodes into absolute-timestamp stage segments`() {
+        val dayStartedMidnight = 2_000_000_000L
+        val dayEndsMidnight = dayStartedMidnight + 86_400
+        val sessionEndSeconds = dayStartedMidnight + 200 * 60
+        val blob = buildSessionBlob(
+            sessionEndSeconds = sessionEndSeconds,
+            dayEndsMidnightSeconds = dayEndsMidnight,
+            segments = listOf(
+                Triple(100, 129, DeviceSleepStage.LIGHT),
+                Triple(130, 149, DeviceSleepStage.DEEP),
+            ),
+            totals = intArrayOf(0, 30, 20, 0),
+        )
+        val path = buildExportWithSessions(listOf(sessionEndSeconds * 1000 to blob))
+
+        val result = ExportReader().read(path, Watermarks.NONE)
+        assertEquals(2, result.stageSegments.size)
+        val light = result.stageSegments.single { it.stage == DeviceSleepStage.LIGHT }
+        assertEquals(dayStartedMidnight + 100 * 60, light.startTimestamp)
+        assertEquals(dayStartedMidnight + 129 * 60, light.endTimestamp)
+        assertEquals(sessionEndSeconds, light.sessionEnd)
+        val deep = result.stageSegments.single { it.stage == DeviceSleepStage.DEEP }
+        assertEquals(dayStartedMidnight + 130 * 60, deep.startTimestamp)
+        assertEquals(dayStartedMidnight + 149 * 60, deep.endTimestamp)
+    }
+
+    @Test
+    fun `sessions are filtered by their own watermark, in the table's millisecond unit`() {
+        val dayStartedMidnight = 2_000_000_000L
+        val dayEndsMidnight = dayStartedMidnight + 86_400
+        val olderEnd = dayStartedMidnight + 200 * 60
+        val newerEnd = dayStartedMidnight + 300 * 60
+        fun blobFor(end: Long) = buildSessionBlob(
+            sessionEndSeconds = end,
+            dayEndsMidnightSeconds = dayEndsMidnight,
+            segments = listOf(Triple(0, 29, DeviceSleepStage.LIGHT)),
+            totals = intArrayOf(0, 30, 0, 0),
+        )
+        val path = buildExportWithSessions(
+            listOf(
+                olderEnd * 1000 to blobFor(olderEnd),
+                newerEnd * 1000 to blobFor(newerEnd),
+            ),
+        )
+
+        val result = ExportReader().read(path, Watermarks(sessions = olderEnd))
+        assertTrue(result.stageSegments.all { it.sessionEnd == newerEnd })
+        assertEquals(1, result.stageSegments.map { it.sessionEnd }.toSet().size)
+    }
+
+    @Test
+    fun `an unparseable session blob contributes no segments and does not fail the read`() {
+        // Totals disagree with the (single) segment's own duration -- fails validation.
+        val dayStartedMidnight = 2_000_000_000L
+        val dayEndsMidnight = dayStartedMidnight + 86_400
+        val sessionEnd = dayStartedMidnight + 200 * 60
+        val blob = buildSessionBlob(
+            sessionEndSeconds = sessionEnd,
+            dayEndsMidnightSeconds = dayEndsMidnight,
+            segments = listOf(Triple(0, 29, DeviceSleepStage.LIGHT)), // 30 real minutes
+            totals = intArrayOf(0, 999, 0, 0), // wrong on purpose
+        )
+        val path = buildExportWithSessions(listOf(sessionEnd * 1000 to blob))
+
+        val result = ExportReader().read(path, Watermarks.NONE)
+        assertTrue(result.stageSegments.isEmpty())
     }
 }

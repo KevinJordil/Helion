@@ -12,7 +12,9 @@ package ch.kevinjordil.helion.source
  *
  * So each series carries its own. [minutes] covers the whole minute table (steps, heart
  * rate, sleep all share one row and one timestamp); [points] carries one entry per point
- * series, keyed by the series name the reader emits.
+ * series, keyed by the series name the reader emits; [sessions] covers the sleep session
+ * table (see [ExportReader]'s session reading) -- one watermark for the whole table, the
+ * same as [minutes], since a session row is not itself a per-series value.
  *
  * Zero means "everything": an absent entry backfills that series from the beginning,
  * which is safe because every store write is idempotent on a timestamp-keyed row.
@@ -20,6 +22,7 @@ package ch.kevinjordil.helion.source
 data class Watermarks(
     val minutes: Long = 0,
     val points: Map<String, Long> = emptyMap(),
+    val sessions: Long = 0,
 ) {
 
     fun point(series: String): Long = points[series] ?: 0

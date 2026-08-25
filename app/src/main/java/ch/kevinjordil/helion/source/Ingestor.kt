@@ -22,6 +22,7 @@ sealed interface IngestResult {
         val minutes: Int,
         val points: Int,
         val refreshTriggered: Boolean = true,
+        val stageSegments: Int = 0,
     ) : IngestResult
 
     data class Failed(val reason: String) : IngestResult
@@ -150,6 +151,7 @@ class Ingestor(
         points = ExportReader.POINT_SERIES_NAMES.associateWith { series ->
             db.pointSamples().latest(series)?.timestamp ?: 0
         },
+        sessions = db.sleepStageSegments().latestSessionEnd() ?: 0,
     )
 
     private suspend fun readAndStore(
@@ -161,6 +163,7 @@ class Ingestor(
         val samples = reader.read(databasePath, watermarks())
         db.minuteSamples().upsertAll(samples.minutes)
         db.pointSamples().upsertAll(samples.points)
+        db.sleepStageSegments().upsertAll(samples.stageSegments)
 
         db.syncState().put(
             SyncState(
@@ -170,7 +173,7 @@ class Ingestor(
                 lastTriggerAttempt = lastAttempt,
             ),
         )
-        IngestResult.Ingested(samples.minutes.size, samples.points.size, triggered)
+        IngestResult.Ingested(samples.minutes.size, samples.points.size, triggered, samples.stageSegments.size)
     } catch (e: CancellationException) {
         // A cooperative stop (e.g. WorkManager tearing down the worker mid-pass) is not
         // a Gadgetbridge failure: rethrow so the coroutine actually cancels instead of

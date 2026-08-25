@@ -5,6 +5,9 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.PointSample
+import ch.kevinjordil.helion.store.SleepStageSegment
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * Reads a Gadgetbridge export database. Opens it read-only and never writes to it:
@@ -24,6 +27,7 @@ open class ExportReader {
             RawSamples(
                 minutes = readMinutes(it, since.minutes),
                 points = readPoints(it, since),
+                stageSegments = readSessions(it, since.sessions),
             )
         }
     }
@@ -76,6 +80,62 @@ open class ExportReader {
                 )
             }
         }
+
+    /**
+     * Reads and decodes every new row of `HUAMI_SLEEP_SESSION_SAMPLE`, TIMESTAMP in
+     * milliseconds like the other point tables (see [TimeUnit]), into flat
+     * [SleepStageSegment] rows ready for the store. A row whose blob fails
+     * [parseSleepSessionBlob]'s validation contributes no segments at all (an empty list,
+     * not a thrown error) -- one unparseable session must not fail the whole pass; the
+     * night simply falls back to the estimator (see [ch.kevinjordil.helion.ui.sleep]).
+     */
+    private fun readSessions(db: SQLiteDatabase, sinceSeconds: Long): List<SleepStageSegment> =
+        queryOrEmpty(
+            db,
+            "SELECT ${ExportSchema.COL_TIMESTAMP}, ${ExportSchema.COL_DATA} " +
+                "FROM ${ExportSchema.TABLE_SLEEP_SESSION} " +
+                "WHERE ${ExportSchema.COL_TIMESTAMP} > ? ORDER BY ${ExportSchema.COL_TIMESTAMP}",
+            sinceSeconds * 1000,
+        ) { cursor -> cursor.getLong(0) to cursor.getBlob(1) }
+            .flatMap { (sessionEndMillis, data) -> decodeSession(sessionEndMillis, data) }
+
+    /**
+     * Turns one session row into its absolute-timestamp stage segments.
+     *
+     * The blob's own bytes 4-7 give the midnight (Unix seconds) of the day the session
+     * *ends* on; the segments' minute offsets are counted from midnight of the day it
+     * *started* on -- see [parseSleepSessionBlob]'s kdoc. Verified against every session in
+     * a real ten-session export (see the source history for the reading that established
+     * this): the day started is always exactly one calendar day before the day it ends,
+     * even for a short early-morning session -- offsets simply run past 1440 for the
+     * portion after local midnight, which uint16 comfortably accommodates. Every session
+     * checked this way, across the full export (not just the newest), reconstructed to a
+     * plausible evening bedtime and a wake time within minutes of the row's own TIMESTAMP;
+     * there was no session in that export for which "same day" (the day started equal to
+     * the day it ends) fit better. So the offset is a fixed one calendar day, not something
+     * guessed per row from which fit is closer -- a per-row guess would have no ground
+     * truth to check itself against on a device that does not also report the start time
+     * directly.
+     */
+    private fun decodeSession(sessionEndMillis: Long, data: ByteArray): List<SleepStageSegment> {
+        if (data.size < 8) return emptyList()
+        val header = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+        val dayEndsMidnightSeconds = header.getInt(4).toLong() and 0xFFFFFFFFL
+        val dayStartedMidnightSeconds = dayEndsMidnightSeconds - SECONDS_PER_DAY
+        val sessionEndSeconds = sessionEndMillis / 1000
+
+        return when (val result = parseSleepSessionBlob(data)) {
+            is SleepSessionBlobResult.Invalid -> emptyList()
+            is SleepSessionBlobResult.Parsed -> result.segments.map { segment ->
+                SleepStageSegment(
+                    sessionEnd = sessionEndSeconds,
+                    startTimestamp = dayStartedMidnightSeconds + segment.startMinute * 60L,
+                    endTimestamp = dayStartedMidnightSeconds + segment.endMinute * 60L,
+                    stage = segment.type,
+                )
+            }
+        }
+    }
 
     /**
      * Runs a query, returning an empty list only if the table itself is absent.
@@ -154,6 +214,9 @@ open class ExportReader {
          * (see MetricCatalog's heart_rate entry).
          */
         private val VALID_HEART_RATE = 10..224
+
+        /** See [decodeSession]'s kdoc for why this is a fixed offset, not a per-row guess. */
+        private const val SECONDS_PER_DAY = 86_400L
 
         private val POINT_SERIES = listOf(
             Series("stress", ExportSchema.TABLE_STRESS, ExportSchema.COL_STRESS, TimeUnit.MILLISECONDS),
