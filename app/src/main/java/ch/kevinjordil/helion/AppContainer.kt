@@ -10,13 +10,14 @@ import ch.kevinjordil.helion.source.GadgetbridgeCommands
 import ch.kevinjordil.helion.source.Ingestor
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.MIGRATION_1_2
+import ch.kevinjordil.helion.store.MIGRATION_2_3
 
 /** Manual dependency wiring. The graph is small enough that a framework would cost more than it saves. */
 class AppContainer(context: Context) {
 
     val database: HelionDatabase = Room
         .databaseBuilder(context, HelionDatabase::class.java, "helion.db")
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
         .build()
 
     val exportLocation = ExportLocation(context)

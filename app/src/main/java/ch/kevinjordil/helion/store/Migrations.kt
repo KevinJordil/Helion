@@ -24,3 +24,18 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         db.execSQL("ALTER TABLE `sync_state_new` RENAME TO `sync_state`")
     }
 }
+
+/**
+ * Adds the two columns backing the trigger backoff (see [SyncState]'s kdoc): a plain
+ * ADD COLUMN, since both are new and nothing needs to be carried over or rebuilt.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE `sync_state` ADD COLUMN `triggerFailureStreak` INTEGER NOT NULL DEFAULT 0",
+        )
+        db.execSQL(
+            "ALTER TABLE `sync_state` ADD COLUMN `lastTriggerAttempt` INTEGER NOT NULL DEFAULT 0",
+        )
+    }
+}

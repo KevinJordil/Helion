@@ -173,34 +173,94 @@ class IngestorTest {
     }
 
     @Test
-    fun `an export failure signal produces Failed and stores nothing`() = runTest {
+    fun `an export failure signal still reads and ingests the existing file, untriggered`() = runTest {
         val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
         val signal = FakeExportSignal(ExportOutcome.Failure)
 
         val result = ingestor(reader, signal).ingest("/tmp/export.db")
 
-        assertTrue(result is IngestResult.Failed)
-        assertTrue(storedMinutes().isEmpty())
-        // The reader must never be consulted: nothing was actually exported.
-        assertNull(reader.lastSince)
+        // Triggering a fresh export is a freshness optimisation, not a precondition for
+        // reading: the file already on disk (e.g. Gadgetbridge's own scheduled export) is
+        // still read and ingested, but the result must say the refresh itself did not happen.
+        assertEquals(IngestResult.Ingested(minutes = 1, points = 0, refreshTriggered = false), result)
+        assertEquals(listOf(100L), storedMinutes())
     }
 
     @Test
-    fun `a timeout waiting for the export produces Failed and stores nothing`() = runTest {
+    fun `a timeout waiting for the export still reads and ingests the existing file, untriggered`() = runTest {
         val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
         val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
 
         val result = ingestor(reader, signal).ingest("/tmp/export.db")
 
+        assertEquals(IngestResult.Ingested(minutes = 1, points = 0, refreshTriggered = false), result)
+        assertEquals(listOf(100L), storedMinutes())
+        // requestExport() only ever runs inside the trigger lambda passed to
+        // awaitExport, so a timeout (which never invokes it here) means only the sync
+        // request was sent for this pass.
+        assertEquals(listOf("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC"), sent)
+    }
+
+    @Test
+    fun `a genuinely unreadable export still fails, even though triggering worked`() = runTest {
+        val reader = object : ExportReader() {
+            override fun read(databasePath: String, since: Watermarks): RawSamples =
+                throw IllegalStateException("truncated export")
+        }
+        val signal = FakeExportSignal(ExportOutcome.Success)
+
+        val result = ingestor(reader, signal).ingest("/tmp/export.db")
+
         assertTrue(result is IngestResult.Failed)
         assertTrue(storedMinutes().isEmpty())
-        // requestExport() only ever runs inside the trigger lambda passed to
-        // awaitExport -- it must be impossible for the export to be requested
-        // outside of, or ahead of, the wait that is supposed to gate the read.
-        // If a future refactor called commands.requestExport() directly before
-        // signal.awaitExport(...), this assertion (not just the two-sends test
-        // above, which does not distinguish the two call sites) would catch it.
-        assertEquals(listOf("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC"), sent)
+    }
+
+    @Test
+    fun `after repeated trigger failures, further periodic passes skip triggering`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+        val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
+        val ing = ingestor(reader, signal)
+
+        repeat(Ingestor.TRIGGER_FAILURE_THRESHOLD) { ing.ingest("/tmp/export.db") }
+        sent.clear()
+
+        val result = ing.ingest("/tmp/export.db")
+
+        assertTrue(sent.isEmpty())
+        assertTrue(result is IngestResult.Ingested)
+        assertEquals(false, (result as IngestResult.Ingested).refreshTriggered)
+    }
+
+    @Test
+    fun `after backing off, a periodic pass retries once the retry interval has elapsed`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+        val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
+        var clock = 1_000L
+        val ing = Ingestor(reader, commands(), signal, db) { clock }
+
+        repeat(Ingestor.TRIGGER_FAILURE_THRESHOLD) { ing.ingest("/tmp/export.db") }
+        sent.clear()
+        ing.ingest("/tmp/export.db")
+        assertTrue("still backed off before the interval elapses", sent.isEmpty())
+
+        clock += Ingestor.TRIGGER_RETRY_INTERVAL_SECONDS
+        ing.ingest("/tmp/export.db")
+
+        assertTrue("retries after the interval elapses", sent.isNotEmpty())
+    }
+
+    @Test
+    fun `a forced ingest attempts to trigger even while backed off`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+        val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
+        val ing = ingestor(reader, signal)
+
+        repeat(Ingestor.TRIGGER_FAILURE_THRESHOLD) { ing.ingest("/tmp/export.db") }
+        sent.clear()
+
+        ing.ingest("/tmp/export.db", force = true)
+
+        assertTrue(sent.isNotEmpty())
     }
 
     @Test
