@@ -15,9 +15,9 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Exercises the real migration path against a real, file-backed database -- not the
  * in-memory one every other test uses -- because that is the only way to make Room actually
- * run [MIGRATION_1_2], [MIGRATION_2_3] and [MIGRATION_3_4] and validate the resulting schema
- * against what the entities declare. An in-memory `Room.databaseBuilder` is always created
- * fresh at the current version and never touches migration code at all.
+ * run [MIGRATION_1_2], [MIGRATION_2_3], [MIGRATION_3_4] and [MIGRATION_4_5] and validate the
+ * resulting schema against what the entities declare. An in-memory `Room.databaseBuilder` is
+ * always created fresh at the current version and never touches migration code at all.
  *
  * Building the version-1 database by hand from `schemas/.../1.json`'s own `createSql`
  * (rather than, say, checking in a real device's file) keeps this test free of any real
@@ -81,12 +81,12 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
 
         try {
-            // Forces Room to actually open the file, run both migrations in order, and
+            // Forces Room to actually open the file, run all four migrations in order, and
             // validate the resulting schema against what the current entities declare --
             // this is where a mismatched migration would throw.
             assertEquals(1, db.minuteSamples().between(0, Long.MAX_VALUE).size)
@@ -107,6 +107,42 @@ class MigrationTest {
             // MIGRATION_3_4 added this table from nothing; a fresh row must round-trip.
             db.sleepStageSegments().upsertAll(listOf(SleepStageSegment(1000, 900, 960, 4)))
             assertEquals(1, db.sleepStageSegments().overlapping(0, Long.MAX_VALUE).size)
+
+            // MIGRATION_4_5 added activity/slot/publication from nothing; a fresh row on
+            // each must round-trip, including the foreign key from activity to slot.
+            val slotId = db.slots().upsert(
+                Slot(
+                    label = "Badminton",
+                    dayOfWeek = java.time.DayOfWeek.TUESDAY,
+                    startSecondOfDay = 72_000,
+                    endSecondOfDay = 79_200,
+                    sport = SportType.BADMINTON,
+                ),
+            )
+            val activityId = db.activities().upsert(
+                Activity(
+                    startTimestamp = 1_000,
+                    endTimestamp = 2_000,
+                    sport = SportType.BADMINTON,
+                    title = null,
+                    notes = null,
+                    origin = ActivityOrigin.SLOT,
+                    status = ActivityStatus.CONFIRMED,
+                    slotId = slotId,
+                ),
+            )
+            assertEquals(1, db.activities().overlapping(1_000, 2_000).size)
+            db.publications().upsert(
+                Publication(
+                    activityId = activityId,
+                    target = PublicationTarget.STRAVA,
+                    remoteId = null,
+                    state = PublicationState.PENDING,
+                    lastAttempt = null,
+                    lastError = null,
+                ),
+            )
+            assertEquals(1, db.publications().forActivity(activityId).size)
         } finally {
             db.close()
         }
@@ -116,7 +152,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .allowMainThreadQueries()
             .build()
 

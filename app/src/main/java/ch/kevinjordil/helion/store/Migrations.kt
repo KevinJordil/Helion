@@ -55,3 +55,41 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         )
     }
 }
+
+/**
+ * Adds `slot`, `activity` and `publication` -- the activity-tracking foundation (see
+ * [Activity], [Slot], [Publication]). All three are brand new tables, so nothing existing
+ * needs to be carried over or rebuilt; every other table is left untouched. `slot` is
+ * created before `activity` (which references it) and `activity` before `publication`
+ * (which references that), purely for readability -- SQLite does not require a referenced
+ * table to already exist when a `FOREIGN KEY` clause is parsed.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `slot` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`label` TEXT NOT NULL, `dayOfWeek` TEXT NOT NULL, `startSecondOfDay` INTEGER NOT NULL, " +
+                "`endSecondOfDay` INTEGER NOT NULL, `sport` TEXT NOT NULL, `active` INTEGER NOT NULL)",
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `activity` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, `sport` TEXT NOT NULL, " +
+                "`title` TEXT, `notes` TEXT, `origin` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                "`slotId` INTEGER, FOREIGN KEY(`slotId`) REFERENCES `slot`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE SET NULL )",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_activity_startTimestamp_endTimestamp` " +
+                "ON `activity` (`startTimestamp`, `endTimestamp`)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_status` ON `activity` (`status`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_slotId` ON `activity` (`slotId`)")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `publication` (`activityId` INTEGER NOT NULL, " +
+                "`target` TEXT NOT NULL, `remoteId` TEXT, `state` TEXT NOT NULL, " +
+                "`lastAttempt` INTEGER, `lastError` TEXT, PRIMARY KEY(`activityId`, `target`), " +
+                "FOREIGN KEY(`activityId`) REFERENCES `activity`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+    }
+}
