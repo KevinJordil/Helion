@@ -14,6 +14,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.ui.metric.Metric
 import ch.kevinjordil.helion.ui.metric.formatValue
+import ch.kevinjordil.helion.ui.quality.PersonalBaseline
+import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.ribbon.DayRibbon
 import ch.kevinjordil.helion.ui.ribbon.RibbonBar
 import ch.kevinjordil.helion.ui.ribbon.tileRibbonSize
@@ -30,6 +32,7 @@ fun MetricTile(
     metric: Metric,
     latestValue: Double?,
     ribbonBars: List<RibbonBar>,
+    personalBaseline: PersonalBaseline?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,5 +68,16 @@ fun MetricTile(
             barColor = colors.accentViolet,
             modifier = Modifier.tileRibbonSize().padding(top = 8.dp),
         )
+        personalBaseline?.let { baseline ->
+            val (messageRes, isAmber) = personalBaselineMessage(baseline)
+            Text(
+                stringResource(messageRes),
+                style = HelionType.labelSmall,
+                color = if (isAmber) colors.accentAmber else colors.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
     }
 }

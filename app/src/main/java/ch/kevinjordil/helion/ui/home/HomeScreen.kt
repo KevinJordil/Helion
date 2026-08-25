@@ -33,6 +33,10 @@ import ch.kevinjordil.helion.ui.metric.Range
 import ch.kevinjordil.helion.ui.metric.Reading
 import ch.kevinjordil.helion.ui.metric.formatValue
 import ch.kevinjordil.helion.ui.minutesSinceLastSample
+import ch.kevinjordil.helion.ui.quality.PersonalBaseline
+import ch.kevinjordil.helion.ui.quality.computeBaseline
+import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
+import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.ribbon.DayRibbon
 import ch.kevinjordil.helion.ui.ribbon.RibbonBar
 import ch.kevinjordil.helion.ui.ribbon.buildRibbon
@@ -73,6 +77,7 @@ fun HomeScreen(
     var loaded by remember { mutableStateOf(false) }
     var latestByMetricId by remember { mutableStateOf<Map<String, Reading?>>(emptyMap()) }
     var dayReadingsByMetricId by remember { mutableStateOf<Map<String, List<Reading>>>(emptyMap()) }
+    var monthReadingsByMetricId by remember { mutableStateOf<Map<String, List<Reading>>>(emptyMap()) }
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshPhase by remember { mutableStateOf<RefreshPhase?>(null) }
     var banner by remember { mutableStateOf<RefreshBanner?>(null) }
@@ -87,25 +92,53 @@ fun HomeScreen(
         dayReadingsByMetricId = MetricCatalog.all.associate { metric ->
             metric.id to reader.load(metric, Range.DAY, now).readings
         }
+        // Range.MONTH is exactly the "roughly the last 30 days" window the personal
+        // baseline is defined over (see ui.quality.computeBaseline); reusing it here is
+        // the same list MetricReader already computes for the detail screen's Mois range.
+        monthReadingsByMetricId = MetricCatalog.all.associate { metric ->
+            metric.id to reader.load(metric, Range.MONTH, now).readings
+        }
         loaded = true
     }
 
-    LaunchedEffect(Unit) { loadAll() }
-
-    fun refresh() {
-        isRefreshing = true
+    /**
+     * [showSpinner] separates the two callers of the same refresh: a user's pull gesture
+     * wants to see the pull-to-refresh indicator spin, but the automatic open-sync (see
+     * the `LaunchedEffect` below) must stay invisible except for the freshness line's
+     * phase text -- "show the existing data immediately... show the refresh in progress in
+     * the freshness line", never a blocking spinner on every launch.
+     */
+    fun refresh(showSpinner: Boolean) {
+        if (showSpinner) isRefreshing = true
         scope.launch {
             val outcome = performRefresh(
                 onPhase = { phase -> refreshPhase = phase },
                 requestSync = { container.commands.requestSync() },
                 awaitSyncFinish = { trigger -> container.syncSignal.awaitSyncFinish(SYNC_FINISH_TIMEOUT_MILLIS, trigger) },
                 copyToCache = { container.exportLocation.copyToCache() },
-                ingest = { path -> container.ingestor.ingest(path, force = true) },
+                // skipSyncRequest = true: this call already drove and awaited
+                // ACTIVITY_SYNC_FINISH itself just above, so Ingestor must not request a
+                // second, redundant sync right as the device's just finished -- see
+                // Ingestor's kdoc on `skipSyncRequest`.
+                ingest = { path -> container.ingestor.ingest(path, force = true, skipSyncRequest = true) },
             )
             banner = refreshBanner(outcome)
             if (outcome is SyncOutcome.Ingested) loadAll()
             refreshPhase = null
-            isRefreshing = false
+            if (showSpinner) isRefreshing = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadAll()
+        // Sync once per app open, in the background: existing data is already on screen
+        // from loadAll() above, so this never blocks the first paint. Debounced by
+        // OpenSyncGate (ten minutes) so remounting Accueil after a quick detour to
+        // Réglages, or a brief app-switch, does not fire a second sync moments later.
+        val now = System.currentTimeMillis() / 1000
+        if (exportConfigured && container.openSyncGate.shouldSync(now)) {
+            container.openSyncGate.recordAttempt(now)
+            refresh(showSpinner = false)
         }
     }
 
@@ -126,12 +159,12 @@ fun HomeScreen(
             titleRes = R.string.accueil_empty_title,
             bodyRes = R.string.accueil_empty_body,
             actionRes = R.string.accueil_empty_action,
-            onAction = ::refresh,
+            onAction = { refresh(showSpinner = true) },
         )
 
         HomeStatus.Nominal -> PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = ::refresh,
+            onRefresh = { refresh(showSpinner = true) },
             modifier = modifier.fillMaxSize(),
         ) {
             val newestSample = latestByMetricId.values.filterNotNull().maxOfOrNull { it.timestamp }
@@ -146,6 +179,9 @@ fun HomeScreen(
                             windowStart = System.currentTimeMillis() / 1000 - Range.DAY.seconds,
                             windowEnd = System.currentTimeMillis() / 1000,
                         ),
+                        personalBaseline = latestByMetricId[HEART_RATE_ID]?.value?.let { value ->
+                            placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[HEART_RATE_ID].orEmpty()))
+                        },
                     )
                 }
                 item {
@@ -170,14 +206,18 @@ fun HomeScreen(
                     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                         pair.forEach { metric ->
                             val now = System.currentTimeMillis() / 1000
+                            val tileLatest = latestByMetricId[metric.id]?.value
                             MetricTile(
                                 metric = metric,
-                                latestValue = latestByMetricId[metric.id]?.value,
+                                latestValue = tileLatest,
                                 ribbonBars = buildRibbon(
                                     dayReadingsByMetricId[metric.id].orEmpty(),
                                     windowStart = now - Range.DAY.seconds,
                                     windowEnd = now,
                                 ),
+                                personalBaseline = tileLatest?.let { value ->
+                                    placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
+                                },
                                 onClick = { onOpenMetric(metric.id) },
                                 modifier = Modifier.weight(1f),
                             )
@@ -192,7 +232,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HeroHeartRate(latest: Reading?, ribbonBars: List<RibbonBar>) {
+private fun HeroHeartRate(latest: Reading?, ribbonBars: List<RibbonBar>, personalBaseline: PersonalBaseline?) {
     val colors = HelionThemeTokens.colors
     val metric = MetricCatalog.byId(HEART_RATE_ID) ?: return
     Box(
@@ -221,6 +261,15 @@ private fun HeroHeartRate(latest: Reading?, ribbonBars: List<RibbonBar>) {
                     style = HelionType.bodySmall,
                     color = colors.textSecondary,
                 )
+                personalBaseline?.let { baseline ->
+                    val (messageRes, isAmber) = personalBaselineMessage(baseline)
+                    Text(
+                        stringResource(messageRes),
+                        style = HelionType.bodySmall,
+                        color = if (isAmber) colors.accentAmber else colors.textSecondary,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             } else {
                 Text(stringResource(R.string.accueil_hero_no_reading), style = HelionType.body, color = colors.textSecondary)
             }

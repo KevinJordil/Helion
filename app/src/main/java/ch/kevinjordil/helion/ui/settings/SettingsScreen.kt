@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
@@ -40,6 +43,7 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
     var syncing by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<Pair<Int, List<Any>>?>(null) }
     var pickRefused by remember { mutableStateOf(false) }
+    var stepsGoalText by remember { mutableStateOf(container.stepsGoal.value.toString()) }
 
     val pickExportFile = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -129,5 +133,21 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         resultMessage?.let { (resId, args) ->
             Text(stringResource(resId, *args.toTypedArray()), style = HelionType.bodySmall, color = colors.textSecondary)
         }
+
+        HorizontalDivider(color = colors.divider)
+
+        Text(stringResource(R.string.steps_goal_label), style = HelionType.body, color = colors.textPrimary)
+        OutlinedTextField(
+            value = stepsGoalText,
+            onValueChange = { text ->
+                stepsGoalText = text
+                // Only a valid, positive whole number is actually stored -- an in-progress
+                // or empty edit must not silently reset the goal a metric comparison
+                // elsewhere is reading from.
+                text.toIntOrNull()?.takeIf { it > 0 }?.let { container.stepsGoal.value = it }
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+        )
     }
 }
