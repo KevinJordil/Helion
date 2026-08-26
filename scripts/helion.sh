@@ -111,6 +111,14 @@ Both names live in one place so this is a one-file change.
 EOF
 }
 
+# Dumps the last crash from the device's crash buffer. Works after the app has died,
+# unlike `logs`, which needs a running process to attach to.
+cmd_crash() {
+    require_device
+    note "Last crashes recorded on the device"
+    "${ADB}" logcat -b crash -d | tail -n 80
+}
+
 cmd_pull_export() {
     require_device
     local dest="${REPO_ROOT}/Gadgetbridge.db"
@@ -147,6 +155,7 @@ Helion development helper.
   build          Assemble the debug APK
   install        Build and install on the connected device
   logs           Follow the running app's logs
+  crash          Show the last crash recorded on the device
   gb-check       Broadcast both Gadgetbridge intents and check the export really changed
   pull-export    Copy the device's Gadgetbridge export into the repo (git-ignored)
   schema [file]  Dump the populated tables and schema of an export database
