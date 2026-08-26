@@ -3,6 +3,8 @@ package ch.kevinjordil.helion
 import android.content.Context
 import androidx.room.Room
 import ch.kevinjordil.helion.activity.ActivityDetector
+import ch.kevinjordil.helion.customserver.CustomServerPublisher
+import ch.kevinjordil.helion.customserver.HttpCustomServerApi
 import ch.kevinjordil.helion.source.BroadcastCommandSender
 import ch.kevinjordil.helion.source.BroadcastExportSignal
 import ch.kevinjordil.helion.source.BroadcastSyncSignal
@@ -22,6 +24,7 @@ import ch.kevinjordil.helion.strava.StravaAuth
 import ch.kevinjordil.helion.strava.StravaPublisher
 import ch.kevinjordil.helion.strava.StravaTokenStore
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
+import ch.kevinjordil.helion.ui.settings.CustomServerConfig
 import ch.kevinjordil.helion.ui.settings.Profile
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 import java.time.ZoneId
@@ -53,6 +56,25 @@ class AppContainer(context: Context) {
         publications = database.publications(),
         tokenProvider = stravaAuth,
         api = HttpStravaApi(),
+        profile = profile,
+        zone = ZoneId.systemDefault(),
+        now = { System.currentTimeMillis() / 1000 },
+    )
+
+    /** Where the owner's own server URL and shared token live -- see [CustomServerConfig]'s own kdoc. */
+    val customServerConfig = CustomServerConfig(context)
+
+    /**
+     * The one send entry point the UI calls for the owner's own server, wired to the real
+     * network implementation. See [CustomServerPublisher]'s own kdoc for why this is safe
+     * to call again.
+     */
+    val customServerPublisher = CustomServerPublisher(
+        activities = database.activities(),
+        minuteSamples = database.minuteSamples(),
+        publications = database.publications(),
+        config = customServerConfig,
+        api = HttpCustomServerApi(),
         profile = profile,
         zone = ZoneId.systemDefault(),
         now = { System.currentTimeMillis() / 1000 },

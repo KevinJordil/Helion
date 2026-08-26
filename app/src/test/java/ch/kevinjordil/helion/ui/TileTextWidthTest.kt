@@ -973,6 +973,114 @@ class CalorieLabelWidthTest {
 }
 
 /**
+ * The custom-server export added to the activity detail screen (`ActivityDetailScreen.kt`,
+ * section label and state/failure prose, same styles [StravaLabelWidthTest] already
+ * checks its own equivalents against) and its Réglages configuration section
+ * (`SettingsScreen.kt`'s `CustomServerSection`). Same 280dp budget as [StravaLabelWidthTest]
+ * -- both screens share the identical 20dp-each-side padding.
+ */
+class CustomServerLabelWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun proseWidthDp(text: String): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 13f * fontScale
+    }
+
+    private fun stateLabels() = listOf("En attente", "Envoyée à mon serveur", "Échec de l'envoi")
+
+    /**
+     * The `custom_server_reason_*` sentences with a plausible worst-case detail spliced
+     * into the ones carrying a `%1$s` placeholder -- same reasoning as
+     * [StravaLabelWidthTest.reasonMessages]' own kdoc.
+     */
+    private fun reasonMessages() = listOf(
+        "Serveur non configuré. Renseignez son adresse et le jeton dans Réglages.",
+        "Adresse du serveur invalide. Corrigez-la dans Réglages.",
+        "Adresse en HTTP non chiffré. Confirmez l'envoi en clair dans Réglages.",
+        "Connexion au serveur impossible : Unable to resolve host",
+        "Jeton refusé par le serveur : HTTP 401: invalid or expired token",
+        "Le serveur a refusé l'envoi : HTTP 500: internal server error, try again later",
+    )
+
+    @Test
+    fun `the custom-server section label and settings title fit a full-width row at a 1_3x font scale`() {
+        listOf("Mon serveur", "Serveur personnel").forEach { label ->
+            val width = labelWidthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `the send action label fits a full-width row`() {
+        val width = proseWidthDp("Envoyer à mon serveur")
+        assertTrue("\"Envoyer à mon serveur\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `every custom-server state label fits one line at the narrowest supported width`() {
+        stateLabels().forEach { label ->
+            val width = proseWidthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `the longest custom-server failure-reason sentence still fits within two lines at the narrowest width`() {
+        reasonMessages().forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `every custom-server settings field label and message fits within two lines at the narrowest width`() {
+        val messages = listOf(
+            "Adresse du serveur",
+            "Jeton partagé",
+            "Adresse invalide : indiquez une URL http:// ou https:// complète.",
+        )
+        messages.forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the plain-HTTP confirmation label fits within three lines, next to the checkbox it labels`() {
+        // Sits in a Row next to a Checkbox (see SettingsScreen.kt's CustomServerSection),
+        // not a full-width Text -- its real available width is already less than
+        // rowWidthDp, so a three-line budget here is the realistic one, same reasoning
+        // CalorieLabelWidthTest's own accuracy-note test uses for its longer sentence.
+        val message = "Autoriser l'envoi en HTTP non chiffré (déconseillé pour des données de santé)"
+        val width = proseWidthDp(message)
+        assertTrue("\"$message\" measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
+    }
+}
+
+/**
  * The profile fields added to Réglages (`SettingsScreen.kt`): the section title and each
  * field's label at [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall]/`label`, the sex
  * options ("Homme"/"Femme") and the short privacy note underneath. Same 280dp budget as

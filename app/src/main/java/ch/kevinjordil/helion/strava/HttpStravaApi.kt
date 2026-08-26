@@ -94,25 +94,3 @@ class HttpStravaApi : StravaApi {
     }
 }
 
-private fun ByteArrayOutputStream.writeFormField(boundary: String, name: String, value: String) {
-    write("--$boundary\r\n".toByteArray(Charsets.UTF_8))
-    write("Content-Disposition: form-data; name=\"$name\"\r\n\r\n".toByteArray(Charsets.UTF_8))
-    write("$value\r\n".toByteArray(Charsets.UTF_8))
-}
-
-private fun ByteArrayOutputStream.writeFileField(
-    boundary: String,
-    fieldName: String,
-    fileName: String,
-    contentType: String,
-    content: ByteArray,
-) {
-    write("--$boundary\r\n".toByteArray(Charsets.UTF_8))
-    write(
-        "Content-Disposition: form-data; name=\"$fieldName\"; filename=\"$fileName\"\r\n"
-            .toByteArray(Charsets.UTF_8),
-    )
-    write("Content-Type: $contentType\r\n\r\n".toByteArray(Charsets.UTF_8))
-    write(content)
-    write("\r\n".toByteArray(Charsets.UTF_8))
-}

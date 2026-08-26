@@ -116,6 +116,37 @@ Two ways an activity reaches Strava, both explicit — nothing publishes on its 
 A plain share action is also available, for sending the same file to a computer
 and importing it through Strava's web uploader instead.
 
+## Sending an activity to your own server
+
+A third, independent export target: configure a server URL and a shared token in
+Réglages, then tap **Envoyer à mon serveur** on any activity's detail screen. Helion
+only sends — what the receiving end does with the activity is entirely up to you.
+
+The request is a plain `POST` to the configured URL, `Content-Type:
+multipart/form-data`, with `Authorization: Bearer <token>`. The token is never
+logged and never appears in any error message shown in the app.
+
+Fields:
+
+| Field              | Type          | Notes                                                                 |
+|--------------------|---------------|------------------------------------------------------------------------|
+| `file`             | file          | The activity's TCX. Filename matches the Downloads export, e.g. `badminton-2026-08-26-2010.tcx`. |
+| `sport`            | text          | A stable, lower-case slug (`badminton`, `running`, `cycling`, `walking`, `swimming`, `other`) — never a translated label, so it never changes with the app's display language. |
+| `title`            | text          | The activity's title, or `Helion` if it has none.                    |
+| `description`      | text          | The activity's notes. May be empty.                                  |
+| `start`            | text          | ISO 8601 with a UTC offset, e.g. `2026-08-26T20:10:00+02:00`.         |
+| `duration_seconds` | text (integer)| End minus start, in seconds.                                         |
+| `calories`         | text (integer)| Present only when Helion has both a complete profile and heart-rate data to estimate from — omitted entirely otherwise, never sent as `0`. |
+| `external_id`      | text          | Stable per activity (`helion-activity-<id>`) and identical across every send target. Use it to recognise a repeat send instead of creating a duplicate — Helion will happily send the same activity again (a retry, a manual re-send after fixing the server) and always uses this same value. |
+
+A plain `http://` URL is refused until you explicitly tick the confirmation
+checkbox next to it in Réglages — an activity carries heart-rate data, and sending
+it in clear text is a choice, not a default.
+
+Any non-2xx response, an unreachable host, and a rejected token each show their own
+message on the activity detail screen — the real HTTP status and response body for
+the first, the transport error for the second, never a generic "failed".
+
 ## Working on the code
 
     ./scripts/helion.sh test              # unit tests

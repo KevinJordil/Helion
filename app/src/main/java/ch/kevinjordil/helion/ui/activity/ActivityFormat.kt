@@ -3,6 +3,7 @@ package ch.kevinjordil.helion.ui.activity
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.customserver.CustomServerFailureReason
 import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.SportType
@@ -101,6 +102,49 @@ fun stravaAuthFailureRes(failure: StravaAuthFailure): Int = when (failure) {
 fun stravaAuthFailureArgs(failure: StravaAuthFailure): List<Any> = when (failure) {
     StravaAuthFailure.NotConfigured -> emptyList()
     else -> listOf(failure.detail)
+}
+
+/**
+ * The French label for a custom-server [PublicationState] -- same states as
+ * [publicationStateLabelRes], different wording since there is no upload job to be "en
+ * cours" for this target (see [ch.kevinjordil.helion.customserver.CustomServerPublisher]'s
+ * own kdoc): [PublicationState.UPLOADING] is never actually produced for
+ * [ch.kevinjordil.helion.store.PublicationTarget.CUSTOM_SERVER], but the `when` still
+ * covers it rather than silently falling through, in case that ever changes.
+ */
+fun customServerStateLabelRes(state: PublicationState): Int = when (state) {
+    PublicationState.PENDING, PublicationState.UPLOADING -> R.string.custom_server_state_pending
+    PublicationState.PUBLISHED -> R.string.custom_server_state_sent
+    PublicationState.FAILED -> R.string.custom_server_state_failed
+}
+
+/**
+ * The French explanation for a stored custom-server
+ * [ch.kevinjordil.helion.store.Publication.lastError] reason code (see
+ * [CustomServerFailureReason]). Falls back to the generic remote-error message for anything
+ * unrecognised, same reasoning as [publicationFailureReasonRes].
+ */
+fun customServerFailureReasonRes(reason: String?): Int = when (reason) {
+    CustomServerFailureReason.NOT_CONFIGURED -> R.string.custom_server_reason_not_configured
+    CustomServerFailureReason.INVALID_URL -> R.string.custom_server_reason_invalid_url
+    CustomServerFailureReason.PLAIN_HTTP_NOT_CONFIRMED -> R.string.custom_server_reason_plain_http_not_confirmed
+    CustomServerFailureReason.NETWORK_ERROR -> R.string.custom_server_reason_network_error
+    CustomServerFailureReason.UNAUTHORIZED -> R.string.custom_server_reason_unauthorized
+    else -> R.string.custom_server_reason_remote_error
+}
+
+/**
+ * The `stringResource` format args for [customServerFailureReasonRes] -- [detail] fills the
+ * one `%1$s` placeholder every variant carries except [CustomServerFailureReason.NOT_CONFIGURED]
+ * and [CustomServerFailureReason.PLAIN_HTTP_NOT_CONFIRMED], which are decided locally before
+ * any request ever reached the server and already have a fixed, complete French sentence.
+ */
+fun customServerFailureReasonArgs(reason: String?, detail: String?): List<Any> = when (reason) {
+    CustomServerFailureReason.NOT_CONFIGURED,
+    CustomServerFailureReason.PLAIN_HTTP_NOT_CONFIRMED,
+    -> emptyList()
+    CustomServerFailureReason.INVALID_URL -> emptyList()
+    else -> listOf(detail ?: "?")
 }
 
 /**

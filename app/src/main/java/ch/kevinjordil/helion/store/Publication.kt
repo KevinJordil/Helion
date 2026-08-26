@@ -7,9 +7,12 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
-/** Where an [Activity] could be published. A single value for now; the shape allows more. */
+/** Where an [Activity] could be published. */
 enum class PublicationTarget {
     STRAVA,
+
+    /** The owner's own server, configured in Réglages -- see [ch.kevinjordil.helion.customserver.CustomServerPublisher]. */
+    CUSTOM_SERVER,
 }
 
 /** How a publish attempt to a [PublicationTarget] currently stands. */

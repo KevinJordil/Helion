@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -25,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -33,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.BuildConfig
+import ch.kevinjordil.helion.customserver.CustomServerUrlValidation
+import ch.kevinjordil.helion.customserver.validateCustomServerUrl
 import ch.kevinjordil.helion.strava.StravaConfig
 import ch.kevinjordil.helion.strava.missingUploadScope
 import ch.kevinjordil.helion.ui.activity.stravaAuthFailureArgs
@@ -122,6 +126,10 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         Text(stringResource(R.string.tab_settings).uppercase(), style = HelionType.label, color = colors.textSecondary)
 
         StravaSection(container)
+
+        HorizontalDivider(color = colors.divider)
+
+        CustomServerSection(container)
 
         // Which build is actually installed: several APKs share the same file name.
         Text(
@@ -319,5 +327,76 @@ private fun StravaSection(container: AppContainer) {
                 Text(stringResource(if (authStatus.connected) R.string.strava_reconnect_action else R.string.strava_connect_action))
             }
         }
+    }
+}
+
+/**
+ * Where the owner points Helion at his own always-on server: its URL, the shared token
+ * sent as `Authorization: Bearer <token>` on every send, and the one deliberate confirmation
+ * a plain-`http://` URL requires (see [CustomServerConfig.allowPlainHttp]'s own kdoc) --
+ * health data belongs behind TLS, and this is the one place that gets overridden on
+ * purpose, not silently.
+ *
+ * Every field saves itself the moment it holds a value, same self-saving pattern as every
+ * other field on this screen -- except the URL, which is only written back once
+ * [validateCustomServerUrl] actually accepts it, so a half-typed address never overwrites a
+ * working one.
+ */
+@Composable
+private fun CustomServerSection(container: AppContainer) {
+    val colors = HelionThemeTokens.colors
+    val config = container.customServerConfig
+
+    var urlText by remember { mutableStateOf(config.serverUrl.orEmpty()) }
+    var tokenText by remember { mutableStateOf(config.token.orEmpty()) }
+    var allowPlainHttp by remember { mutableStateOf(config.allowPlainHttp) }
+
+    val validation = validateCustomServerUrl(urlText)
+
+    Text(stringResource(R.string.custom_server_settings_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+    Text(stringResource(R.string.custom_server_url_label), style = HelionType.bodySmall, color = colors.textSecondary)
+    OutlinedTextField(
+        value = urlText,
+        onValueChange = { text ->
+            urlText = text
+            // Only a URL validateCustomServerUrl actually accepts is stored -- an
+            // in-progress or malformed edit must never silently overwrite a working
+            // address (same "save only once valid" rule the profile fields use). A blank
+            // field explicitly clears a previously configured one.
+            when (val result = validateCustomServerUrl(text)) {
+                CustomServerUrlValidation.Blank -> config.serverUrl = null
+                is CustomServerUrlValidation.Valid -> config.serverUrl = text.trim()
+                CustomServerUrlValidation.Malformed -> Unit
+            }
+        },
+        singleLine = true,
+    )
+    if (validation == CustomServerUrlValidation.Malformed) {
+        Text(stringResource(R.string.custom_server_url_invalid), style = HelionType.bodySmall, color = colors.accentAmber)
+    }
+
+    Text(stringResource(R.string.custom_server_token_label), style = HelionType.bodySmall, color = colors.textSecondary)
+    OutlinedTextField(
+        value = tokenText,
+        onValueChange = { text ->
+            tokenText = text
+            config.token = text.ifBlank { null }
+        },
+        singleLine = true,
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Checkbox(
+            checked = allowPlainHttp,
+            onCheckedChange = { checked ->
+                allowPlainHttp = checked
+                config.allowPlainHttp = checked
+            },
+        )
+        Text(stringResource(R.string.custom_server_allow_plain_http), style = HelionType.bodySmall, color = colors.textSecondary)
     }
 }

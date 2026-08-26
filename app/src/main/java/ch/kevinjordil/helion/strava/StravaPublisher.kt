@@ -1,10 +1,7 @@
 package ch.kevinjordil.helion.strava
 
-import ch.kevinjordil.helion.calorie.ActivityCalorieEstimate
-import ch.kevinjordil.helion.calorie.estimateActivityCalories
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityDao
-import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.MinuteSampleDao
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationDao
@@ -136,7 +133,7 @@ class StravaPublisher(
             return Result.Failed(reason)
         }
 
-        val name = activityName(activity)
+        val name = activityDisplayName(activity)
         val sportType = stravaSportType(activity.sport)
 
         if (existing != null && existing.state == PublicationState.PUBLISHED && existing.remoteId != null) {
@@ -157,9 +154,9 @@ class StravaPublisher(
         }
 
         val samples = minuteSamples.between(activity.startTimestamp, activity.endTimestamp)
-        val calories = calorieEstimate(activity, samples)
+        val calories = calorieEstimateFor(profile, activity, zone, samples)
         val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
-        val externalId = "helion-activity-$activityId"
+        val externalId = externalIdFor(activityId)
 
         return try {
             // Strava's `POST /uploads` has no `sport_type` field at all (see
@@ -328,19 +325,4 @@ class StravaPublisher(
         publications.upsert(row.copy(lastAttempt = now(), lastError = reason, lastErrorDetail = detail))
     }
 
-    /**
-     * The kcal figure to embed in the TCX, or null when there is no profile to estimate
-     * from or no heart rate to estimate with -- [writeTcx] already treats a null the same
-     * way it treats "not tracked" for distance and cadence: as a placeholder 0, never a
-     * guess.
-     */
-    private fun calorieEstimate(activity: Activity, samples: List<MinuteSample>): Int? {
-        val ownerProfile = profile ?: return null
-        return when (val estimate = estimateActivityCalories(ownerProfile, activity.startTimestamp, zone, samples)) {
-            is ActivityCalorieEstimate.Estimated -> estimate.kcal
-            ActivityCalorieEstimate.ProfileIncomplete, ActivityCalorieEstimate.NoHeartRateData -> null
-        }
-    }
-
-    private fun activityName(activity: Activity): String = activity.title?.takeIf { it.isNotBlank() } ?: "Helion"
 }

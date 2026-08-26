@@ -91,6 +91,8 @@ fun ActivityDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var publication by remember(activityId) { mutableStateOf<Publication?>(null) }
     var publishing by remember(activityId) { mutableStateOf(false) }
+    var customServerPublication by remember(activityId) { mutableStateOf<Publication?>(null) }
+    var sendingToCustomServer by remember(activityId) { mutableStateOf(false) }
     var minuteSamples by remember(activityId) { mutableStateOf<List<MinuteSample>>(emptyList()) }
     var calorieEstimate by remember(activityId) { mutableStateOf<ActivityCalorieEstimate?>(null) }
 
@@ -98,10 +100,15 @@ fun ActivityDetailScreen(
         publication = container.database.publications().get(activityId, PublicationTarget.STRAVA)
     }
 
+    suspend fun reloadCustomServerPublication() {
+        customServerPublication = container.database.publications().get(activityId, PublicationTarget.CUSTOM_SERVER)
+    }
+
     LaunchedEffect(activityId) {
         val loaded = container.database.activities().get(activityId)
         activity = loaded
         reloadPublication()
+        reloadCustomServerPublication()
         // Loaded alongside the activity itself, not lazily inside shareTcx/publishToStrava:
         // the calorie estimate needs the same per-minute samples those two actions send to
         // Strava, and computing it once here means the detail screen, the share action and
@@ -123,6 +130,16 @@ fun ActivityDetailScreen(
             withContext(Dispatchers.IO) { container.stravaPublisher.publish(activityId) }
             reloadPublication()
             publishing = false
+        }
+    }
+
+    fun sendToCustomServer() {
+        if (sendingToCustomServer) return
+        sendingToCustomServer = true
+        scope.launch {
+            withContext(Dispatchers.IO) { container.customServerPublisher.send(activityId) }
+            reloadCustomServerPublication()
+            sendingToCustomServer = false
         }
     }
 
@@ -336,6 +353,40 @@ fun ActivityDetailScreen(
             TextButton(onClick = { shareTcx(current) }) {
                 Text(stringResource(R.string.strava_share_action))
             }
+        }
+
+        HorizontalDivider(color = colors.divider)
+
+        // A third, independent send target: the owner's own server. Kept as its own
+        // section with its own state, not merged into the Strava one above -- it tracks a
+        // separate PublicationTarget row (see CustomServerPublisher's own kdoc), and it can
+        // fail or succeed on a completely different schedule than the Strava publish.
+        Text(stringResource(R.string.custom_server_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+        val currentCustomServerPublication = customServerPublication
+        if (currentCustomServerPublication != null) {
+            Text(
+                stringResource(customServerStateLabelRes(currentCustomServerPublication.state)),
+                style = HelionType.bodySmall,
+                color = if (currentCustomServerPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
+            )
+            if (currentCustomServerPublication.state == PublicationState.FAILED) {
+                Text(
+                    stringResource(
+                        customServerFailureReasonRes(currentCustomServerPublication.lastError),
+                        *customServerFailureReasonArgs(
+                            currentCustomServerPublication.lastError,
+                            currentCustomServerPublication.lastErrorDetail,
+                        ).toTypedArray(),
+                    ),
+                    style = HelionType.bodySmall,
+                    color = colors.accentAmber,
+                )
+            }
+        }
+
+        OutlinedButton(onClick = { sendToCustomServer() }, enabled = !sendingToCustomServer) {
+            Text(stringResource(R.string.custom_server_send_action))
         }
 
         HorizontalDivider(color = colors.divider)
