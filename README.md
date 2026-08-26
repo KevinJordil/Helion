@@ -11,14 +11,15 @@ exports, and keeps its own archive on the phone. Nothing leaves the device.
 
 Everything is stored locally in the app's own database. There is no account, no
 server, and no automatic publishing: an activity reaches Strava only when you
-explicitly choose to send it there, either by publishing directly from the app or
-by saving a file and importing it yourself — see
-[Getting an activity onto Strava](#getting-an-activity-onto-strava).
+explicitly choose to save a file and import it yourself — see
+[Getting an activity onto Strava](#getting-an-activity-onto-strava). You can also
+send an activity straight to a server of your own; see
+[Sending an activity to your own server](#sending-an-activity-to-your-own-server).
 
 ## Status
 
 Early. The data layer is in place — ingestion from Gadgetbridge, a local archive,
-per-metric history, and Strava export. Sleep analysis and activity detection come
+per-metric history, and TCX export. Sleep analysis and activity detection come
 next. Two things still need verifying against real hardware; see
 [Verifying the Gadgetbridge link](#verifying-the-gadgetbridge-link).
 
@@ -99,26 +100,27 @@ Once installed, in this order:
 
 ## Getting an activity onto Strava
 
-Two ways an activity reaches Strava, both explicit — nothing publishes on its own:
+Helion has no direct Strava API integration — it never talks to Strava's servers on
+its own. Getting an activity onto Strava is a manual, explicit step from the
+activity detail screen:
 
-- **Direct publish**, from the activity detail screen: uploads the activity through
-  Strava's API. This needs an active Strava subscription (Standard tier) on the
-  account whose app registered the configured client id, because Strava requires
-  one for third-party API uploads; without it, Strava's API reports the
-  application as inactive and the button says so instead of failing silently.
-- **Manual import**: **Enregistrer le fichier** writes a TCX file straight into the
-  phone's Downloads folder, named from the sport and start time (no share sheet).
-  **Ouvrir Strava** then opens the Strava app (falling back to its Play Store
-  listing, then its web upload page, if it is not installed) — from there:
-  Enregistrer → + → Importer un fichier. TCX only distinguishes running, cycling,
-  and "other", so the sport needs correcting inside Strava after import.
+- **Enregistrer le fichier** writes a TCX file straight into the phone's Downloads
+  folder, named from the sport and start time (no share sheet).
+- **Ouvrir Strava** opens Strava's web upload page in the browser — from there:
+  Fichier → choose the saved file. TCX only distinguishes running, cycling, and
+  "other", so the sport needs correcting inside Strava after import.
 
 A plain share action is also available, for sending the same file to a computer
 and importing it through Strava's web uploader instead.
 
+(An earlier version of this app published directly through Strava's API. That
+integration was removed once Strava's Standard API tier started requiring a paid
+subscription the owner does not want; the code is preserved in git history, see
+`docs/archive/strava-api-integration.md` on the machine that removed it.)
+
 ## Sending an activity to your own server
 
-A third, independent export target: configure a server URL and a shared token in
+A second, independent export target: configure a server URL and a shared token in
 Réglages, then tap **Envoyer à mon serveur** on any activity's detail screen. Helion
 only sends — what the receiving end does with the activity is entirely up to you.
 
