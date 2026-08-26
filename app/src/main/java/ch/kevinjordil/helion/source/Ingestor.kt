@@ -92,6 +92,15 @@ class Ingestor(
      */
     var detector: ActivityDetector? = null
 
+    /**
+     * Set by [ch.kevinjordil.helion.AppContainer] after construction, same reasoning as
+     * [detector]. Checked (via [runNotificationsOver]) on every pass regardless of whether
+     * this particular pass' [detector] run created anything new: a candidate left
+     * unnotified by an earlier pass (notifications were off, or permission was refused)
+     * must still get its one chance once that changes, and this is the one place that asks.
+     */
+    var notifier: CandidateNotificationSink? = null
+
     suspend fun ingest(databasePath: String?, force: Boolean = false, skipSyncRequest: Boolean = false): IngestResult {
         if (databasePath == null) return IngestResult.NoSource
         return passLock.withLock { runPass(databasePath, force, skipSyncRequest) }
@@ -186,6 +195,7 @@ class Ingestor(
             ),
         )
         runDetectionOver(samples.minutes)
+        runNotificationsOver()
         IngestResult.Ingested(samples.minutes.size, samples.points.size, triggered, samples.stageSegments.size)
     } catch (e: CancellationException) {
         // A cooperative stop (e.g. WorkManager tearing down the worker mid-pass) is not
@@ -216,6 +226,31 @@ class Ingestor(
         } catch (e: Exception) {
             // Best-effort: a detection bug must not take down ingestion itself.
         }
+    }
+
+    /**
+     * Reads whatever [ActivityDao.unnotifiedCandidates] returns and, when it is non-empty,
+     * hands the whole list to [notifier] in one call -- a single candidate or several are
+     * both "one notification" from here on, since [CandidateNotificationSink] decides that
+     * shape, not this method. A candidate is marked [ch.kevinjordil.helion.store.Activity.notified]
+     * only once [CandidateNotificationSink.notifyNewCandidates] actually returns `true`;
+     * anything else -- `false`, or an exception from the notifier itself -- leaves every
+     * candidate here untouched, to be retried on the next pass. Best-effort like
+     * [runDetectionOver]: a notifier failure must never turn a genuinely successful ingest
+     * pass into [IngestResult.Failed].
+     */
+    private suspend fun runNotificationsOver() {
+        val notifier = notifier ?: return
+        val pending = db.activities().unnotifiedCandidates()
+        if (pending.isEmpty()) return
+        val posted = try {
+            notifier.notifyNewCandidates(pending)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+        if (posted) db.activities().markNotified(pending.map { it.id })
     }
 
     private suspend fun fail(reason: String, streak: Int, lastAttempt: Long): IngestResult.Failed {

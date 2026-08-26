@@ -12,6 +12,7 @@ import ch.kevinjordil.helion.source.ExportLocation
 import ch.kevinjordil.helion.source.ExportReader
 import ch.kevinjordil.helion.source.GadgetbridgeCommands
 import ch.kevinjordil.helion.source.Ingestor
+import ch.kevinjordil.helion.notification.CandidateNotifier
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.MIGRATION_1_2
 import ch.kevinjordil.helion.store.MIGRATION_2_3
@@ -20,12 +21,14 @@ import ch.kevinjordil.helion.store.MIGRATION_4_5
 import ch.kevinjordil.helion.store.MIGRATION_5_6
 import ch.kevinjordil.helion.store.MIGRATION_6_7
 import ch.kevinjordil.helion.store.MIGRATION_7_8
+import ch.kevinjordil.helion.store.MIGRATION_8_9
 import ch.kevinjordil.helion.strava.HttpStravaApi
 import ch.kevinjordil.helion.strava.StravaAuth
 import ch.kevinjordil.helion.strava.StravaPublisher
 import ch.kevinjordil.helion.strava.StravaTokenStore
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
 import ch.kevinjordil.helion.ui.settings.CustomServerConfig
+import ch.kevinjordil.helion.ui.settings.NotificationPreference
 import ch.kevinjordil.helion.ui.settings.Profile
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 import java.time.ZoneId
@@ -35,7 +38,10 @@ class AppContainer(context: Context) {
 
     val database: HelionDatabase = Room
         .databaseBuilder(context, HelionDatabase::class.java, "helion.db")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+        .addMigrations(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+        )
         .build()
 
     val exportLocation = ExportLocation(context)
@@ -83,6 +89,9 @@ class AppContainer(context: Context) {
 
     val stepsGoal = StepsGoal(context)
 
+    /** The Réglages on/off switch for candidate-detection notifications -- see its own kdoc. */
+    val notificationPreference = NotificationPreference(context)
+
     val commands = GadgetbridgeCommands(BroadcastCommandSender(context))
 
     /**
@@ -118,5 +127,6 @@ class AppContainer(context: Context) {
             now = { System.currentTimeMillis() / 1000 },
             noteFor = { min, max, resting -> context.getString(R.string.activity_candidate_note, min, max, resting) },
         )
+        ingestor.notifier = CandidateNotifier(context, notificationPreference)
     }
 }

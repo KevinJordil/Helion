@@ -1142,3 +1142,111 @@ class ProfileFieldWidthTest {
         }
     }
 }
+
+/**
+ * The notifications section added to Réglages (`SettingsScreen.kt`'s `NotificationsSection`)
+ * and the strings the actual system notification carries
+ * (`ch.kevinjordil.helion.notification.CandidateNotifier`). Same 280dp budget as
+ * [ProfileFieldWidthTest] for the Réglages section -- identical 20dp-padded root `Column` --
+ * used here too for the notification's own title/text as the closest available proxy: a
+ * status-bar notification has no fixed width this app controls, but a phone's narrowest
+ * supported width is still the right worst case to check prose against.
+ *
+ * The batch text's `%1$d` placeholder is filled with 99 -- a deliberately generous count for
+ * "several days without opening the app," the scenario this string is written for, not a
+ * hard ceiling anywhere in the store.
+ */
+class NotificationLabelWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
+    }
+
+    @Test
+    fun `the notifications section title fits a full-width row at a 1_3x font scale`() {
+        val width = labelWidthDp("Notifications")
+        assertTrue("\"Notifications\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `the toggle label fits within one line`() {
+        val message = "Me notifier des activités détectées"
+        val width = proseWidthDp(message, fontSizeSp = 13f)
+        assertTrue("\"$message\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `the permission-denied note fits within three lines`() {
+        val message = "Autorisation refusée : les activités candidates restent visibles dans Activités, sans notification."
+        val width = proseWidthDp(message, fontSizeSp = 13f)
+        assertTrue("\"$message\" measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
+    }
+
+    @Test
+    fun `the settings explanation fits within four lines`() {
+        // The longest sentence in this section -- it spells out the "one notification per
+        // candidate, never a reminder" rule in full, which is worth the extra line over a
+        // terser rewording (see NoTextClippingTest for why wrapping, not clipping, is what
+        // actually matters here).
+        val message = "Une notification par activité candidate détectée, jamais de rappel : vous choisissez ensuite de la confirmer, la modifier ou l'ignorer."
+        val width = proseWidthDp(message, fontSizeSp = 13f)
+        assertTrue("\"$message\" measured ${width}dp, four-line budget is ${rowWidthDp * 4}dp", width <= rowWidthDp * 4)
+    }
+
+    @Test
+    fun `the single-candidate notification title fits within one line and its text within three`() {
+        val title = "Nouvelle activité détectée"
+        val titleWidth = proseWidthDp(title, fontSizeSp = 14f)
+        assertTrue("\"$title\" measured ${titleWidth}dp, budget is ${rowWidthDp}dp", titleWidth <= rowWidthDp)
+
+        val text = "Une séance a été repérée sur votre bracelet. Appuyez pour la confirmer, la modifier ou l'ignorer."
+        val textWidth = proseWidthDp(text, fontSizeSp = 14f)
+        assertTrue("\"$text\" measured ${textWidth}dp, three-line budget is ${rowWidthDp * 3}dp", textWidth <= rowWidthDp * 3)
+    }
+
+    @Test
+    fun `the batch notification title fits within one line and its text, at a generously large count, within three`() {
+        val title = "Activités à vérifier"
+        val titleWidth = proseWidthDp(title, fontSizeSp = 14f)
+        assertTrue("\"$title\" measured ${titleWidth}dp, budget is ${rowWidthDp}dp", titleWidth <= rowWidthDp)
+
+        val text = "99 activités ont été repérées depuis votre dernière visite. Appuyez pour les consulter."
+        val textWidth = proseWidthDp(text, fontSizeSp = 14f)
+        assertTrue("\"$text\" measured ${textWidth}dp, three-line budget is ${rowWidthDp * 3}dp", textWidth <= rowWidthDp * 3)
+    }
+
+    @Test
+    fun `the notification channel name fits within one line and its description within two`() {
+        val name = "Activités détectées"
+        val nameWidth = proseWidthDp(name, fontSizeSp = 13f)
+        assertTrue("\"$name\" measured ${nameWidth}dp, budget is ${rowWidthDp}dp", nameWidth <= rowWidthDp)
+
+        val description = "Propose une activité candidate à vérifier ; ne signale jamais rien d'autre."
+        val descriptionWidth = proseWidthDp(description, fontSizeSp = 13f)
+        assertTrue("\"$description\" measured ${descriptionWidth}dp, two-line budget is ${rowWidthDp * 2}dp", descriptionWidth <= rowWidthDp * 2)
+    }
+}

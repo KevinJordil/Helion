@@ -17,6 +17,15 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <!--
+      Runtime permission from Android 13 (API 33) onward, a no-op declaration below that,
+      where posting a notification never required asking. Requested from Réglages, not at
+      first launch, see ch.kevinjordil.helion.ui.settings.SettingsScreen's notifications
+      section, and a refusal is handled everywhere as "post nothing", never as a crash or
+      a broken ingest pass (see ch.kevinjordil.helion.notification.CandidateNotifier).
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
       Package visibility (API 30+): needed to check whether the Strava app is installed
       (ch.kevinjordil.helion.strava.buildOpenStravaIntent) and, when it is not, whether the
       Play Store can handle a market:// listing before falling back to Strava's web upload

@@ -1,0 +1,25 @@
+<!--
+  Status-bar icon for the candidate-detection notification channel. A plain white
+  silhouette on a transparent background, as the platform requires for a notification's
+  small icon (the system masks it to the current icon color itself; any other fill would
+  render as a solid block on some launchers). Same stopwatch-ring shape as the Activités
+  tab icon in HelionNavHost.kt, simplified to a single opaque path since a notification
+  icon has no room for the tab icon's two-tone crown-and-hand detail.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M12,4 C7.03,4 3,7.97 3,13 C3,17.97 7.03,22 12,22 C16.97,22 21,17.97 21,13 C21,7.97 16.97,4 12,4 Z M12,6 C15.87,6 19,9.13 19,13 C19,16.87 15.87,20 12,20 C8.13,20 5,16.87 5,13 C5,9.13 8.13,6 12,6 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M11.25,9 L12.75,9 L12.75,13.25 L16,15.15 L15.25,16.45 L11.25,14.1 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10,1 L14,1 L14,3 L10,3 Z" />
+</vector>

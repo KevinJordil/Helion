@@ -145,3 +145,19 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         )
     }
 }
+
+/**
+ * Adds `activity.notified` -- see [Activity.notified]'s own kdoc for why this flag, not a
+ * side table, is what makes "one notification per candidate, ever" durable. A plain ADD
+ * COLUMN with a `NOT NULL DEFAULT 0`: every existing row -- whatever its status -- is
+ * treated as not yet notified, which is exactly correct for every status but
+ * [ActivityStatus.CANDIDATE] (nothing reads this flag for anything else) and, for existing
+ * candidates, is the safe direction to default to -- this app never notified about anything
+ * before this migration, so there is nothing to avoid re-notifying, only a first batch to
+ * possibly send for whatever is still sitting unreviewed.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `activity` ADD COLUMN `notified` INTEGER NOT NULL DEFAULT 0")
+    }
+}

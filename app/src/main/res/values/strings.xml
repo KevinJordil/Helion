@@ -285,4 +285,16 @@
         <item>Dim</item>
     </string-array>
     <string name="settings_build_stamp">Version installée : %1$s</string>
+
+    <string name="notification_channel_name">Activités détectées</string>
+    <string name="notification_channel_description">Propose une activité candidate à vérifier ; ne signale jamais rien d\'autre.</string>
+    <string name="notification_candidate_title">Nouvelle activité détectée</string>
+    <string name="notification_candidate_text">Une séance a été repérée sur votre bracelet. Appuyez pour la confirmer, la modifier ou l\'ignorer.</string>
+    <string name="notification_candidate_batch_title">Activités à vérifier</string>
+    <string name="notification_candidate_batch_text">%1$d activités ont été repérées depuis votre dernière visite. Appuyez pour les consulter.</string>
+
+    <string name="notification_settings_section_title">Notifications</string>
+    <string name="notification_settings_toggle_label">Me notifier des activités détectées</string>
+    <string name="notification_settings_explanation">Une notification par activité candidate détectée, jamais de rappel : vous choisissez ensuite de la confirmer, la modifier ou l\'ignorer.</string>
+    <string name="notification_settings_permission_denied">Autorisation refusée : les activités candidates restent visibles dans Activités, sans notification.</string>
 </resources>

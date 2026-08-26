@@ -107,6 +107,20 @@ data class Activity(
      * an export can send [notes] (what he actually wrote) without ever forwarding this.
      */
     val detectionContext: String? = null,
+    /**
+     * Whether a candidate-detection notification has already been posted for this row --
+     * see `ch.kevinjordil.helion.notification.CandidateNotifier`. Set to true only once
+     * [ch.kevinjordil.helion.source.CandidateNotificationSink.notifyNewCandidates] actually
+     * returns true for it (a real post, not merely attempted): the owner's own rule is one
+     * notification per candidate *ever*, so this flag -- not a WorkManager input or a
+     * separate table -- is the single source of truth a re-run of detection over the same
+     * window, a reinstalled periodic worker, or a second ingest pass minutes later all read
+     * before ever notifying again. Kept on the row itself rather than a side table so it can
+     * never drift out of sync with the candidate it describes, and because it means nothing
+     * beyond [ActivityStatus.CANDIDATE] ever needs to care about it again. Always false for
+     * [ActivityOrigin.MANUAL] -- nothing ever notifies about a row the owner drew himself.
+     */
+    val notified: Boolean = false,
 )
 
 @Dao
@@ -134,6 +148,23 @@ interface ActivityDao {
 
     @Query("SELECT * FROM activity WHERE status = :status ORDER BY startTimestamp")
     suspend fun withStatus(status: ActivityStatus): List<Activity>
+
+    /**
+     * Every [ActivityStatus.CANDIDATE] row no notification has been posted for yet -- what
+     * [ch.kevinjordil.helion.source.Ingestor] reads after every pass to decide whether to
+     * notify at all, and whether that is a single-candidate or a batch notification. Scoped
+     * to status rather than a time window: a candidate left unnotified because the owner
+     * had notifications off, or because Android's permission was refused at the time, keeps
+     * its one unnotified slot until this query picks it up on a later pass -- exactly the
+     * batching this app wants for "several days without opening the app," rather than a
+     * silently lost notification.
+     */
+    @Query("SELECT * FROM activity WHERE status = 'CANDIDATE' AND notified = 0 ORDER BY startTimestamp")
+    suspend fun unnotifiedCandidates(): List<Activity>
+
+    /** Marks [ids] as notified -- called only once a notification for them actually posted. */
+    @Query("UPDATE activity SET notified = 1 WHERE id IN (:ids)")
+    suspend fun markNotified(ids: List<Long>)
 
     /** Every activity, most recent first -- what the Activités list screen shows. */
     @Query("SELECT * FROM activity ORDER BY startTimestamp DESC")

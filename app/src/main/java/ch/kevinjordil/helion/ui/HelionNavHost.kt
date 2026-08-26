@@ -47,6 +47,25 @@ private const val SLOT_ROUTE_PREFIX = "slot:"
 /** The [SlotEditScreen] route id for a brand-new slot, as opposed to `"slot:<id>"` for an existing one. */
 private const val NEW_SLOT_ID = "new"
 
+/** The activity-detail route for [id] -- the one route a candidate notification's tap opens directly. */
+fun activityDetailRoute(id: Long): String = "$ACTIVITY_ROUTE_PREFIX$id"
+
+/** The Activités list route -- what a batch notification's tap opens. */
+val activitiesListRoute: String = RootDestination.ACTIVITIES.route
+
+/**
+ * The one route a notification tap wants [HelionNavHost] to land on next, set by
+ * [ch.kevinjordil.helion.MainActivity] from either a cold start's launch intent or a warm
+ * one's [android.app.Activity.onNewIntent]. A plain observable singleton rather than a
+ * navigation library's deep-link graph, for the same reason [HelionNavHost]'s own kdoc
+ * gives for hand-rolling its back stack: the whole graph here is small enough that a
+ * library would cost more than it saves. [HelionNavHost] consumes and clears it the moment
+ * it is composed with a non-null value, so a value set once is applied exactly once.
+ */
+object NotificationNavigationTarget {
+    var route: String? by mutableStateOf(null)
+}
+
 /**
  * A crescent moon for the Sommeil tab. Hand-drawn rather than pulled from
  * material-icons-extended: that module is not a dependency (see the app's "no new Gradle
@@ -156,6 +175,17 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 
     BackHandler(enabled = backStack.size > 1) {
         backStack = backStack.dropLast(1)
+    }
+
+    // A notification tap (cold start or warm, see NotificationNavigationTarget's own kdoc)
+    // replaces the whole back stack with its target rather than pushing onto whatever was
+    // there before -- the same "land here directly, don't make him hunt for it" reasoning
+    // the notification feature exists for in the first place.
+    LaunchedEffect(NotificationNavigationTarget.route) {
+        NotificationNavigationTarget.route?.let { route ->
+            backStack = listOf(route)
+            NotificationNavigationTarget.route = null
+        }
     }
 
     fun openMetric(metricId: String) {
