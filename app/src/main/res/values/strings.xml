@@ -162,6 +162,15 @@
 
     <string name="steps_goal_label">Objectif quotidien de pas</string>
 
+    <string name="profile_section_title">Profil</string>
+    <string name="profile_date_of_birth_label">Date de naissance</string>
+    <string name="profile_date_of_birth_invalid">Format invalide (jj/mm/aaaa). Pas encore enregistré.</string>
+    <string name="profile_weight_label">Poids (kg)</string>
+    <string name="profile_sex_label">Sexe</string>
+    <string name="profile_sex_male">Homme</string>
+    <string name="profile_sex_female">Femme</string>
+    <string name="profile_note">Sert uniquement à estimer les calories ; reste sur l\'appareil.</string>
+
     <string name="export_location_label">Fichier exporté</string>
     <string name="export_location_none">Aucun fichier configuré</string>
     <string name="export_location_set">Fichier configuré : %1$s</string>

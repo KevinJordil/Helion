@@ -3,8 +3,10 @@ package ch.kevinjordil.helion.ui.settings
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,9 +29,21 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** `dd/MM/yyyy`, the same day-month-year order every other date field in the app uses (see [ch.kevinjordil.helion.ui.activity.ACTIVITY_DATETIME_FORMAT]), without a time-of-day component: a date of birth has none. */
+private val DATE_OF_BIRTH_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+private fun parseDateOfBirth(text: String): LocalDate? = try {
+    LocalDate.parse(text.trim(), DATE_OF_BIRTH_FORMAT)
+} catch (e: DateTimeParseException) {
+    null
+}
 
 /**
  * Where the Gadgetbridge export file is chosen and where a sync can be triggered by hand.
@@ -44,6 +58,12 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
     var resultMessage by remember { mutableStateOf<Pair<Int, List<Any>>?>(null) }
     var pickRefused by remember { mutableStateOf(false) }
     var stepsGoalText by remember { mutableStateOf(container.stepsGoal.value.toString()) }
+
+    var dateOfBirthText by remember {
+        mutableStateOf(container.profile.dateOfBirthEpochDay?.let { DATE_OF_BIRTH_FORMAT.format(LocalDate.ofEpochDay(it)) }.orEmpty())
+    }
+    var weightText by remember { mutableStateOf(container.profile.weightKg?.toString().orEmpty()) }
+    var selectedSex by remember { mutableStateOf(container.profile.sex) }
 
     val pickExportFile = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -149,5 +169,62 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
         )
+
+        HorizontalDivider(color = colors.divider)
+
+        Text(stringResource(R.string.profile_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+        Text(stringResource(R.string.profile_date_of_birth_label), style = HelionType.bodySmall, color = colors.textSecondary)
+        OutlinedTextField(
+            value = dateOfBirthText,
+            onValueChange = { text ->
+                dateOfBirthText = text
+                // Same "save the moment it's valid, never a half-typed guess" rule as every
+                // other self-saving field on this screen and on the activity detail screen:
+                // an empty or unparsable date must never silently store a birth date, and a
+                // blank field explicitly clears one that was set before.
+                if (text.isBlank()) {
+                    container.profile.dateOfBirthEpochDay = null
+                } else {
+                    parseDateOfBirth(text)?.let { container.profile.dateOfBirthEpochDay = it.toEpochDay() }
+                }
+            },
+            singleLine = true,
+        )
+        if (dateOfBirthText.isNotBlank() && parseDateOfBirth(dateOfBirthText) == null) {
+            Text(stringResource(R.string.profile_date_of_birth_invalid), style = HelionType.bodySmall, color = colors.accentAmber)
+        }
+
+        Text(stringResource(R.string.profile_weight_label), style = HelionType.bodySmall, color = colors.textSecondary)
+        OutlinedTextField(
+            value = weightText,
+            onValueChange = { text ->
+                weightText = text
+                if (text.isBlank()) {
+                    container.profile.weightKg = null
+                } else {
+                    text.toFloatOrNull()?.takeIf { it > 0f }?.let { container.profile.weightKg = it }
+                }
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+        )
+
+        Text(stringResource(R.string.profile_sex_label), style = HelionType.bodySmall, color = colors.textSecondary)
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            listOf(Sex.MALE to R.string.profile_sex_male, Sex.FEMALE to R.string.profile_sex_female).forEach { (sex, labelRes) ->
+                Text(
+                    stringResource(labelRes).uppercase(),
+                    style = HelionType.label,
+                    color = if (sex == selectedSex) colors.accentViolet else colors.textTertiary,
+                    modifier = Modifier.clickable {
+                        selectedSex = sex
+                        container.profile.sex = sex
+                    },
+                )
+            }
+        }
+
+        Text(stringResource(R.string.profile_note), style = HelionType.bodySmall, color = colors.textSecondary)
     }
 }

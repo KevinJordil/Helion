@@ -21,6 +21,7 @@ import ch.kevinjordil.helion.strava.StravaAuth
 import ch.kevinjordil.helion.strava.StravaPublisher
 import ch.kevinjordil.helion.strava.StravaTokenStore
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
+import ch.kevinjordil.helion.ui.settings.Profile
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 import java.time.ZoneId
 
@@ -33,6 +34,9 @@ class AppContainer(context: Context) {
         .build()
 
     val exportLocation = ExportLocation(context)
+
+    /** The owner's own inputs to [ch.kevinjordil.helion.calorie.CalorieEstimator] -- see [Profile]'s own kdoc. */
+    val profile = Profile(context)
 
     /** OAuth token persistence and the browser-flow driver -- see [StravaAuth]'s own kdoc. */
     val stravaTokenStore = StravaTokenStore(context)
@@ -48,6 +52,8 @@ class AppContainer(context: Context) {
         publications = database.publications(),
         tokenProvider = stravaAuth,
         api = HttpStravaApi(),
+        profile = profile,
+        zone = ZoneId.systemDefault(),
         now = { System.currentTimeMillis() / 1000 },
     )
 
