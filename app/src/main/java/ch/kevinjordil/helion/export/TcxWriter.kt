@@ -1,4 +1,4 @@
-package ch.kevinjordil.helion.strava
+package ch.kevinjordil.helion.export
 
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.SportType
@@ -9,10 +9,10 @@ import java.time.format.DateTimeFormatter
  * The TCX `<Activity Sport="...">` this [SportType] renders as. TCX v2's schema only
  * defines three sport values -- `Running`, `Biking`, `Other` -- so most of Helion's sport
  * types fall back to `Other`; that is a limitation of the file format, not a loss of
- * information, since the real sport is set separately, after the upload resolves, via a
- * `PUT /activities/{id}` call with `sport_type` (see [stravaSportType] and
- * [ch.kevinjordil.helion.strava.StravaPublisher.finalizeSport]) -- `POST /uploads` has no
- * `sport_type` field of its own, so it cannot travel with the upload itself.
+ * information -- the exact sport is still recorded elsewhere (the activity model, the
+ * custom-server `sport` field) and, for a Strava import, is left for the owner to
+ * correct by hand inside Strava after import (see `strava_sport_fix_note` in
+ * `strings.xml`).
  */
 fun tcxSport(sport: SportType): String = when (sport) {
     SportType.RUNNING -> "Running"

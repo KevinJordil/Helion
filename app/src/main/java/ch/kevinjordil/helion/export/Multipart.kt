@@ -1,13 +1,12 @@
-package ch.kevinjordil.helion.strava
+package ch.kevinjordil.helion.export
 
 import java.io.ByteArrayOutputStream
 
 /**
- * The two building blocks every `multipart/form-data` body in this app is assembled from --
- * originally written for [HttpStravaApi.createUpload], and reused as-is (never copied) by
- * [ch.kevinjordil.helion.customserver.HttpCustomServerApi] for the custom-server export.
- * `internal` rather than `private` for exactly that reason: both call sites live in this
- * Gradle module, just in different packages.
+ * The two building blocks every `multipart/form-data` body in this app is assembled from,
+ * used by [ch.kevinjordil.helion.customserver.HttpCustomServerApi] for the custom-server
+ * export. `internal` rather than `private` since the call site lives in this Gradle
+ * module, just in a different package.
  */
 internal fun ByteArrayOutputStream.writeFormField(boundary: String, name: String, value: String) {
     write("--$boundary\r\n".toByteArray(Charsets.UTF_8))

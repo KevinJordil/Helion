@@ -1,4 +1,4 @@
-package ch.kevinjordil.helion.strava
+package ch.kevinjordil.helion.export
 
 import android.content.Context
 import android.content.Intent

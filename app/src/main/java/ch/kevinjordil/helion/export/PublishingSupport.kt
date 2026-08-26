@@ -1,4 +1,4 @@
-package ch.kevinjordil.helion.strava
+package ch.kevinjordil.helion.export
 
 import ch.kevinjordil.helion.calorie.ActivityCalorieEstimate
 import ch.kevinjordil.helion.calorie.estimateActivityCalories
@@ -8,15 +8,14 @@ import ch.kevinjordil.helion.ui.settings.Profile
 import java.time.ZoneId
 
 /**
- * Shared, target-agnostic pieces of publishing an [Activity] somewhere -- used by both
- * [StravaPublisher] and [ch.kevinjordil.helion.customserver.CustomServerPublisher], so a
- * repeat send always carries the exact same identity and name regardless of where it goes.
+ * Shared, target-agnostic pieces of publishing an [Activity] somewhere -- used by
+ * [ch.kevinjordil.helion.customserver.CustomServerPublisher], so a repeat send always
+ * carries the exact same identity and name regardless of where it goes.
  */
 
 /**
  * A stable, per-activity id every send target can use for its own duplicate detection.
- * Strava treats this as its own de-duplication key (see [StravaApi.createUpload]'s kdoc);
- * a custom server is expected to do the same with its own `external_id` field -- see
+ * A custom server is expected to use this as its own `external_id` field -- see
  * `README.md`'s custom-server contract.
  */
 fun externalIdFor(activityId: Long): String = "helion-activity-$activityId"

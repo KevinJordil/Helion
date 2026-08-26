@@ -1,4 +1,4 @@
-package ch.kevinjordil.helion.strava
+package ch.kevinjordil.helion.export
 
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.SportType
@@ -125,7 +125,7 @@ class TcxWriterTest {
     }
 
     @Test
-    fun `sets Sport from the TCX mapping, distinct from the Strava sport_type`() {
+    fun `sets Sport from the TCX mapping`() {
         val xml = writeTcx(SportType.RUNNING, start, end, emptyList())
         val root = parse(xml)
         val activityEl = root.getElementsByTagName("Activity").item(0) as Element
@@ -150,7 +150,7 @@ class TcxWriterTest {
     }
 }
 
-/** [tcxSport] and [stravaSportType]: every [SportType] maps to something, and the two mappings are independent. */
+/** [tcxSport]: every [SportType] maps to one of TCX's three schema values. */
 class SportMappingTest {
 
     @Test
@@ -158,30 +158,5 @@ class SportMappingTest {
         SportType.entries.forEach { sport ->
             assertTrue(tcxSport(sport) in setOf("Running", "Biking", "Other"))
         }
-    }
-
-    @Test
-    fun `badminton maps to Strava's own dedicated Badminton sport type`() {
-        assertEquals("Badminton", stravaSportType(SportType.BADMINTON))
-    }
-
-    @Test
-    fun `every sport type has a non-blank Strava sport_type mapping`() {
-        SportType.entries.forEach { sport ->
-            assertTrue(stravaSportType(sport).isNotBlank())
-        }
-    }
-
-    @Test
-    fun `exact matches are used where Strava has them`() {
-        assertEquals("Run", stravaSportType(SportType.RUNNING))
-        assertEquals("Ride", stravaSportType(SportType.CYCLING))
-        assertEquals("Walk", stravaSportType(SportType.WALKING))
-        assertEquals("Swim", stravaSportType(SportType.SWIMMING))
-    }
-
-    @Test
-    fun `other falls back to Strava's own generic Workout type`() {
-        assertEquals("Workout", stravaSportType(SportType.OTHER))
     }
 }

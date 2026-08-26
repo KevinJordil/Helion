@@ -1,4 +1,4 @@
-package ch.kevinjordil.helion.strava
+package ch.kevinjordil.helion.export
 
 import ch.kevinjordil.helion.store.SportType
 import java.time.ZoneOffset
