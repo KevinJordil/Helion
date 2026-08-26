@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -164,6 +166,7 @@ fun ActivityDetailScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -177,6 +180,46 @@ fun ActivityDetailScreen(
                 color = if (needsAttention(current.status)) colors.accentAmber else colors.textTertiary,
             )
         }
+
+        // Publishing is the point of this screen, so its actions sit right under the
+        // header -- reachable without scrolling on an ordinary phone -- rather than
+        // buried under every editable field, the status row and the calorie estimate.
+        Text(stringResource(R.string.strava_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+        val currentPublication = publication
+        if (currentPublication != null) {
+            Text(
+                stringResource(publicationStateLabelRes(currentPublication.state)),
+                style = HelionType.bodySmall,
+                color = if (currentPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
+            )
+            if (currentPublication.state == PublicationState.FAILED) {
+                Text(
+                    stringResource(publicationFailureReasonRes(currentPublication.lastError)),
+                    style = HelionType.bodySmall,
+                    color = colors.accentAmber,
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val authNeedsReconnect = currentPublication?.state == PublicationState.FAILED &&
+                currentPublication.lastError == PublicationFailureReason.AUTH_REQUIRED
+            if (authNeedsReconnect && StravaConfig.isConfigured) {
+                Button(onClick = { connectToStrava() }) {
+                    Text(stringResource(R.string.strava_connect_action))
+                }
+            } else {
+                Button(onClick = { publishToStrava() }, enabled = !publishing) {
+                    Text(stringResource(R.string.strava_publish_action))
+                }
+            }
+            OutlinedButton(onClick = { shareTcx(current) }) {
+                Text(stringResource(R.string.strava_share_action))
+            }
+        }
+
+        HorizontalDivider(color = colors.divider)
 
         Text(stringResource(R.string.activity_title_label), style = HelionType.bodySmall, color = colors.textSecondary)
         OutlinedTextField(
@@ -262,43 +305,6 @@ fun ActivityDetailScreen(
             is ActivityCalorieEstimate.Estimated -> {
                 Text(stringResource(R.string.calorie_value, estimate.kcal), style = HelionType.body, color = colors.textPrimary)
                 Text(stringResource(R.string.calorie_accuracy_note), style = HelionType.bodySmall, color = colors.textSecondary)
-            }
-        }
-
-        HorizontalDivider(color = colors.divider)
-
-        Text(stringResource(R.string.strava_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
-
-        val currentPublication = publication
-        if (currentPublication != null) {
-            Text(
-                stringResource(publicationStateLabelRes(currentPublication.state)),
-                style = HelionType.bodySmall,
-                color = if (currentPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
-            )
-            if (currentPublication.state == PublicationState.FAILED) {
-                Text(
-                    stringResource(publicationFailureReasonRes(currentPublication.lastError)),
-                    style = HelionType.bodySmall,
-                    color = colors.accentAmber,
-                )
-            }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val authNeedsReconnect = currentPublication?.state == PublicationState.FAILED &&
-                currentPublication.lastError == PublicationFailureReason.AUTH_REQUIRED
-            if (authNeedsReconnect && StravaConfig.isConfigured) {
-                Button(onClick = { connectToStrava() }) {
-                    Text(stringResource(R.string.strava_connect_action))
-                }
-            } else {
-                Button(onClick = { publishToStrava() }, enabled = !publishing) {
-                    Text(stringResource(R.string.strava_publish_action))
-                }
-            }
-            OutlinedButton(onClick = { shareTcx(current) }) {
-                Text(stringResource(R.string.strava_share_action))
             }
         }
 
