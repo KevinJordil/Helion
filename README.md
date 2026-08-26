@@ -7,17 +7,19 @@ Helion never talks to the wristband. Gadgetbridge owns the Bluetooth link and th
 Zepp OS protocol; Helion drives it through its Intent API, reads the database it
 exports, and keeps its own archive on the phone. Nothing leaves the device.
 
-    Helio Strap ──BLE──▶ Gadgetbridge ──intents + file──▶ Helion ──▶ Strava (planned)
+    Helio Strap ──BLE──▶ Gadgetbridge ──intents + file──▶ Helion ──▶ Strava
 
 Everything is stored locally in the app's own database. There is no account, no
 server, and no automatic publishing: an activity reaches Strava only when you
-explicitly choose to publish it.
+explicitly choose to send it there, either by publishing directly from the app or
+by saving a file and importing it yourself — see
+[Getting an activity onto Strava](#getting-an-activity-onto-strava).
 
 ## Status
 
 Early. The data layer is in place — ingestion from Gadgetbridge, a local archive,
-and per-metric history. Sleep analysis, activity detection and Strava publishing
-come next. Two things still need verifying against real hardware; see
+per-metric history, and Strava export. Sleep analysis and activity detection come
+next. Two things still need verifying against real hardware; see
 [Verifying the Gadgetbridge link](#verifying-the-gadgetbridge-link).
 
 ## Requirements
@@ -94,6 +96,25 @@ Once installed, in this order:
    names.
 3. Reboot the phone, reopen Helion, sync again. This is the only way to confirm the
    file permission survived — a failure here never shows up on the first run.
+
+## Getting an activity onto Strava
+
+Two ways an activity reaches Strava, both explicit — nothing publishes on its own:
+
+- **Direct publish**, from the activity detail screen: uploads the activity through
+  Strava's API. This needs an active Strava subscription (Standard tier) on the
+  account whose app registered the configured client id, because Strava requires
+  one for third-party API uploads; without it, Strava's API reports the
+  application as inactive and the button says so instead of failing silently.
+- **Manual import**: **Enregistrer le fichier** writes a TCX file straight into the
+  phone's Downloads folder, named from the sport and start time (no share sheet).
+  **Ouvrir Strava** then opens the Strava app (falling back to its Play Store
+  listing, then its web upload page, if it is not installed) — from there:
+  Enregistrer → + → Importer un fichier. TCX only distinguishes running, cycling,
+  and "other", so the sport needs correcting inside Strava after import.
+
+A plain share action is also available, for sending the same file to a computer
+and importing it through Strava's web uploader instead.
 
 ## Working on the code
 

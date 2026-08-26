@@ -767,6 +767,26 @@ class StravaLabelWidthTest {
         "Connexion à Strava impossible : Unable to resolve host",
         "Strava a refusé la publication : Bad Request (Application client_id invalid)",
         "Droits insuffisants : HTTP 401: activity:write missing",
+        "Application Strava inactive : abonnement requis. Enregistrez le fichier.",
+    )
+
+    /**
+     * The manual-flow strings added alongside the save/open-Strava actions: the one-off
+     * sport-format note, the three-tap import line, the storage-permission rationale and
+     * denial notes (API 26-28 only, see [ch.kevinjordil.helion.strava.saveTcxToDownloads]),
+     * and the save confirmation/failure lines, the latter filled with the longest plausible
+     * file name ([downloadSportSlug]'s widest entry, "natation") and a realistic error
+     * message.
+     */
+    private fun manualFlowActionLabels() = listOf("Enregistrer le fichier", "Ouvrir Strava")
+
+    private fun manualFlowProseMessages() = listOf(
+        "Sport à corriger dans Strava après l'import (course, vélo ou autre).",
+        "Dans Strava : Enregistrer → + → Importer un fichier.",
+        "Helion doit accéder au stockage pour enregistrer dans Téléchargements.",
+        "Sans cette autorisation, Helion ne peut pas enregistrer le fichier.",
+        "Enregistré dans Téléchargements : natation-2026-08-26-2010.tcx",
+        "Échec de l'enregistrement : MediaStore refused the insert",
     )
 
     /**
@@ -849,6 +869,22 @@ class StravaLabelWidthTest {
             // These are full sentences, expected to wrap onto a second line -- the budget
             // here is 2x the row width, so a report of one wrapping to three-plus lines
             // (the actual clipping-adjacent failure mode for prose) would show up here.
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the save and open-Strava action labels fit a full-width row`() {
+        manualFlowActionLabels().forEach { label ->
+            val width = proseWidthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `every manual-flow prose message fits within two lines at the narrowest width`() {
+        manualFlowProseMessages().forEach { message ->
+            val width = proseWidthDp(message)
             assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
         }
     }

@@ -62,6 +62,7 @@
     <string name="strava_reason_network_error">Connexion à Strava impossible : %1$s</string>
     <string name="strava_reason_remote_error">Strava a refusé la publication : %1$s</string>
     <string name="strava_reason_upload_forbidden">Droits insuffisants : %1$s</string>
+    <string name="strava_reason_application_inactive">Application Strava inactive : abonnement requis. Enregistrez le fichier.</string>
     <string name="strava_auth_declined">Autorisation refusée sur Strava : %1$s</string>
     <string name="strava_auth_rejected">Strava a refusé la connexion : %1$s</string>
     <string name="strava_auth_network_error">Connexion à Strava impossible : %1$s</string>
@@ -72,6 +73,14 @@
     <string name="strava_settings_scope_unknown">Autorisations accordées : inconnues.</string>
     <string name="strava_scope_write_missing">Droits insuffisants pour publier sur Strava. Reconnectez-vous.</string>
     <string name="strava_reconnect_action">Se reconnecter à Strava</string>
+    <string name="strava_sport_fix_note">Sport à corriger dans Strava après l\'import (course, vélo ou autre).</string>
+    <string name="strava_save_action">Enregistrer le fichier</string>
+    <string name="strava_save_confirmation">Enregistré dans Téléchargements : %1$s</string>
+    <string name="strava_save_failed">Échec de l\'enregistrement : %1$s</string>
+    <string name="strava_storage_permission_rationale">Helion doit accéder au stockage pour enregistrer dans Téléchargements.</string>
+    <string name="strava_storage_permission_denied">Sans cette autorisation, Helion ne peut pas enregistrer le fichier.</string>
+    <string name="strava_open_action">Ouvrir Strava</string>
+    <string name="strava_import_steps">Dans Strava : Enregistrer → + → Importer un fichier.</string>
 
     <string name="calorie_section_title">Calories (estimé)</string>
     <string name="calorie_value">≈ %1$d kcal</string>

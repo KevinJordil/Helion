@@ -386,6 +386,40 @@ class StravaPublisherTest {
     }
 
     @Test
+    fun `a 403 with Strava's inactive-application wording is reported distinctly from an ordinary remote error`() = runTest {
+        val activityId = seedActivity()
+        api.throwOnCreate = StravaHttpException(
+            statusCode = 403,
+            body = """{"message":"Forbidden","errors":[{"resource":"Application","field":"Status","code":"Inactive"}]}""",
+            message = "Strava request failed with HTTP 403",
+        )
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.APPLICATION_INACTIVE), result)
+        assertNotEquals(PublicationFailureReason.REMOTE_ERROR, PublicationFailureReason.APPLICATION_INACTIVE)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationFailureReason.APPLICATION_INACTIVE, row?.lastError)
+        assertTrue(row?.lastErrorDetail.orEmpty().contains("403"))
+    }
+
+    @Test
+    fun `an ordinary 403 without the inactive-application wording stays a plain remote error`() = runTest {
+        val activityId = seedActivity()
+        api.throwOnCreate = StravaHttpException(
+            statusCode = 403,
+            body = """{"message":"Forbidden","errors":[{"resource":"Upload","field":"file","code":"denied"}]}""",
+            message = "Strava request failed with HTTP 403",
+        )
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.REMOTE_ERROR), result)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationFailureReason.REMOTE_ERROR, row?.lastError)
+    }
+
+    @Test
     fun `a genuine transport failure from createUpload is reported as a network error, distinct from the other two`() = runTest {
         val activityId = seedActivity()
         api.throwOnCreate = IOException("Unable to resolve host")

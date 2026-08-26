@@ -61,20 +61,25 @@ fun publicationFailureReasonRes(reason: String?): Int = when (reason) {
     PublicationFailureReason.NOT_CONFIGURED -> R.string.strava_reason_not_configured
     PublicationFailureReason.NETWORK_ERROR -> R.string.strava_reason_network_error
     PublicationFailureReason.UPLOAD_FORBIDDEN -> R.string.strava_reason_upload_forbidden
+    PublicationFailureReason.APPLICATION_INACTIVE -> R.string.strava_reason_application_inactive
     else -> R.string.strava_reason_remote_error
 }
 
 /**
  * The `stringResource` format args for [publicationFailureReasonRes] --
  * [ch.kevinjordil.helion.store.Publication.lastErrorDetail] fills the one `%1$s` placeholder
- * every variant carries except the three decided locally before any request ever reached
- * Strava ([PublicationFailureReason.NEVER_CONNECTED], [PublicationFailureReason.AUTH_EXPIRED],
- * [PublicationFailureReason.NOT_CONFIGURED]), which have nothing from Strava to show.
+ * every variant carries except the ones decided without needing Strava's own wording:
+ * [PublicationFailureReason.NEVER_CONNECTED], [PublicationFailureReason.AUTH_EXPIRED] and
+ * [PublicationFailureReason.NOT_CONFIGURED] are decided locally before any request ever
+ * reached Strava, and [PublicationFailureReason.APPLICATION_INACTIVE] already has a fixed,
+ * complete French sentence -- Strava's own text for this case is a status code, not
+ * anything worth splicing in.
  */
 fun publicationFailureReasonArgs(reason: String?, detail: String?): List<Any> = when (reason) {
     PublicationFailureReason.NEVER_CONNECTED,
     PublicationFailureReason.AUTH_EXPIRED,
     PublicationFailureReason.NOT_CONFIGURED,
+    PublicationFailureReason.APPLICATION_INACTIVE,
     -> emptyList()
     else -> listOf(detail ?: "?")
 }

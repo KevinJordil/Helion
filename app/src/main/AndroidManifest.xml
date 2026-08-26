@@ -6,6 +6,30 @@
          else in Helion talks to the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      Only needed on Android 8.0/8.1 (API 26 to 28): that is before MediaStore's Downloads
+      collection existed, so the "save TCX to Downloads" action has no scoped storage route
+      on those versions and must write a plain file into the public Downloads directory
+      instead, see ch.kevinjordil.helion.strava.saveTcxToDownloads. maxSdkVersion means
+      this permission is simply never requested, and never shows in the Play Store listing,
+      on API 29+, where the MediaStore route needs no permission at all.
+    -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
+    <!--
+      Package visibility (API 30+): needed to check whether the Strava app is installed
+      (ch.kevinjordil.helion.strava.buildOpenStravaIntent) and, when it is not, whether the
+      Play Store can handle a market:// listing before falling back to Strava's web upload
+      page.
+    -->
+    <queries>
+        <package android:name="com.strava" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
+        </intent>
+    </queries>
+
     <application
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

@@ -44,6 +44,16 @@ object PublicationFailureReason {
      * scope problem is never reported as if it were an expired token.
      */
     const val UPLOAD_FORBIDDEN = "upload_forbidden"
+
+    /**
+     * Strava answered 403 to an upload-related call with its own "Application Status
+     * Inactive" reason -- the Standard tier now requires an active Strava subscription on
+     * the account that registered this app's client id, and this account does not have
+     * one. Distinct from [UPLOAD_FORBIDDEN] (a 401, an insufficient-scope token): this is a
+     * 403 that never depends on the token at all, reconnecting never fixes it, and the way
+     * through is the save-to-Downloads action, not another publish attempt.
+     */
+    const val APPLICATION_INACTIVE = "application_inactive"
 }
 
 /**
@@ -56,6 +66,17 @@ internal fun describeStravaUploadError(exception: StravaHttpException): String {
     val described = describeStravaError(exception)
     return if (described.startsWith("HTTP ")) described else "HTTP ${exception.statusCode}: $described"
 }
+
+/**
+ * Whether [exception] is Strava's specific "Application Status Inactive" 403 -- the
+ * Standard-tier-requires-a-subscription rejection, distinct from an ordinary 403 (a
+ * malformed request, a rate limit, ...) which stays [PublicationFailureReason.REMOTE_ERROR].
+ * Checked against the raw response body rather than the already-parsed
+ * [describeStravaError] text so this never depends on that function's exact formatting --
+ * Strava's own wording for this case always mentions the application being inactive.
+ */
+internal fun isApplicationInactive(exception: StravaHttpException): Boolean =
+    exception.statusCode == HttpURLConnection.HTTP_FORBIDDEN && exception.body.contains("nactive", ignoreCase = true)
 
 /**
  * Drives one publish attempt of one [Activity] to Strava, end to end, in a way that is
@@ -270,10 +291,10 @@ class StravaPublisher(
      */
     private fun classifyFailure(e: Exception): Pair<String, String?> = when (e) {
         is StravaHttpException -> {
-            val reason = if (e.statusCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                PublicationFailureReason.UPLOAD_FORBIDDEN
-            } else {
-                PublicationFailureReason.REMOTE_ERROR
+            val reason = when {
+                e.statusCode == HttpURLConnection.HTTP_UNAUTHORIZED -> PublicationFailureReason.UPLOAD_FORBIDDEN
+                isApplicationInactive(e) -> PublicationFailureReason.APPLICATION_INACTIVE
+                else -> PublicationFailureReason.REMOTE_ERROR
             }
             reason to describeStravaUploadError(e)
         }

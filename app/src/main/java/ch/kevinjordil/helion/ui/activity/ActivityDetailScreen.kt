@@ -1,7 +1,11 @@
 package ch.kevinjordil.helion.ui.activity
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,9 +44,12 @@ import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
+import ch.kevinjordil.helion.strava.DownloadsSaveResult
 import ch.kevinjordil.helion.strava.StravaConfig
+import ch.kevinjordil.helion.strava.buildOpenStravaIntent
 import ch.kevinjordil.helion.strava.buildShareIntent
 import ch.kevinjordil.helion.strava.missingUploadScope
+import ch.kevinjordil.helion.strava.saveTcxToDownloads
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.ZoneId
@@ -128,6 +135,68 @@ fun ActivityDetailScreen(
         context.startActivity(buildShareIntent(context, current, minuteSamples, estimated))
     }
 
+    // Holds the activity a save was requested for while a permission request is in
+    // flight (API 26-28 only, see [saveTcxToDownloads]'s own kdoc) -- read back once
+    // granted to retry the exact same save, rather than the owner having to tap
+    // "Enregistrer le fichier" a second time.
+    var pendingSave by remember(activityId) { mutableStateOf<Activity?>(null) }
+
+    // A closure captured by reference: [storagePermissionLauncher]'s callback below needs
+    // to call [saveTcx] once permission is granted, but [saveTcx] itself needs
+    // [storagePermissionLauncher] to request that permission in the first place -- this
+    // mutable indirection is what lets the two refer to each other despite the launcher
+    // having to be created first (`rememberLauncherForActivityResult` cannot itself be
+    // called lazily inside a plain function).
+    var retrySave: (Activity) -> Unit = {}
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val target = pendingSave
+        pendingSave = null
+        if (granted && target != null) {
+            retrySave(target)
+        } else if (!granted) {
+            Toast.makeText(context, R.string.strava_storage_permission_denied, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun saveTcx(target: Activity) {
+        val estimated = (calorieEstimate as? ActivityCalorieEstimate.Estimated)?.kcal
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                saveTcxToDownloads(context, target, minuteSamples, estimated)
+            }
+            when (result) {
+                is DownloadsSaveResult.Saved -> {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.strava_save_confirmation, result.fileName),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                is DownloadsSaveResult.Failed -> {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.strava_save_failed, result.message),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+                DownloadsSaveResult.PermissionRequired -> {
+                    // Only reachable on API 26-28 -- see [saveTcxToDownloads]'s own kdoc.
+                    pendingSave = target
+                    Toast.makeText(context, R.string.strava_storage_permission_rationale, Toast.LENGTH_LONG).show()
+                    storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+            }
+        }
+    }
+    retrySave = ::saveTcx
+
+    fun openStrava() {
+        context.startActivity(buildOpenStravaIntent(context))
+    }
+
     fun save(updated: Activity) {
         activity = updated
         scope.launch { container.database.activities().update(updated) }
@@ -186,10 +255,27 @@ fun ActivityDetailScreen(
             )
         }
 
-        // Publishing is the point of this screen, so its actions sit right under the
-        // header -- reachable without scrolling on an ordinary phone -- rather than
-        // buried under every editable field, the status row and the calorie estimate.
+        // The manual flow -- save the file, open Strava, import it -- is the owner's real
+        // route (see the module's own brief): reachable right under the header, before any
+        // editable field, the status row or the calorie estimate.
         Text(stringResource(R.string.strava_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+        // Stated once, here, before the two actions below -- never repeated on every
+        // failed publish or every share -- because it is a TCX format limitation the owner
+        // has already hit, not something that changes per attempt.
+        Text(stringResource(R.string.strava_sport_fix_note), style = HelionType.bodySmall, color = colors.textSecondary)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = { saveTcx(current) }) {
+                Text(stringResource(R.string.strava_save_action))
+            }
+            Button(onClick = { openStrava() }) {
+                Text(stringResource(R.string.strava_open_action))
+            }
+        }
+        Text(stringResource(R.string.strava_import_steps), style = HelionType.bodySmall, color = colors.textSecondary)
+
+        HorizontalDivider(color = colors.divider)
 
         val currentPublication = publication
         if (currentPublication != null) {
@@ -233,17 +319,21 @@ fun ActivityDetailScreen(
             )
         }
 
+        // Direct publish, kept as-is (see the module's own brief), plus the plain share
+        // action -- both visually secondary now next to the manual flow above: an
+        // OutlinedButton and a TextButton rather than the two filled Buttons the manual
+        // flow gets.
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!authStatus.connected && StravaConfig.isConfigured) {
-                Button(onClick = { connectToStrava() }) {
+                OutlinedButton(onClick = { connectToStrava() }) {
                     Text(stringResource(R.string.strava_connect_action))
                 }
             } else {
-                Button(onClick = { publishToStrava() }, enabled = !publishing) {
+                OutlinedButton(onClick = { publishToStrava() }, enabled = !publishing) {
                     Text(stringResource(R.string.strava_publish_action))
                 }
             }
-            OutlinedButton(onClick = { shareTcx(current) }) {
+            TextButton(onClick = { shareTcx(current) }) {
                 Text(stringResource(R.string.strava_share_action))
             }
         }
