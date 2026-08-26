@@ -755,16 +755,52 @@ class StravaLabelWidthTest {
     )
 
     private fun reasonMessages() = listOf(
-        "Autorisation Strava expirée ou manquante. Reconnectez-vous.",
+        "Compte Strava non connecté. Connectez-vous pour publier.",
+        "Autorisation Strava expirée. Reconnectez-vous.",
         "Strava n'est pas configuré sur cet appareil. Utilisez le partage.",
         "Connexion à Strava impossible. Réessayez plus tard.",
         "Strava a refusé la publication.",
     )
 
+    /**
+     * The `strava_auth_*` sentences with a plausible worst-case detail spliced into their
+     * `%1$s` placeholder -- Strava's real error bodies run to a short phrase plus a field
+     * name (see [ch.kevinjordil.helion.strava.describeStravaError]), not a paragraph, but
+     * this uses a deliberately long one to keep the two-line budget meaningful.
+     */
+    private fun authFailureMessages() = listOf(
+        "Autorisation refusée sur Strava : access_denied",
+        "Strava a refusé la connexion : Bad Request (Application client_id invalid)",
+        "Connexion à Strava impossible : Unable to resolve host",
+    )
+
+    private fun settingsStatusMessages() = listOf("Compte connecté.", "Compte non connecté.")
+    private fun settingsActionLabels() = listOf("Se connecter à Strava", "Se déconnecter de Strava")
+
     @Test
     fun `the Strava section label fits a full-width row at a 1_3x font scale`() {
         val width = labelWidthDp("Strava")
         assertTrue("\"Strava\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `every OAuth-attempt failure sentence still fits within two lines at the narrowest width`() {
+        authFailureMessages().forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the Réglages Strava status line and action labels fit a full-width row`() {
+        settingsStatusMessages().forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+        settingsActionLabels().forEach { label ->
+            val width = proseWidthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
     }
 
     @Test

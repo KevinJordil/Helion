@@ -23,10 +23,11 @@ import org.robolectric.RobolectricTestRunner
 /** A [StravaAccessTokenProvider] that never touches the network. */
 private class FakeTokenProvider(private var token: String? = "valid-token") : StravaAccessTokenProvider {
     var throwOnNext: Exception? = null
+    var neverConnected: Boolean = false
 
     override suspend fun validAccessToken(): String {
         throwOnNext?.let { throw it }
-        return token ?: throw StravaAuthRequiredException("no token in test")
+        return token ?: throw StravaAuthRequiredException("no token in test", neverConnected = neverConnected)
     }
 }
 
@@ -244,15 +245,28 @@ class StravaPublisherTest {
     @Test
     fun `missing authorization is reported plainly and never attempts an upload`() = runTest {
         val activityId = seedActivity()
-        tokenProvider.throwOnNext = StravaAuthRequiredException("expired")
+        tokenProvider.throwOnNext = StravaAuthRequiredException("expired", neverConnected = false)
 
         val result = publisher.publish(activityId)
 
-        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.AUTH_REQUIRED), result)
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.AUTH_EXPIRED), result)
         assertEquals(0, api.createUploadCalls)
         val row = db.publications().get(activityId, PublicationTarget.STRAVA)
         assertEquals(PublicationState.FAILED, row?.state)
-        assertEquals(PublicationFailureReason.AUTH_REQUIRED, row?.lastError)
+        assertEquals(PublicationFailureReason.AUTH_EXPIRED, row?.lastError)
+    }
+
+    @Test
+    fun `never having connected is reported with a different reason than an expired authorization`() = runTest {
+        val activityId = seedActivity()
+        tokenProvider.throwOnNext = StravaAuthRequiredException("no refresh token stored", neverConnected = true)
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.NEVER_CONNECTED), result)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationFailureReason.NEVER_CONNECTED, row?.lastError)
+        assertTrue(PublicationFailureReason.NEVER_CONNECTED != PublicationFailureReason.AUTH_EXPIRED)
     }
 
     @Test

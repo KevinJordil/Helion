@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,7 +40,6 @@ import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
-import ch.kevinjordil.helion.strava.PublicationFailureReason
 import ch.kevinjordil.helion.strava.StravaConfig
 import ch.kevinjordil.helion.strava.buildShareIntent
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
@@ -73,6 +73,10 @@ fun ActivityDetailScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val zone = remember { ZoneId.systemDefault() }
+    // Read live, not just once at composition: this is what makes a successful reconnect
+    // show up on this screen immediately, without needing to leave and come back -- see
+    // StravaAuth.status' own kdoc for why a StateFlow rather than a one-shot read.
+    val authStatus by container.stravaAuth.status.collectAsState()
 
     var activity by remember(activityId) { mutableStateOf<Activity?>(null) }
     var loadedOnce by remember(activityId) { mutableStateOf(false) }
@@ -202,10 +206,20 @@ fun ActivityDetailScreen(
             }
         }
 
+        // Reads the live connection state rather than the last publish attempt's stored
+        // reason: that stale-until-the-next-publish reading is exactly what made a
+        // successful reconnect still show "Se connecter à Strava" forever -- see
+        // StravaAuth.status' own kdoc.
+        authStatus.lastFailure?.let { failure ->
+            Text(
+                stringResource(stravaAuthFailureRes(failure), *stravaAuthFailureArgs(failure).toTypedArray()),
+                style = HelionType.bodySmall,
+                color = colors.accentAmber,
+            )
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val authNeedsReconnect = currentPublication?.state == PublicationState.FAILED &&
-                currentPublication.lastError == PublicationFailureReason.AUTH_REQUIRED
-            if (authNeedsReconnect && StravaConfig.isConfigured) {
+            if (!authStatus.connected && StravaConfig.isConfigured) {
                 Button(onClick = { connectToStrava() }) {
                     Text(stringResource(R.string.strava_connect_action))
                 }

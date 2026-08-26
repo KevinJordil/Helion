@@ -1,6 +1,7 @@
 package ch.kevinjordil.helion.ui.settings
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -14,9 +15,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +32,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.strava.StravaConfig
+import ch.kevinjordil.helion.ui.activity.stravaAuthFailureArgs
+import ch.kevinjordil.helion.ui.activity.stravaAuthFailureRes
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.LocalDate
@@ -112,6 +118,10 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.tab_settings).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+        StravaSection(container)
+
+        HorizontalDivider(color = colors.divider)
 
         Text(stringResource(R.string.export_location_label), style = HelionType.body, color = colors.textPrimary)
         Text(
@@ -229,5 +239,50 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         }
 
         Text(stringResource(R.string.profile_note), style = HelionType.bodySmall, color = colors.textSecondary)
+    }
+}
+
+/**
+ * Where the owner actually sets Strava up: connect, disconnect and see what went wrong,
+ * rather than only inside an activity he has not created yet. Reads
+ * [ch.kevinjordil.helion.strava.StravaAuth.status] live -- the same [collectAsState] the
+ * activity detail screen uses -- so completing (or declining) the browser flow updates this
+ * section immediately, with no need to leave Réglages and come back.
+ */
+@Composable
+private fun StravaSection(container: AppContainer) {
+    val colors = HelionThemeTokens.colors
+    val context = LocalContext.current
+    val authStatus by container.stravaAuth.status.collectAsState()
+
+    Text(stringResource(R.string.strava_settings_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+
+    if (!StravaConfig.isConfigured) {
+        Text(stringResource(R.string.strava_reason_not_configured), style = HelionType.bodySmall, color = colors.textSecondary)
+        return
+    }
+
+    Text(
+        stringResource(if (authStatus.connected) R.string.strava_settings_connected else R.string.strava_settings_not_connected),
+        style = HelionType.bodySmall,
+        color = colors.textSecondary,
+    )
+
+    authStatus.lastFailure?.let { failure ->
+        Text(
+            stringResource(stravaAuthFailureRes(failure), *stravaAuthFailureArgs(failure).toTypedArray()),
+            style = HelionType.bodySmall,
+            color = colors.accentAmber,
+        )
+    }
+
+    if (authStatus.connected) {
+        OutlinedButton(onClick = { container.stravaAuth.disconnect() }) {
+            Text(stringResource(R.string.strava_disconnect_action))
+        }
+    } else {
+        Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(container.stravaAuth.authorizeUrl()))) }) {
+            Text(stringResource(R.string.strava_connect_action))
+        }
     }
 }

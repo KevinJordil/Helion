@@ -7,6 +7,7 @@ import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.SportType
 import ch.kevinjordil.helion.strava.PublicationFailureReason
+import ch.kevinjordil.helion.strava.StravaAuthFailure
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -55,10 +56,30 @@ fun publicationStateLabelRes(state: PublicationState): Int = when (state) {
  * as a blank string.
  */
 fun publicationFailureReasonRes(reason: String?): Int = when (reason) {
-    PublicationFailureReason.AUTH_REQUIRED -> R.string.strava_reason_auth_required
+    PublicationFailureReason.NEVER_CONNECTED -> R.string.strava_reason_never_connected
+    PublicationFailureReason.AUTH_EXPIRED -> R.string.strava_reason_auth_expired
     PublicationFailureReason.NOT_CONFIGURED -> R.string.strava_reason_not_configured
     PublicationFailureReason.NETWORK_ERROR -> R.string.strava_reason_network_error
     else -> R.string.strava_reason_remote_error
+}
+
+/**
+ * The French sentence for a failed OAuth attempt itself (as opposed to
+ * [publicationFailureReasonRes], which explains a failed *publish*), with Strava's own
+ * [StravaAuthFailure.detail] spliced into the `%1$s` placeholder every variant but
+ * [StravaAuthFailure.NotConfigured] carries -- see `strings.xml`'s `strava_auth_*` entries.
+ */
+fun stravaAuthFailureRes(failure: StravaAuthFailure): Int = when (failure) {
+    is StravaAuthFailure.Declined -> R.string.strava_auth_declined
+    is StravaAuthFailure.Rejected -> R.string.strava_auth_rejected
+    is StravaAuthFailure.NetworkError -> R.string.strava_auth_network_error
+    StravaAuthFailure.NotConfigured -> R.string.strava_reason_not_configured
+}
+
+/** The `stringResource` format args for [stravaAuthFailureRes] -- empty for the one variant with no placeholder. */
+fun stravaAuthFailureArgs(failure: StravaAuthFailure): List<Any> = when (failure) {
+    StravaAuthFailure.NotConfigured -> emptyList()
+    else -> listOf(failure.detail)
 }
 
 /**

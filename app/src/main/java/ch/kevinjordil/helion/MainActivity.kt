@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import ch.kevinjordil.helion.strava.OAuthRedirect
+import ch.kevinjordil.helion.strava.parseOAuthRedirect
 import ch.kevinjordil.helion.ui.HelionNavHost
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionTheme
@@ -44,17 +46,20 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Exchanges the redirect's `code` query parameter for tokens, off the main thread. Any
-     * failure here (network, or Strava rejecting the code) simply leaves the owner
-     * unauthorised -- the next publish attempt reports that plainly rather than this
-     * silently retrying or crashing the activity.
+     * Parses the redirect (a `code`, an `error`, or neither -- see [parseOAuthRedirect]) and
+     * hands it to [ch.kevinjordil.helion.strava.StravaAuth.handleRedirect], off the main
+     * thread since exchanging a code makes a network request. Every outcome -- a rejected
+     * secret, a code already used, the owner declining, a dead network -- is captured there
+     * and published on [ch.kevinjordil.helion.strava.StravaAuth.status], never discarded:
+     * this used to `runCatching { ... }` and drop the result, which is why a failed
+     * exchange looked identical to nothing having happened at all.
      */
     private fun handleOAuthRedirect(intent: Intent, container: AppContainer) {
         val uri = intent.data ?: return
-        if (uri.scheme != "helion" || uri.host != "oauth-callback") return
-        val code = uri.getQueryParameter("code") ?: return
+        val redirect = parseOAuthRedirect(uri)
+        if (redirect == OAuthRedirect.NotAnOAuthRedirect) return
         lifecycleScope.launch {
-            runCatching { withContext(Dispatchers.IO) { container.stravaAuth.exchangeCode(code) } }
+            withContext(Dispatchers.IO) { container.stravaAuth.handleRedirect(redirect) }
         }
     }
 }

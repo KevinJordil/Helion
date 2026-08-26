@@ -15,7 +15,11 @@ import java.time.ZoneId
 
 /** Machine-readable failure reasons stored in [Publication.lastError], mapped to French in the UI. */
 object PublicationFailureReason {
-    const val AUTH_REQUIRED = "auth_required"
+    /** Never authorised on this device -- [ch.kevinjordil.helion.strava.StravaTokenStore.hasEverConnected] is still false. */
+    const val NEVER_CONNECTED = "never_connected"
+
+    /** Was authorised before; Strava has since revoked or rejected that authorisation. */
+    const val AUTH_EXPIRED = "auth_expired"
     const val NOT_CONFIGURED = "not_configured"
     const val NETWORK_ERROR = "network_error"
     const val REMOTE_ERROR = "remote_error"
@@ -74,8 +78,9 @@ class StravaPublisher(
             recordFailure(activityId, existing, PublicationFailureReason.NOT_CONFIGURED)
             return Result.Failed(PublicationFailureReason.NOT_CONFIGURED)
         } catch (e: StravaAuthRequiredException) {
-            recordFailure(activityId, existing, PublicationFailureReason.AUTH_REQUIRED)
-            return Result.Failed(PublicationFailureReason.AUTH_REQUIRED)
+            val reason = if (e.neverConnected) PublicationFailureReason.NEVER_CONNECTED else PublicationFailureReason.AUTH_EXPIRED
+            recordFailure(activityId, existing, reason)
+            return Result.Failed(reason)
         }
 
         if (existing != null && existing.state == PublicationState.PUBLISHED && existing.remoteId != null) {
