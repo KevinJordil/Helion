@@ -79,8 +79,8 @@
     <string name="strava_save_failed">Échec de l\'enregistrement : %1$s</string>
     <string name="strava_storage_permission_rationale">Helion doit accéder au stockage pour enregistrer dans Téléchargements.</string>
     <string name="strava_storage_permission_denied">Sans cette autorisation, Helion ne peut pas enregistrer le fichier.</string>
-    <string name="strava_open_action">Ouvrir Strava</string>
-    <string name="strava_import_steps">Dans Strava : Enregistrer → + → Importer un fichier.</string>
+    <string name="strava_open_action">Ouvrir l\'import Strava</string>
+    <string name="strava_import_steps">Dans la page qui s\'ouvre : onglet Fichier, puis choisis le fichier enregistré. Le sport sera à corriger.</string>
 
     <string name="calorie_section_title">Calories (estimé)</string>
     <string name="calorie_value">≈ %1$d kcal</string>

@@ -18,9 +18,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** The Android package id of the Strava app, used by [buildOpenStravaIntent]. */
-private const val STRAVA_PACKAGE = "com.strava"
-
 private val DOWNLOAD_FILE_NAME_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm")
 
 /**
@@ -156,14 +153,14 @@ private fun saveViaLegacyFile(context: Context, baseName: String, tcx: String): 
 }
 
 /**
- * Launches the Strava app directly (its own launcher intent, so it opens exactly as if the
- * owner had tapped its icon); if it is not installed, falls back to its Play Store listing,
- * and if the Play Store itself cannot handle that either, to Strava's web upload page --
- * never a crash, never a silent no-op.
+ * Opens Strava's web uploader, which is where an existing file can actually be imported.
+ * Deliberately not the Strava Android app: it records activities and syncs devices, but
+ * does not import a file, so sending the owner there would leave him holding a .tcx with
+ * nowhere to put it. The web page accepts TCX on a free account.
  */
-fun buildOpenStravaIntent(context: Context): Intent {
-    context.packageManager.getLaunchIntentForPackage(STRAVA_PACKAGE)?.let { return it }
-    val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$STRAVA_PACKAGE"))
-    if (marketIntent.resolveActivity(context.packageManager) != null) return marketIntent
-    return Intent(Intent.ACTION_VIEW, Uri.parse("https://www.strava.com/upload/select"))
-}
+fun buildOpenStravaIntent(): Intent =
+    // Straight to the web uploader, not the Strava app: the Android app records and syncs
+    // devices but does not import an existing file, so launching it would leave the owner
+    // holding a .tcx with nowhere to put it. The browser page accepts TCX on a free account.
+    Intent(Intent.ACTION_VIEW, Uri.parse("https://www.strava.com/upload/select"))
+

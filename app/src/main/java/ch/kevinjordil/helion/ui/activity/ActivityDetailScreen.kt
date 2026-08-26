@@ -194,7 +194,7 @@ fun ActivityDetailScreen(
     retrySave = ::saveTcx
 
     fun openStrava() {
-        context.startActivity(buildOpenStravaIntent(context))
+        context.startActivity(buildOpenStravaIntent())
     }
 
     fun save(updated: Activity) {
