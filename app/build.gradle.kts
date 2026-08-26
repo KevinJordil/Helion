@@ -1,3 +1,6 @@
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
 import java.util.Properties
 
 plugins {
@@ -28,6 +31,14 @@ android {
         applicationId = "ch.kevinjordil.helion"
         minSdk = 26
         targetSdk = 36
+
+        // Lets the owner tell at a glance which build is on his phone:
+        // several APKs all named app-debug.apk end up side by side in Downloads.
+        buildConfigField(
+            "String",
+            "BUILD_STAMP",
+            "\"" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM HH:mm")) + "\"",
+        )
         versionCode = 1
         versionName = "1.0"
 

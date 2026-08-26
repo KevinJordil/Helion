@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.BuildConfig
 import ch.kevinjordil.helion.strava.StravaConfig
 import ch.kevinjordil.helion.ui.activity.stravaAuthFailureArgs
 import ch.kevinjordil.helion.ui.activity.stravaAuthFailureRes
@@ -120,6 +121,13 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         Text(stringResource(R.string.tab_settings).uppercase(), style = HelionType.label, color = colors.textSecondary)
 
         StravaSection(container)
+
+        // Which build is actually installed: several APKs share the same file name.
+        Text(
+            text = stringResource(R.string.settings_build_stamp, BuildConfig.BUILD_STAMP),
+            style = HelionType.bodySmall,
+            color = colors.textTertiary,
+        )
 
         HorizontalDivider(color = colors.divider)
 
