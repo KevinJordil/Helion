@@ -39,17 +39,22 @@ private fun escapeXml(text: String): String = text
  * value: a `<Trackpoint>` with no `<HeartRateBpm>` is valid TCX, but omitting the point
  * entirely is simpler and just as honest for a minute-resolution strap recording.
  *
- * `DistanceMeters`, `Calories`, `Intensity` and `TriggerMethod` inside `<Lap>` are mandatory
- * elements of the TCX v2 schema with no "not measured" representation; the zero/placeholder
- * values used here are the file format's own convention for "not tracked", the same one
+ * `DistanceMeters` and `Cadence` stay unfilled/absent: this strap has no GPS and no cadence
+ * sensor, so there is nothing real to put there. `Calories` is different: when [calories]
+ * is non-null it is a real figure -- computed from this same per-minute heart-rate series
+ * by [ch.kevinjordil.helion.calorie.CalorieEstimator], a published method, not invented --
+ * and is written as-is. `Intensity` and `TriggerMethod` inside `<Lap>` are mandatory
+ * elements of the TCX v2 schema with no "not measured" representation; their fixed values
+ * are the file format's own convention for a manually-bounded recording, the same one
  * indoor-trainer and strap-only recordings use everywhere else, not an invented reading.
- * No `<Position>` (there is no GPS on this strap) and no `<Cadence>` are written.
+ * No `<Position>` is written either, for the same GPS-absence reason.
  */
 fun writeTcx(
     sport: SportType,
     startTimestamp: Long,
     endTimestamp: Long,
     samples: List<MinuteSample>,
+    calories: Int? = null,
 ): String {
     val startIso = isoTime(startTimestamp)
     val durationSeconds = (endTimestamp - startTimestamp).coerceAtLeast(0)
@@ -79,7 +84,7 @@ fun writeTcx(
       <Lap StartTime="${escapeXml(startIso)}">
         <TotalTimeSeconds>$durationSeconds</TotalTimeSeconds>
         <DistanceMeters>0</DistanceMeters>
-        <Calories>0</Calories>
+        <Calories>${calories ?: 0}</Calories>
         <Intensity>Active</Intensity>
         <TriggerMethod>Manual</TriggerMethod>
         <Track>

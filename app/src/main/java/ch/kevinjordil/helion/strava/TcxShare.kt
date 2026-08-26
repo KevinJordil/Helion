@@ -19,8 +19,8 @@ import java.io.File
  * way. `FLAG_GRANT_READ_URI_PERMISSION` is required on the intent because the receiving
  * app has no other route to a `content://` URI it does not own.
  */
-fun buildShareIntent(context: Context, activity: Activity, samples: List<MinuteSample>): Intent {
-    val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples)
+fun buildShareIntent(context: Context, activity: Activity, samples: List<MinuteSample>, calories: Int? = null): Intent {
+    val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
     val dir = File(context.cacheDir, "tcx").apply { mkdirs() }
     val file = File(dir, "helion-activity-${activity.id}.tcx")
     file.writeText(tcx, Charsets.UTF_8)

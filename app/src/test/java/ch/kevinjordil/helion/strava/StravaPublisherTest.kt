@@ -45,12 +45,14 @@ private class FakeStravaApi : StravaApi {
     var throwOnPoll: Exception? = null
     val seenExternalIds = mutableListOf<String>()
     val seenSportTypes = mutableListOf<String>()
+    val seenTcx = mutableListOf<String>()
 
     override fun createUpload(accessToken: String, tcx: String, sportType: String, name: String, externalId: String): UploadCreated {
         createUploadCalls++
         throwOnCreate?.let { throw it }
         seenExternalIds.add(externalId)
         seenSportTypes.add(sportType)
+        seenTcx.add(tcx)
         return UploadCreated(nextUploadId)
     }
 
@@ -276,5 +278,42 @@ class StravaPublisherTest {
         val row = db.publications().get(activityId, PublicationTarget.STRAVA)
         assertEquals("upload-in-flight", row?.uploadId)
         assertEquals(PublicationState.UPLOADING, row?.state)
+    }
+
+    @Test
+    fun `a complete profile makes the uploaded TCX carry a real calorie estimate`() = runTest {
+        val profile = ch.kevinjordil.helion.ui.settings.Profile(ApplicationProvider.getApplicationContext())
+        profile.dateOfBirthEpochDay = java.time.LocalDate.of(1994, 1, 1).toEpochDay()
+        profile.weightKg = 70f
+        profile.sex = ch.kevinjordil.helion.ui.settings.Sex.MALE
+
+        val publisherWithProfile = StravaPublisher(
+            activities = db.activities(),
+            minuteSamples = db.minuteSamples(),
+            publications = db.publications(),
+            tokenProvider = tokenProvider,
+            api = api,
+            profile = profile,
+            zone = java.time.ZoneOffset.UTC,
+            now = { now },
+        )
+        val activityId = seedActivity()
+        api.pollResult = UploadStatus.Done("remote-1")
+
+        publisherWithProfile.publish(activityId)
+
+        assertEquals(1, api.seenTcx.size)
+        assertTrue(api.seenTcx.single().contains("<Calories>") && !api.seenTcx.single().contains("<Calories>0<"))
+    }
+
+    @Test
+    fun `no profile means the uploaded TCX keeps the placeholder Calories value, never a guess`() = runTest {
+        val activityId = seedActivity()
+        api.pollResult = UploadStatus.Done("remote-2")
+
+        publisher.publish(activityId)
+
+        assertEquals(1, api.seenTcx.size)
+        assertTrue(api.seenTcx.single().contains("<Calories>0<"))
     }
 }

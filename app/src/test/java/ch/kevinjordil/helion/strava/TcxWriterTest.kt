@@ -14,7 +14,10 @@ import org.w3c.dom.Element
  * [writeTcx] against a known sample range: valid XML structure, correct start/duration,
  * every real heart-rate reading present as a trackpoint, and nothing invented (no
  * `<DistanceMeters>` beyond the schema's own required placeholder, no `<Cadence>`, no
- * `<Position>` -- this strap has no GPS).
+ * `<Position>` -- this strap has no GPS). `<Calories>` is the one element that can carry a
+ * real, non-zero figure -- a heart-rate-based estimate computed elsewhere and handed in --
+ * which is why it gets its own dedicated test below rather than being lumped in with the
+ * "nothing invented" checks above.
  */
 class TcxWriterTest {
 
@@ -56,12 +59,22 @@ class TcxWriterTest {
         )
         assertEquals("180", lap.getElementsByTagName("TotalTimeSeconds").item(0).textContent)
 
-        // The strap has no GPS and no calorie sensor: neither may appear anywhere as a
-        // real (non-zero, invented) value, and cadence/position must not appear at all.
+        // The strap has no GPS: distance stays the schema's own placeholder, and cadence/
+        // position must not appear at all. Calories defaults to the same placeholder when
+        // no real figure is given -- see the dedicated test below for the case where one is.
         assertEquals("0", lap.getElementsByTagName("DistanceMeters").item(0).textContent)
         assertEquals("0", lap.getElementsByTagName("Calories").item(0).textContent)
         assertEquals(0, root.getElementsByTagName("Cadence").length)
         assertEquals(0, root.getElementsByTagName("Position").length)
+    }
+
+    @Test
+    fun `carries a real calorie estimate through to the Calories element`() {
+        val samples = listOf(sample(0, 118), sample(60, 140))
+        val xml = writeTcx(SportType.BADMINTON, start, start + 120, samples, calories = 42)
+        val root = parse(xml)
+        val lap = root.getElementsByTagName("Lap").item(0) as Element
+        assertEquals("42", lap.getElementsByTagName("Calories").item(0).textContent)
     }
 
     @Test

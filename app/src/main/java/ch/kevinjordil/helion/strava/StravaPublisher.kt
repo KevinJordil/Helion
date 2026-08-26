@@ -1,12 +1,17 @@
 package ch.kevinjordil.helion.strava
 
+import ch.kevinjordil.helion.calorie.ActivityCalorieEstimate
+import ch.kevinjordil.helion.calorie.estimateActivityCalories
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityDao
+import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.MinuteSampleDao
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationDao
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
+import ch.kevinjordil.helion.ui.settings.Profile
+import java.time.ZoneId
 
 /** Machine-readable failure reasons stored in [Publication.lastError], mapped to French in the UI. */
 object PublicationFailureReason {
@@ -45,6 +50,10 @@ class StravaPublisher(
     private val publications: PublicationDao,
     private val tokenProvider: StravaAccessTokenProvider,
     private val api: StravaApi,
+    // Optional so existing wiring/tests that have no profile to give still work: no
+    // profile simply means no calorie figure goes into the TCX, never a guessed one.
+    private val profile: Profile? = null,
+    private val zone: ZoneId = ZoneId.systemDefault(),
     private val now: () -> Long = { System.currentTimeMillis() / 1000 },
 ) {
 
@@ -86,7 +95,8 @@ class StravaPublisher(
         }
 
         val samples = minuteSamples.between(activity.startTimestamp, activity.endTimestamp)
-        val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples)
+        val calories = calorieEstimate(activity, samples)
+        val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
         val externalId = "helion-activity-$activityId"
 
         return try {
@@ -184,6 +194,20 @@ class StravaPublisher(
                 lastError = reason,
             )
         publications.upsert(row)
+    }
+
+    /**
+     * The kcal figure to embed in the TCX, or null when there is no profile to estimate
+     * from or no heart rate to estimate with -- [writeTcx] already treats a null the same
+     * way it treats "not tracked" for distance and cadence: as a placeholder 0, never a
+     * guess.
+     */
+    private fun calorieEstimate(activity: Activity, samples: List<MinuteSample>): Int? {
+        val ownerProfile = profile ?: return null
+        return when (val estimate = estimateActivityCalories(ownerProfile, activity.startTimestamp, zone, samples)) {
+            is ActivityCalorieEstimate.Estimated -> estimate.kcal
+            ActivityCalorieEstimate.ProfileIncomplete, ActivityCalorieEstimate.NoHeartRateData -> null
+        }
     }
 
     private fun activityName(activity: Activity): String = activity.title?.takeIf { it.isNotBlank() } ?: "Helion"
