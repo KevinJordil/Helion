@@ -7,8 +7,6 @@ import ch.kevinjordil.helion.customserver.CustomServerFailureReason
 import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.SportType
-import ch.kevinjordil.helion.strava.PublicationFailureReason
-import ch.kevinjordil.helion.strava.StravaAuthFailure
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -42,72 +40,9 @@ fun statusLabelRes(status: ActivityStatus): Int = when (status) {
  */
 fun needsAttention(status: ActivityStatus): Boolean = status == ActivityStatus.CANDIDATE
 
-/** The French label for a Strava [PublicationState], shown on the activity detail screen. */
-fun publicationStateLabelRes(state: PublicationState): Int = when (state) {
-    PublicationState.PENDING -> R.string.strava_state_pending
-    PublicationState.UPLOADING -> R.string.strava_state_uploading
-    PublicationState.PUBLISHED -> R.string.strava_state_published
-    PublicationState.FAILED -> R.string.strava_state_failed
-}
-
 /**
- * The French explanation for a stored [ch.kevinjordil.helion.store.Publication.lastError]
- * reason code (see [PublicationFailureReason]). Falls back to the generic remote-error
- * message for anything unrecognised, so a future reason code added elsewhere never renders
- * as a blank string.
- */
-fun publicationFailureReasonRes(reason: String?): Int = when (reason) {
-    PublicationFailureReason.NEVER_CONNECTED -> R.string.strava_reason_never_connected
-    PublicationFailureReason.AUTH_EXPIRED -> R.string.strava_reason_auth_expired
-    PublicationFailureReason.NOT_CONFIGURED -> R.string.strava_reason_not_configured
-    PublicationFailureReason.NETWORK_ERROR -> R.string.strava_reason_network_error
-    PublicationFailureReason.UPLOAD_FORBIDDEN -> R.string.strava_reason_upload_forbidden
-    PublicationFailureReason.APPLICATION_INACTIVE -> R.string.strava_reason_application_inactive
-    else -> R.string.strava_reason_remote_error
-}
-
-/**
- * The `stringResource` format args for [publicationFailureReasonRes] --
- * [ch.kevinjordil.helion.store.Publication.lastErrorDetail] fills the one `%1$s` placeholder
- * every variant carries except the ones decided without needing Strava's own wording:
- * [PublicationFailureReason.NEVER_CONNECTED], [PublicationFailureReason.AUTH_EXPIRED] and
- * [PublicationFailureReason.NOT_CONFIGURED] are decided locally before any request ever
- * reached Strava, and [PublicationFailureReason.APPLICATION_INACTIVE] already has a fixed,
- * complete French sentence -- Strava's own text for this case is a status code, not
- * anything worth splicing in.
- */
-fun publicationFailureReasonArgs(reason: String?, detail: String?): List<Any> = when (reason) {
-    PublicationFailureReason.NEVER_CONNECTED,
-    PublicationFailureReason.AUTH_EXPIRED,
-    PublicationFailureReason.NOT_CONFIGURED,
-    PublicationFailureReason.APPLICATION_INACTIVE,
-    -> emptyList()
-    else -> listOf(detail ?: "?")
-}
-
-/**
- * The French sentence for a failed OAuth attempt itself (as opposed to
- * [publicationFailureReasonRes], which explains a failed *publish*), with Strava's own
- * [StravaAuthFailure.detail] spliced into the `%1$s` placeholder every variant but
- * [StravaAuthFailure.NotConfigured] carries -- see `strings.xml`'s `strava_auth_*` entries.
- */
-fun stravaAuthFailureRes(failure: StravaAuthFailure): Int = when (failure) {
-    is StravaAuthFailure.Declined -> R.string.strava_auth_declined
-    is StravaAuthFailure.Rejected -> R.string.strava_auth_rejected
-    is StravaAuthFailure.NetworkError -> R.string.strava_auth_network_error
-    StravaAuthFailure.NotConfigured -> R.string.strava_reason_not_configured
-}
-
-/** The `stringResource` format args for [stravaAuthFailureRes] -- empty for the one variant with no placeholder. */
-fun stravaAuthFailureArgs(failure: StravaAuthFailure): List<Any> = when (failure) {
-    StravaAuthFailure.NotConfigured -> emptyList()
-    else -> listOf(failure.detail)
-}
-
-/**
- * The French label for a custom-server [PublicationState] -- same states as
- * [publicationStateLabelRes], different wording since there is no upload job to be "en
- * cours" for this target (see [ch.kevinjordil.helion.customserver.CustomServerPublisher]'s
+ * The French label for a custom-server [PublicationState] -- there is no upload job to be
+ * "en cours" for this target (see [ch.kevinjordil.helion.customserver.CustomServerPublisher]'s
  * own kdoc): [PublicationState.UPLOADING] is never actually produced for
  * [ch.kevinjordil.helion.store.PublicationTarget.CUSTOM_SERVER], but the `when` still
  * covers it rather than silently falling through, in case that ever changes.

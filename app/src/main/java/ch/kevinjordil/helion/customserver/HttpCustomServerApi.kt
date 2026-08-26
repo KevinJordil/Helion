@@ -1,15 +1,15 @@
 package ch.kevinjordil.helion.customserver
 
-import ch.kevinjordil.helion.strava.writeFileField
-import ch.kevinjordil.helion.strava.writeFormField
+import ch.kevinjordil.helion.export.writeFileField
+import ch.kevinjordil.helion.export.writeFormField
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 
 /**
- * The real network implementation of [CustomServerApi], built on plain [HttpURLConnection] --
- * no new dependency, same tool [ch.kevinjordil.helion.strava.HttpStravaApi] already uses.
+ * The real network implementation of [CustomServerApi], built on plain [HttpURLConnection]
+ * -- no new dependency.
  */
 class HttpCustomServerApi : CustomServerApi {
 
@@ -40,9 +40,7 @@ class HttpCustomServerApi : CustomServerApi {
  * genuinely absent rather than sent as zero when [CustomServerSendRequest.calories] is
  * null, the file field's name and content) can be verified in a test with no
  * [java.net.HttpURLConnection] and no real network call at all. Field-writing itself reuses
- * [ch.kevinjordil.helion.strava.writeFormField]/[ch.kevinjordil.helion.strava.writeFileField],
- * the same helpers [ch.kevinjordil.helion.strava.HttpStravaApi.createUpload] builds its own
- * multipart body from.
+ * [ch.kevinjordil.helion.export.writeFormField]/[ch.kevinjordil.helion.export.writeFileField].
  */
 internal fun buildCustomServerMultipartBody(boundary: String, request: CustomServerSendRequest): ByteArray =
     ByteArrayOutputStream().apply {
@@ -61,8 +59,7 @@ internal fun buildCustomServerMultipartBody(boundary: String, request: CustomSer
 
 /**
  * Reads the response for a just-submitted request, throwing [CustomServerHttpException] on
- * a non-2xx status with the response body attached -- the same "never swallow the real
- * reason" shape [ch.kevinjordil.helion.strava.readResponse] uses for Strava's own calls.
+ * a non-2xx status with the response body attached -- never swallowing the real reason.
  */
 internal fun readCustomServerResponse(connection: HttpURLConnection) {
     val code = connection.responseCode

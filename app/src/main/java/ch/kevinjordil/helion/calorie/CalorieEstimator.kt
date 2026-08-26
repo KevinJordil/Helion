@@ -58,7 +58,7 @@ object CalorieEstimator {
      * genuinely active gap) or filled by interpolation (which would invent a reading the
      * device never took): there is no honest way to know what happened during a minute
      * nothing was recorded for, so it is left out of the sum altogether, the same choice
-     * [ch.kevinjordil.helion.strava.writeTcx] already makes for that minute's trackpoint.
+     * [ch.kevinjordil.helion.export.writeTcx] already makes for that minute's trackpoint.
      *
      * Returns null when [samples] carries no heart-rate reading at all -- the "no estimate
      * possible" case the caller must say plainly, never as a silent 0 kcal.

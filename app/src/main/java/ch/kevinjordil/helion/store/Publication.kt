@@ -9,6 +9,13 @@ import androidx.room.Query
 
 /** Where an [Activity] could be published. */
 enum class PublicationTarget {
+    /**
+     * The direct Strava API integration. No longer published to -- see
+     * `docs/archive/strava-api-integration.md` for why it was removed -- but the constant
+     * is kept, not deleted: existing installs have real `publication` rows with this
+     * target on disk, and Room's enum column converter throws if it reads a stored value
+     * with no matching constant.
+     */
     STRAVA,
 
     /** The owner's own server, configured in Réglages -- see [ch.kevinjordil.helion.customserver.CustomServerPublisher]. */
@@ -53,11 +60,10 @@ enum class PublicationState {
  * [PublicationState.UPLOADING]'s kdoc) -- it is what makes an interrupted upload resumable
  * rather than resubmitted from scratch.
  *
- * [lastErrorDetail] is Strava's own explanation text for [lastError] (its response body's
- * `message`/`errors[]`, or the field-name-shaped detail an HTTP status alone cannot convey --
- * see [ch.kevinjordil.helion.strava.describeStravaError]), never the access token, refresh
- * token or client secret. Null for the reasons that need no further detail ([lastError] values
- * decided locally, before any request reached Strava, such as no stored authorisation at all).
+ * [lastErrorDetail] is the target's own explanation text for [lastError] (a response
+ * body's message, or the field-name-shaped detail an HTTP status alone cannot convey),
+ * never a token or credential. Null for the reasons that need no further detail
+ * ([lastError] values decided locally, before any request ever reached the target).
  */
 @Entity(
     tableName = "publication",

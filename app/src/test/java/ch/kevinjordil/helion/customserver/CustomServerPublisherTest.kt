@@ -26,8 +26,7 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * A [CustomServerApi] whose behaviour each test scripts directly -- exactly what "no real
- * network calls in tests" requires, the same reasoning
- * [ch.kevinjordil.helion.strava.StravaPublisherTest]'s own fake documents.
+ * network calls in tests" requires.
  */
 private class FakeCustomServerApi : CustomServerApi {
     var sendCalls = 0

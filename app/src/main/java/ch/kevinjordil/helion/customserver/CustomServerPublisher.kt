@@ -6,11 +6,11 @@ import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationDao
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
-import ch.kevinjordil.helion.strava.activityDisplayName
-import ch.kevinjordil.helion.strava.calorieEstimateFor
-import ch.kevinjordil.helion.strava.externalIdFor
-import ch.kevinjordil.helion.strava.tcxDownloadFileName
-import ch.kevinjordil.helion.strava.writeTcx
+import ch.kevinjordil.helion.export.activityDisplayName
+import ch.kevinjordil.helion.export.calorieEstimateFor
+import ch.kevinjordil.helion.export.externalIdFor
+import ch.kevinjordil.helion.export.tcxDownloadFileName
+import ch.kevinjordil.helion.export.writeTcx
 import ch.kevinjordil.helion.ui.settings.CustomServerConfig
 import ch.kevinjordil.helion.ui.settings.Profile
 import java.net.HttpURLConnection
@@ -53,16 +53,16 @@ private const val MAX_BODY_DETAIL_LENGTH = 500
  * Sends one [ch.kevinjordil.helion.store.Activity] to the owner's own server as one
  * synchronous `multipart/form-data` POST -- see `README.md` for the exact request shape.
  *
- * Unlike [ch.kevinjordil.helion.strava.StravaPublisher], there is no asynchronous upload
- * job to resume: the request either lands in one call or it does not, so this reuses
- * [ch.kevinjordil.helion.store.Publication] and [PublicationState] purely as a *record* of
- * the last attempt (state, timestamp, failure reason and detail) rather than as a resumable
- * workflow -- [PublicationState.UPLOADING] and [Publication.uploadId]/[Publication.remoteId]
- * are simply never used for [PublicationTarget.CUSTOM_SERVER]: this transport has no
- * asynchronous job id and no server-assigned resource id to remember. A second send of the
- * same activity is still safe to repeat: [ch.kevinjordil.helion.strava.externalIdFor] gives
- * the receiving server the same stable id every time, which is what lets it recognise a
- * repeat rather than create a duplicate (see the `external_id` field in `README.md`).
+ * There is no asynchronous upload job to resume here: the request either lands in one call
+ * or it does not, so this reuses [ch.kevinjordil.helion.store.Publication] and
+ * [PublicationState] purely as a *record* of the last attempt (state, timestamp, failure
+ * reason and detail) rather than as a resumable workflow -- [PublicationState.UPLOADING]
+ * and [Publication.uploadId]/[Publication.remoteId] are simply never used for
+ * [PublicationTarget.CUSTOM_SERVER]: this transport has no asynchronous job id and no
+ * server-assigned resource id to remember. A second send of the same activity is still
+ * safe to repeat: [ch.kevinjordil.helion.export.externalIdFor] gives the receiving server
+ * the same stable id every time, which is what lets it recognise a repeat rather than
+ * create a duplicate (see the `external_id` field in `README.md`).
  */
 class CustomServerPublisher(
     private val activities: ActivityDao,

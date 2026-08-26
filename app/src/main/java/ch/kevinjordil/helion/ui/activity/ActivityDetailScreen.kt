@@ -1,8 +1,6 @@
 package ch.kevinjordil.helion.ui.activity
 
 import android.Manifest
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,18 +35,16 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.calorie.ActivityCalorieEstimate
 import ch.kevinjordil.helion.calorie.estimateActivityCalories
+import ch.kevinjordil.helion.export.DownloadsSaveResult
+import ch.kevinjordil.helion.export.buildOpenStravaIntent
+import ch.kevinjordil.helion.export.buildShareIntent
+import ch.kevinjordil.helion.export.saveTcxToDownloads
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
-import ch.kevinjordil.helion.strava.DownloadsSaveResult
-import ch.kevinjordil.helion.strava.StravaConfig
-import ch.kevinjordil.helion.strava.buildOpenStravaIntent
-import ch.kevinjordil.helion.strava.buildShareIntent
-import ch.kevinjordil.helion.strava.missingUploadScope
-import ch.kevinjordil.helion.strava.saveTcxToDownloads
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.ZoneId
@@ -81,24 +76,14 @@ fun ActivityDetailScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val zone = remember { ZoneId.systemDefault() }
-    // Read live, not just once at composition: this is what makes a successful reconnect
-    // show up on this screen immediately, without needing to leave and come back -- see
-    // StravaAuth.status' own kdoc for why a StateFlow rather than a one-shot read.
-    val authStatus by container.stravaAuth.status.collectAsState()
 
     var activity by remember(activityId) { mutableStateOf<Activity?>(null) }
     var loadedOnce by remember(activityId) { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var publication by remember(activityId) { mutableStateOf<Publication?>(null) }
-    var publishing by remember(activityId) { mutableStateOf(false) }
     var customServerPublication by remember(activityId) { mutableStateOf<Publication?>(null) }
     var sendingToCustomServer by remember(activityId) { mutableStateOf(false) }
     var minuteSamples by remember(activityId) { mutableStateOf<List<MinuteSample>>(emptyList()) }
     var calorieEstimate by remember(activityId) { mutableStateOf<ActivityCalorieEstimate?>(null) }
-
-    suspend fun reloadPublication() {
-        publication = container.database.publications().get(activityId, PublicationTarget.STRAVA)
-    }
 
     suspend fun reloadCustomServerPublication() {
         customServerPublication = container.database.publications().get(activityId, PublicationTarget.CUSTOM_SERVER)
@@ -107,12 +92,11 @@ fun ActivityDetailScreen(
     LaunchedEffect(activityId) {
         val loaded = container.database.activities().get(activityId)
         activity = loaded
-        reloadPublication()
         reloadCustomServerPublication()
-        // Loaded alongside the activity itself, not lazily inside shareTcx/publishToStrava:
-        // the calorie estimate needs the same per-minute samples those two actions send to
-        // Strava, and computing it once here means the detail screen, the share action and
-        // the publish action all agree on the exact same figure.
+        // Loaded alongside the activity itself, not lazily inside shareTcx: the calorie
+        // estimate needs the same per-minute samples that action sends along, and computing
+        // it once here means the detail screen and the share action agree on the exact same
+        // figure.
         if (loaded != null) {
             val samples = withContext(Dispatchers.IO) {
                 container.database.minuteSamples().between(loaded.startTimestamp, loaded.endTimestamp)
@@ -123,16 +107,6 @@ fun ActivityDetailScreen(
         loadedOnce = true
     }
 
-    fun publishToStrava() {
-        if (publishing) return
-        publishing = true
-        scope.launch {
-            withContext(Dispatchers.IO) { container.stravaPublisher.publish(activityId) }
-            reloadPublication()
-            publishing = false
-        }
-    }
-
     fun sendToCustomServer() {
         if (sendingToCustomServer) return
         sendingToCustomServer = true
@@ -141,10 +115,6 @@ fun ActivityDetailScreen(
             reloadCustomServerPublication()
             sendingToCustomServer = false
         }
-    }
-
-    fun connectToStrava() {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(container.stravaAuth.authorizeUrl())))
     }
 
     fun shareTcx(current: Activity) {
@@ -292,64 +262,9 @@ fun ActivityDetailScreen(
         }
         Text(stringResource(R.string.strava_import_steps), style = HelionType.bodySmall, color = colors.textSecondary)
 
-        HorizontalDivider(color = colors.divider)
-
-        val currentPublication = publication
-        if (currentPublication != null) {
-            Text(
-                stringResource(publicationStateLabelRes(currentPublication.state)),
-                style = HelionType.bodySmall,
-                color = if (currentPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
-            )
-            if (currentPublication.state == PublicationState.FAILED) {
-                Text(
-                    stringResource(
-                        publicationFailureReasonRes(currentPublication.lastError),
-                        *publicationFailureReasonArgs(currentPublication.lastError, currentPublication.lastErrorDetail).toTypedArray(),
-                    ),
-                    style = HelionType.bodySmall,
-                    color = colors.accentAmber,
-                )
-            }
-        }
-
-        // Reads the live connection state rather than the last publish attempt's stored
-        // reason: that stale-until-the-next-publish reading is exactly what made a
-        // successful reconnect still show "Se connecter à Strava" forever -- see
-        // StravaAuth.status' own kdoc.
-        authStatus.lastFailure?.let { failure ->
-            Text(
-                stringResource(stravaAuthFailureRes(failure), *stravaAuthFailureArgs(failure).toTypedArray()),
-                style = HelionType.bodySmall,
-                color = colors.accentAmber,
-            )
-        }
-
-        // Told proactively, from the scope Strava's own token response actually granted --
-        // not only inferred after a publish attempt comes back 401 (see
-        // PublicationFailureReason.UPLOAD_FORBIDDEN's own kdoc for that other path).
-        if (authStatus.missingUploadScope()) {
-            Text(
-                stringResource(R.string.strava_scope_write_missing),
-                style = HelionType.bodySmall,
-                color = colors.accentAmber,
-            )
-        }
-
-        // Direct publish, kept as-is (see the module's own brief), plus the plain share
-        // action -- both visually secondary now next to the manual flow above: an
-        // OutlinedButton and a TextButton rather than the two filled Buttons the manual
-        // flow gets.
+        // The plain share action -- the same insurance the manual flow above already
+        // relies on, just handed to another app's share target instead of Downloads.
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!authStatus.connected && StravaConfig.isConfigured) {
-                OutlinedButton(onClick = { connectToStrava() }) {
-                    Text(stringResource(R.string.strava_connect_action))
-                }
-            } else {
-                OutlinedButton(onClick = { publishToStrava() }, enabled = !publishing) {
-                    Text(stringResource(R.string.strava_publish_action))
-                }
-            }
             TextButton(onClick = { shareTcx(current) }) {
                 Text(stringResource(R.string.strava_share_action))
             }
@@ -357,10 +272,10 @@ fun ActivityDetailScreen(
 
         HorizontalDivider(color = colors.divider)
 
-        // A third, independent send target: the owner's own server. Kept as its own
-        // section with its own state, not merged into the Strava one above -- it tracks a
-        // separate PublicationTarget row (see CustomServerPublisher's own kdoc), and it can
-        // fail or succeed on a completely different schedule than the Strava publish.
+        // A second, independent send target: the owner's own server. Kept as its own
+        // section with its own state -- it tracks a separate PublicationTarget row (see
+        // CustomServerPublisher's own kdoc), and it can fail or succeed on a completely
+        // different schedule than the manual-flow save above.
         Text(stringResource(R.string.custom_server_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
 
         val currentCustomServerPublication = customServerPublication

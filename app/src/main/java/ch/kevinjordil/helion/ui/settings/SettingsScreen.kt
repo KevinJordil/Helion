@@ -3,7 +3,6 @@ package ch.kevinjordil.helion.ui.settings
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -22,7 +21,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,10 +37,6 @@ import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.BuildConfig
 import ch.kevinjordil.helion.customserver.CustomServerUrlValidation
 import ch.kevinjordil.helion.customserver.validateCustomServerUrl
-import ch.kevinjordil.helion.strava.StravaConfig
-import ch.kevinjordil.helion.strava.missingUploadScope
-import ch.kevinjordil.helion.ui.activity.stravaAuthFailureArgs
-import ch.kevinjordil.helion.ui.activity.stravaAuthFailureRes
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.LocalDate
@@ -126,10 +120,6 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.tab_settings).uppercase(), style = HelionType.label, color = colors.textSecondary)
-
-        StravaSection(container)
-
-        HorizontalDivider(color = colors.divider)
 
         CustomServerSection(container)
 
@@ -262,77 +252,6 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         }
 
         Text(stringResource(R.string.profile_note), style = HelionType.bodySmall, color = colors.textSecondary)
-    }
-}
-
-/**
- * Where the owner actually sets Strava up: connect, disconnect and see what went wrong,
- * rather than only inside an activity he has not created yet. Reads
- * [ch.kevinjordil.helion.strava.StravaAuth.status] live -- the same [collectAsState] the
- * activity detail screen uses -- so completing (or declining) the browser flow updates this
- * section immediately, with no need to leave Réglages and come back.
- */
-@Composable
-private fun StravaSection(container: AppContainer) {
-    val colors = HelionThemeTokens.colors
-    val context = LocalContext.current
-    val authStatus by container.stravaAuth.status.collectAsState()
-
-    Text(stringResource(R.string.strava_settings_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
-
-    if (!StravaConfig.isConfigured) {
-        Text(stringResource(R.string.strava_reason_not_configured), style = HelionType.bodySmall, color = colors.textSecondary)
-        return
-    }
-
-    Text(
-        stringResource(if (authStatus.connected) R.string.strava_settings_connected else R.string.strava_settings_not_connected),
-        style = HelionType.bodySmall,
-        color = colors.textSecondary,
-    )
-
-    // The scope Strava's own token response actually granted (see StravaAuth.exchangeCode),
-    // shown plainly so the owner can see at a glance whether he has upload permission --
-    // rather than only discovering a missing scope once a publish attempt fails with 401.
-    if (authStatus.connected) {
-        val scope = authStatus.grantedScope
-        Text(
-            if (scope != null) {
-                stringResource(R.string.strava_settings_scope, scope)
-            } else {
-                stringResource(R.string.strava_settings_scope_unknown)
-            },
-            style = HelionType.bodySmall,
-            color = colors.textSecondary,
-        )
-        if (authStatus.missingUploadScope()) {
-            Text(
-                stringResource(R.string.strava_scope_write_missing),
-                style = HelionType.bodySmall,
-                color = colors.accentAmber,
-            )
-        }
-    }
-
-    authStatus.lastFailure?.let { failure ->
-        Text(
-            stringResource(stravaAuthFailureRes(failure), *stravaAuthFailureArgs(failure).toTypedArray()),
-            style = HelionType.bodySmall,
-            color = colors.accentAmber,
-        )
-    }
-
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (authStatus.connected) {
-            OutlinedButton(onClick = { container.stravaAuth.disconnect() }) {
-                Text(stringResource(R.string.strava_disconnect_action))
-            }
-        }
-        if (!authStatus.connected || authStatus.missingUploadScope()) {
-            Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(container.stravaAuth.authorizeUrl()))) }) {
-                Text(stringResource(if (authStatus.connected) R.string.strava_reconnect_action else R.string.strava_connect_action))
-            }
-        }
     }
 }
 

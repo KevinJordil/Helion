@@ -19,7 +19,7 @@ enum class Sex { MALE, FEMALE }
  * Same "helion" preferences file [StepsGoal] and [ch.kevinjordil.helion.source.ExportLocation]
  * already use, under their own keys. This is health data like everything else Helion
  * stores: it stays on the device, and it only ever leaves as part of a calorie figure the
- * owner chooses to publish (see [ch.kevinjordil.helion.strava.writeTcx]).
+ * owner chooses to publish (see [ch.kevinjordil.helion.export.writeTcx]).
  */
 class Profile(context: Context) {
 

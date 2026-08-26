@@ -22,10 +22,9 @@ data class CustomServerSendRequest(
 )
 
 /**
- * The one call [CustomServerPublisher] needs. Kept as an interface, same reasoning as
- * [ch.kevinjordil.helion.strava.StravaApi], so tests can script a non-2xx response or a
- * transport failure without a real network call; [HttpCustomServerApi] is the only
- * implementation used outside tests.
+ * The one call [CustomServerPublisher] needs. Kept as an interface so tests can script a
+ * non-2xx response or a transport failure without a real network call; [HttpCustomServerApi]
+ * is the only implementation used outside tests.
  */
 interface CustomServerApi {
 

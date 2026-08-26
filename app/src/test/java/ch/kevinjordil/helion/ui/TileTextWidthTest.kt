@@ -704,11 +704,11 @@ class DayTimelineReadoutWidthTest {
 }
 
 /**
- * The Strava publish section added to the activity detail screen (`ActivityDetailScreen.kt`):
- * the uppercase "STRAVA" section label (`HelionType.label`, same style
- * [ActivityLabelWidthTest] already checks other short uppercase labels against) and the
- * publication-state/failure-reason prose lines (`HelionType.bodySmall`, `strings.xml`'s
- * `strava_state_*` and `strava_reason_*` entries) that sit below it as full-width `Text`.
+ * The manual Strava flow on the activity detail screen (`ActivityDetailScreen.kt`): the
+ * uppercase "STRAVA" section label (`HelionType.label`, same style [ActivityLabelWidthTest]
+ * already checks other short uppercase labels against) and the save/open/share action
+ * labels and prose lines (`HelionType.bodySmall`, `strings.xml`'s `strava_*` entries) that
+ * sit below it as full-width `Text`.
  *
  * Budget: the same 280dp content width as every other screen with 20dp-each-side padding
  * (see [SleepScreenWidthTest]'s own kdoc for the derivation). Real `Text` wraps rather than
@@ -747,38 +747,15 @@ class StravaLabelWidthTest {
         return emPerChar.sum() * 13f * fontScale
     }
 
-    private fun stateLabels() = listOf(
-        "En attente",
-        "Envoi en cours…",
-        "Publiée sur Strava",
-        "Échec de la publication",
-    )
-
     /**
-     * The `strava_reason_*` sentences with a plausible worst-case Strava detail spliced into
-     * the ones that carry a `%1$s` placeholder ([ch.kevinjordil.helion.store.Publication.lastErrorDetail],
-     * see [ch.kevinjordil.helion.strava.describeStravaUploadError]) -- deliberately long, same
-     * reasoning as [authFailureMessages]' own kdoc.
-     */
-    private fun reasonMessages() = listOf(
-        "Compte Strava non connecté. Connectez-vous pour publier.",
-        "Autorisation Strava expirée. Reconnectez-vous.",
-        "Strava n'est pas configuré sur cet appareil. Utilisez le partage.",
-        "Connexion à Strava impossible : Unable to resolve host",
-        "Strava a refusé la publication : Bad Request (Application client_id invalid)",
-        "Droits insuffisants : HTTP 401: activity:write missing",
-        "Application Strava inactive : abonnement requis. Enregistrez le fichier.",
-    )
-
-    /**
-     * The manual-flow strings added alongside the save/open-Strava actions: the one-off
+     * The manual-flow strings alongside the save/open-Strava/share actions: the one-off
      * sport-format note, the three-tap import line, the storage-permission rationale and
-     * denial notes (API 26-28 only, see [ch.kevinjordil.helion.strava.saveTcxToDownloads]),
+     * denial notes (API 26-28 only, see [ch.kevinjordil.helion.export.saveTcxToDownloads]),
      * and the save confirmation/failure lines, the latter filled with the longest plausible
      * file name ([downloadSportSlug]'s widest entry, "natation") and a realistic error
      * message.
      */
-    private fun manualFlowActionLabels() = listOf("Enregistrer le fichier", "Ouvrir Strava")
+    private fun manualFlowActionLabels() = listOf("Enregistrer le fichier", "Ouvrir Strava", "Partager (TCX)")
 
     private fun manualFlowProseMessages() = listOf(
         "Sport à corriger dans Strava après l'import (course, vélo ou autre).",
@@ -789,34 +766,6 @@ class StravaLabelWidthTest {
         "Échec de l'enregistrement : MediaStore refused the insert",
     )
 
-    /**
-     * The `strava_auth_*` sentences with a plausible worst-case detail spliced into their
-     * `%1$s` placeholder -- Strava's real error bodies run to a short phrase plus a field
-     * name (see [ch.kevinjordil.helion.strava.describeStravaError]), not a paragraph, but
-     * this uses a deliberately long one to keep the two-line budget meaningful.
-     */
-    private fun authFailureMessages() = listOf(
-        "Autorisation refusée sur Strava : access_denied",
-        "Strava a refusé la connexion : Bad Request (Application client_id invalid)",
-        "Connexion à Strava impossible : Unable to resolve host",
-    )
-
-    private fun settingsStatusMessages() = listOf("Compte connecté.", "Compte non connecté.")
-    private fun settingsActionLabels() = listOf("Se connecter à Strava", "Se déconnecter de Strava", "Se reconnecter à Strava")
-
-    /**
-     * The granted-scope line (`strava_settings_scope`/`strava_settings_scope_unknown`) and
-     * the missing-write-scope warning (`strava_scope_write_missing`), added so the owner can
-     * see his upload permission at a glance instead of only after a failed publish. The
-     * scope string itself is Strava's own space-delimited list, plausibly all six documented
-     * values at once.
-     */
-    private fun scopeMessages() = listOf(
-        "Autorisations accordées : read activity:write activity:read_all",
-        "Autorisations accordées : inconnues.",
-        "Droits insuffisants pour publier sur Strava. Reconnectez-vous.",
-    )
-
     @Test
     fun `the Strava section label fits a full-width row at a 1_3x font scale`() {
         val width = labelWidthDp("Strava")
@@ -824,57 +773,7 @@ class StravaLabelWidthTest {
     }
 
     @Test
-    fun `every OAuth-attempt failure sentence still fits within two lines at the narrowest width`() {
-        authFailureMessages().forEach { message ->
-            val width = proseWidthDp(message)
-            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
-        }
-    }
-
-    @Test
-    fun `the Réglages Strava status line and action labels fit a full-width row`() {
-        settingsStatusMessages().forEach { message ->
-            val width = proseWidthDp(message)
-            assertTrue("\"$message\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
-        }
-        settingsActionLabels().forEach { label ->
-            val width = proseWidthDp(label)
-            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
-        }
-    }
-
-    @Test
-    fun `the granted-scope line and write-missing warning fit within two lines at the narrowest width`() {
-        scopeMessages().forEach { message ->
-            val width = proseWidthDp(message)
-            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
-        }
-    }
-
-    @Test
-    fun `every publication-state label fits one line at the narrowest supported width`() {
-        stateLabels().forEach { label ->
-            val width = proseWidthDp(label)
-            // Prose wraps rather than clipping (NoTextClippingTest); this only confirms
-            // none of these short state labels are so wide they would look broken even on
-            // a single-line-sized status area.
-            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
-        }
-    }
-
-    @Test
-    fun `the longest failure-reason sentence still fits within two lines at the narrowest width`() {
-        reasonMessages().forEach { message ->
-            val width = proseWidthDp(message)
-            // These are full sentences, expected to wrap onto a second line -- the budget
-            // here is 2x the row width, so a report of one wrapping to three-plus lines
-            // (the actual clipping-adjacent failure mode for prose) would show up here.
-            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
-        }
-    }
-
-    @Test
-    fun `the save and open-Strava action labels fit a full-width row`() {
+    fun `the save, open-Strava and share action labels fit a full-width row`() {
         manualFlowActionLabels().forEach { label ->
             val width = proseWidthDp(label)
             assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
@@ -957,7 +856,8 @@ class CalorieLabelWidthTest {
             val width = proseWidthDp(message, fontSizeSp = 13f)
             // Prose wraps rather than clipping (NoTextClippingTest); a three-line budget is
             // used here since the accuracy note in particular is a longer sentence than the
-            // two-line budget StravaLabelWidthTest holds its own failure reasons to.
+            // two-line budget the other prose-message tests in this file hold their own
+            // longer sentences to.
             assertTrue("\"$message\" measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
         }
     }
@@ -974,10 +874,10 @@ class CalorieLabelWidthTest {
 
 /**
  * The custom-server export added to the activity detail screen (`ActivityDetailScreen.kt`,
- * section label and state/failure prose, same styles [StravaLabelWidthTest] already
+ * section label and state/failure prose, same styles [ActivityLabelWidthTest] already
  * checks its own equivalents against) and its Réglages configuration section
- * (`SettingsScreen.kt`'s `CustomServerSection`). Same 280dp budget as [StravaLabelWidthTest]
- * -- both screens share the identical 20dp-each-side padding.
+ * (`SettingsScreen.kt`'s `CustomServerSection`). Same 280dp budget as every other screen in
+ * this file -- both screens share the identical 20dp-each-side padding.
  */
 class CustomServerLabelWidthTest {
 
@@ -1013,8 +913,8 @@ class CustomServerLabelWidthTest {
 
     /**
      * The `custom_server_reason_*` sentences with a plausible worst-case detail spliced
-     * into the ones carrying a `%1$s` placeholder -- same reasoning as
-     * [StravaLabelWidthTest.reasonMessages]' own kdoc.
+     * into the ones carrying a `%1$s` placeholder -- deliberately long, so a report of one
+     * wrapping to three-plus lines would actually show up in the two-line-budget test below.
      */
     private fun reasonMessages() = listOf(
         "Serveur non configuré. Renseignez son adresse et le jeton dans Réglages.",

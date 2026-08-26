@@ -1,16 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Only used for the two Strava HTTPS calls this app ever makes (upload, refresh
-         token) plus the OAuth authorization page opened in a browser/Custom Tab. Nothing
-         else in Helion talks to the network. -->
+    <!-- Only used for the custom-server export, see
+         ch.kevinjordil.helion.customserver.HttpCustomServerApi. Nothing else in Helion
+         talks to the network; the Strava paths (Downloads save, opening the web uploader)
+         need no network access of their own. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
       Only needed on Android 8.0/8.1 (API 26 to 28): that is before MediaStore's Downloads
       collection existed, so the "save TCX to Downloads" action has no scoped storage route
       on those versions and must write a plain file into the public Downloads directory
-      instead, see ch.kevinjordil.helion.strava.saveTcxToDownloads. maxSdkVersion means
+      instead, see ch.kevinjordil.helion.export.saveTcxToDownloads. maxSdkVersion means
       this permission is simply never requested, and never shows in the Play Store listing,
       on API 29+, where the MediaStore route needs no permission at all.
     -->
@@ -26,10 +27,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
-      Package visibility (API 30+): needed to check whether the Strava app is installed
-      (ch.kevinjordil.helion.strava.buildOpenStravaIntent) and, when it is not, whether the
-      Play Store can handle a market:// listing before falling back to Strava's web upload
-      page.
+      Package visibility (API 30+), kept for whatever future need to resolve the Strava
+      app or a market:// listing. ch.kevinjordil.helion.export.buildOpenStravaIntent
+      itself opens Strava's web uploader directly and needs neither.
     -->
     <queries>
         <package android:name="com.strava" />
@@ -56,21 +56,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-            <!--
-              Strava's OAuth redirect. The exact URI implemented is
-              "helion://oauth-callback" (scheme "helion", host "oauth-callback", no path),
-              matching the callback domain "helion" configured on the Strava app settings.
-              singleTask above ensures the browser hands this intent back to the
-              already-running MainActivity instance (onNewIntent) rather than spawning a
-              second one.
-            -->
-            <intent-filter android:autoVerify="false">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="helion" android:host="oauth-callback" />
             </intent-filter>
         </activity>
 

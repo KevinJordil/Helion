@@ -22,10 +22,6 @@ import ch.kevinjordil.helion.store.MIGRATION_5_6
 import ch.kevinjordil.helion.store.MIGRATION_6_7
 import ch.kevinjordil.helion.store.MIGRATION_7_8
 import ch.kevinjordil.helion.store.MIGRATION_8_9
-import ch.kevinjordil.helion.strava.HttpStravaApi
-import ch.kevinjordil.helion.strava.StravaAuth
-import ch.kevinjordil.helion.strava.StravaPublisher
-import ch.kevinjordil.helion.strava.StravaTokenStore
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
 import ch.kevinjordil.helion.ui.settings.CustomServerConfig
 import ch.kevinjordil.helion.ui.settings.NotificationPreference
@@ -48,25 +44,6 @@ class AppContainer(context: Context) {
 
     /** The owner's own inputs to [ch.kevinjordil.helion.calorie.CalorieEstimator] -- see [Profile]'s own kdoc. */
     val profile = Profile(context)
-
-    /** OAuth token persistence and the browser-flow driver -- see [StravaAuth]'s own kdoc. */
-    val stravaTokenStore = StravaTokenStore(context)
-    val stravaAuth = StravaAuth(stravaTokenStore)
-
-    /**
-     * The one publish entry point the UI calls, wired to the real network implementation.
-     * See [StravaPublisher]'s own kdoc for why calling it again is always safe.
-     */
-    val stravaPublisher = StravaPublisher(
-        activities = database.activities(),
-        minuteSamples = database.minuteSamples(),
-        publications = database.publications(),
-        tokenProvider = stravaAuth,
-        api = HttpStravaApi(),
-        profile = profile,
-        zone = ZoneId.systemDefault(),
-        now = { System.currentTimeMillis() / 1000 },
-    )
 
     /** Where the owner's own server URL and shared token live -- see [CustomServerConfig]'s own kdoc. */
     val customServerConfig = CustomServerConfig(context)
