@@ -60,6 +60,12 @@
     <string name="strava_reason_network_error">Connexion à Strava impossible. Réessayez plus tard.</string>
     <string name="strava_reason_remote_error">Strava a refusé la publication.</string>
 
+    <string name="calorie_section_title">Calories (estimé)</string>
+    <string name="calorie_value">≈ %1$d kcal</string>
+    <string name="calorie_needs_profile">Renseignez votre profil dans Réglages pour estimer les calories.</string>
+    <string name="calorie_no_heart_rate">Aucune fréquence cardiaque enregistrée pour cette activité : pas d\'estimation possible.</string>
+    <string name="calorie_accuracy_note">Précision d\'environ 15-20 % : plus fiable pour comparer vos séances entre elles que comme valeur absolue.</string>
+
     <string name="day_timeline_previous_day">Jour précédent</string>
     <string name="day_timeline_next_day">Jour suivant</string>
     <string name="day_timeline_selection_hint">Faites glisser sur le graphique pour sélectionner une plage.</string>

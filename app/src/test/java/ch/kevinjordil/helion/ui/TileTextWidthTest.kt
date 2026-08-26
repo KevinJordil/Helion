@@ -1,10 +1,13 @@
 package ch.kevinjordil.helion.ui
 
+import ch.kevinjordil.helion.calorie.CalorieEstimator
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
 import ch.kevinjordil.helion.ui.metric.formatValue
+import ch.kevinjordil.helion.ui.settings.Sex
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.roundToInt
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -782,6 +785,151 @@ class StravaLabelWidthTest {
             // These are full sentences, expected to wrap onto a second line -- the budget
             // here is 2x the row width, so a report of one wrapping to three-plus lines
             // (the actual clipping-adjacent failure mode for prose) would show up here.
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+}
+
+
+/**
+ * The calorie section added to the activity detail screen (`ActivityDetailScreen.kt`): its
+ * uppercase section title (`HelionType.label`, same style [ActivityLabelWidthTest] and
+ * [StravaLabelWidthTest] already check other short titles against), its two plain-language
+ * fallback messages and the accuracy caveat (`HelionType.bodySmall`, prose), and the composed
+ * value line itself (`HelionType.body`, "≈ %d kcal") at the widest plausible figure.
+ *
+ * The widest figure is computed from [CalorieEstimator.kcalPerMinute] directly rather than
+ * hand-typed, at the same genuinely-widest inputs the rest of this file already uses for
+ * heart rate ([widestMetricValues]'s 224 bpm) and a generous, still-plausible weight (200 kg)
+ * and age (99 years, a realistic ceiling for a date-of-birth field with no hard cap) sustained
+ * for a full six-hour session -- a long but real upper bound for a single manually-bounded
+ * activity in this app (badminton, running, cycling, walking, swimming), not an unbounded
+ * worst case.
+ *
+ * Budget: the same 280dp content width every other 20dp-padded screen in this file uses (see
+ * [SleepScreenWidthTest]'s own kdoc for the derivation) -- the activity detail screen's root
+ * `Column` uses the identical 20dp horizontal padding.
+ */
+class CalorieLabelWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
+    }
+
+    @Test
+    fun `the calorie section title fits a full-width row at a 1_3x font scale`() {
+        val width = labelWidthDp("Calories (estimé)")
+        assertTrue("\"Calories (estimé)\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `every plain-language calorie message fits within two lines at the narrowest width`() {
+        val messages = listOf(
+            "Renseignez votre profil dans Réglages pour estimer les calories.",
+            "Aucune fréquence cardiaque enregistrée pour cette activité : pas d'estimation possible.",
+            "Précision d'environ 15-20 % : plus fiable pour comparer vos séances entre elles que comme valeur absolue.",
+        )
+        messages.forEach { message ->
+            val width = proseWidthDp(message, fontSizeSp = 13f)
+            // Prose wraps rather than clipping (NoTextClippingTest); a three-line budget is
+            // used here since the accuracy note in particular is a longer sentence than the
+            // two-line budget StravaLabelWidthTest holds its own failure reasons to.
+            assertTrue("\"$message\" measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
+        }
+    }
+
+    @Test
+    fun `the widest plausible calorie estimate fits one line at the narrowest supported width`() {
+        val widestPerMinute = CalorieEstimator.kcalPerMinute(Sex.MALE, heartRate = 224, weightKg = 200.0, ageYears = 99.0)
+        val widestTotal = (widestPerMinute * 360).roundToInt() // a full six-hour session
+        val text = "≈ $widestTotal kcal"
+        val width = proseWidthDp(text, fontSizeSp = 15f)
+        assertTrue("\"$text\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+}
+
+/**
+ * The profile fields added to Réglages (`SettingsScreen.kt`): the section title and each
+ * field's label at [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall]/`label`, the sex
+ * options ("Homme"/"Femme") and the short privacy note underneath. Same 280dp budget as
+ * [CalorieLabelWidthTest] -- `SettingsScreen`'s root `Column` uses the same 20dp padding.
+ */
+class ProfileFieldWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
+    }
+
+    @Test
+    fun `the profile section title fits a full-width row at a 1_3x font scale`() {
+        val width = labelWidthDp("Profil")
+        assertTrue("\"Profil\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `every profile field label and the sex options fit a full-width row at the narrowest width`() {
+        listOf("Date de naissance", "Poids (kg)", "Sexe", "Homme", "Femme").forEach { label ->
+            val width = proseWidthDp(label, fontSizeSp = 13f)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `the date-of-birth invalid message and the privacy note each fit within two lines`() {
+        val messages = listOf(
+            "Format invalide (jj/mm/aaaa). Pas encore enregistré.",
+            "Sert uniquement à estimer les calories ; reste sur l'appareil.",
+        )
+        messages.forEach { message ->
+            val width = proseWidthDp(message, fontSizeSp = 13f)
             assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
         }
     }

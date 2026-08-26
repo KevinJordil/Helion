@@ -29,8 +29,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.calorie.ActivityCalorieEstimate
+import ch.kevinjordil.helion.calorie.estimateActivityCalories
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityStatus
+import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
@@ -74,14 +77,28 @@ fun ActivityDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var publication by remember(activityId) { mutableStateOf<Publication?>(null) }
     var publishing by remember(activityId) { mutableStateOf(false) }
+    var minuteSamples by remember(activityId) { mutableStateOf<List<MinuteSample>>(emptyList()) }
+    var calorieEstimate by remember(activityId) { mutableStateOf<ActivityCalorieEstimate?>(null) }
 
     suspend fun reloadPublication() {
         publication = container.database.publications().get(activityId, PublicationTarget.STRAVA)
     }
 
     LaunchedEffect(activityId) {
-        activity = container.database.activities().get(activityId)
+        val loaded = container.database.activities().get(activityId)
+        activity = loaded
         reloadPublication()
+        // Loaded alongside the activity itself, not lazily inside shareTcx/publishToStrava:
+        // the calorie estimate needs the same per-minute samples those two actions send to
+        // Strava, and computing it once here means the detail screen, the share action and
+        // the publish action all agree on the exact same figure.
+        if (loaded != null) {
+            val samples = withContext(Dispatchers.IO) {
+                container.database.minuteSamples().between(loaded.startTimestamp, loaded.endTimestamp)
+            }
+            minuteSamples = samples
+            calorieEstimate = estimateActivityCalories(container.profile, loaded.startTimestamp, zone, samples)
+        }
         loadedOnce = true
     }
 
@@ -100,12 +117,8 @@ fun ActivityDetailScreen(
     }
 
     fun shareTcx(current: Activity) {
-        scope.launch {
-            val samples = withContext(Dispatchers.IO) {
-                container.database.minuteSamples().between(current.startTimestamp, current.endTimestamp)
-            }
-            context.startActivity(buildShareIntent(context, current, samples))
-        }
+        val estimated = (calorieEstimate as? ActivityCalorieEstimate.Estimated)?.kcal
+        context.startActivity(buildShareIntent(context, current, minuteSamples, estimated))
     }
 
     fun save(updated: Activity) {
@@ -234,6 +247,21 @@ fun ActivityDetailScreen(
                 }
 
                 ActivityStatus.CONFIRMED, ActivityStatus.PUBLISHED -> Unit
+            }
+        }
+
+        HorizontalDivider(color = colors.divider)
+
+        Text(stringResource(R.string.calorie_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        when (val estimate = calorieEstimate) {
+            null -> Unit // still loading -- nothing to say yet, rather than a flash of "no data"
+            is ActivityCalorieEstimate.ProfileIncomplete ->
+                Text(stringResource(R.string.calorie_needs_profile), style = HelionType.bodySmall, color = colors.textSecondary)
+            is ActivityCalorieEstimate.NoHeartRateData ->
+                Text(stringResource(R.string.calorie_no_heart_rate), style = HelionType.bodySmall, color = colors.textSecondary)
+            is ActivityCalorieEstimate.Estimated -> {
+                Text(stringResource(R.string.calorie_value, estimate.kcal), style = HelionType.body, color = colors.textPrimary)
+                Text(stringResource(R.string.calorie_accuracy_note), style = HelionType.bodySmall, color = colors.textSecondary)
             }
         }
 
