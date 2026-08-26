@@ -265,12 +265,12 @@ fun resolveSleepPhases(episode: SleepEpisode): SleepPhaseSource {
 /**
  * One [PhaseMinute] per minute of [episode]'s own span, looked up against its
  * [SleepEpisode.stageSegments]. A minute the device's segments do not cover (the episode's
- * own minute-derived boundaries and the session's rarely disagree by more than a few
- * minutes, but they are not guaranteed to line up exactly -- see [SleepReader]) falls back
- * to that single minute's own coarse ASLEEP/AWAKE reading rather than being guessed into a
- * specific asleep phase: [SleepPhase.AWAKE] when the raw minute says so, [SleepPhase.LIGHT]
- * otherwise, the same "least specific asleep phase" default [estimateSleepPhases] itself
- * uses for a minute it cannot classify.
+ * own boundaries come from those same segments whenever any exist -- see [SleepReader] --
+ * but small internal gaps between consecutive segments are possible and are not guaranteed
+ * to be covered) falls back to that single minute's own coarse ASLEEP/AWAKE reading rather
+ * than being guessed into a specific asleep phase: [SleepPhase.AWAKE] when the raw minute
+ * says so, [SleepPhase.LIGHT] otherwise, the same "least specific asleep phase" default
+ * [estimateSleepPhases] itself uses for a minute it cannot classify.
  */
 private fun measuredPhaseMinutes(episode: SleepEpisode): List<PhaseMinute> {
     val byMinute = episode.minutes.associateBy { it.timestamp }
