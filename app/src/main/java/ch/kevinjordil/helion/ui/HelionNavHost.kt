@@ -51,7 +51,12 @@ private const val NEW_SLOT_ID = "new"
 fun activityDetailRoute(id: Long): String = "$ACTIVITY_ROUTE_PREFIX$id"
 
 /** The Activités list route -- what a batch notification's tap opens. */
-val activitiesListRoute: String = RootDestination.ACTIVITIES.route
+// A computed accessor, deliberately NOT an initialised top-level val: as a val it runs
+// during this file class's static initialisation, which forces RootDestination's own
+// initialisation, which reads SleepIcon and ActivityIcon below -- still null at that
+// point, and permanently so, since the JVM will not re-enter an initialisation already
+// in progress. That produced null tab icons and a crash on the first frame.
+val activitiesListRoute: String get() = RootDestination.ACTIVITIES.route
 
 /**
  * The one route a notification tap wants [HelionNavHost] to land on next, set by
