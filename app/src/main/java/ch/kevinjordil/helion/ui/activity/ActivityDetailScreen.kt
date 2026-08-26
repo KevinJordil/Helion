@@ -430,6 +430,15 @@ fun ActivityDetailScreen(
             Text(stringResource(errorRes), style = HelionType.bodySmall, color = colors.accentAmber)
         }
 
+        current.detectionContext?.takeIf { it.isNotBlank() }?.let { detectionContext ->
+            Text(
+                stringResource(R.string.activity_detection_context_label),
+                style = HelionType.bodySmall,
+                color = colors.textSecondary,
+            )
+            Text(detectionContext, style = HelionType.body, color = colors.textSecondary)
+        }
+
         Text(stringResource(R.string.activity_notes_label), style = HelionType.bodySmall, color = colors.textSecondary)
         OutlinedTextField(
             value = notesText,

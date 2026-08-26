@@ -154,6 +154,29 @@ class StravaPublisherTest {
     }
 
     @Test
+    fun `the detection context never reaches the uploaded TCX`() = runTest {
+        val activityId = db.activities().upsert(
+            Activity(
+                startTimestamp = now - 1_800,
+                endTimestamp = now,
+                sport = SportType.BADMINTON,
+                title = "Entraînement du lundi",
+                notes = "Bonne séance",
+                detectionContext = "Fréquence cardiaque 120–150 bpm (repos habituel ≈ 58 bpm).",
+                origin = ActivityOrigin.SLOT,
+                status = ActivityStatus.CONFIRMED,
+            ),
+        )
+        api.pollResult = UploadStatus.Done("remote-42")
+
+        publisher.publish(activityId)
+
+        val tcx = api.seenTcx.single()
+        assertTrue(!tcx.contains("Fréquence cardiaque"))
+        assertTrue(!tcx.contains("Bonne séance"))
+    }
+
+    @Test
     fun `an interrupted upload is resumed by polling, never resubmitted`() = runTest {
         val activityId = seedActivity()
 

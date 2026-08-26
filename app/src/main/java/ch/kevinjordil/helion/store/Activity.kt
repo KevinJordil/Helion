@@ -97,6 +97,16 @@ data class Activity(
     val origin: ActivityOrigin,
     val status: ActivityStatus,
     val slotId: Long? = null,
+    /**
+     * Why a detection pass proposed this candidate -- the heart-rate range it saw, against
+     * the owner's own resting rate (see `activity_candidate_note` in `strings.xml`, still
+     * the format used to render it). Set only by [ch.kevinjordil.helion.activity.ActivityDetector]
+     * for [ActivityOrigin.SLOT] and [ActivityOrigin.DETECTED] candidates, always null for
+     * [ActivityOrigin.MANUAL]. This is diagnostic text for the owner to read *while
+     * reviewing* a candidate, never his own words -- kept apart from [notes] precisely so
+     * an export can send [notes] (what he actually wrote) without ever forwarding this.
+     */
+    val detectionContext: String? = null,
 )
 
 @Dao

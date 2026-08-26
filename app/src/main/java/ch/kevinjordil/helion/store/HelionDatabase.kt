@@ -14,7 +14,7 @@ import androidx.room.TypeConverters
         Slot::class,
         Publication::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

@@ -114,6 +114,8 @@ class CustomServerPublisher(
             fileName = tcxDownloadFileName(activity.sport, activity.startTimestamp, zone),
             sport = customServerSportSlug(activity.sport),
             title = activityDisplayName(activity),
+            // The owner's own words only -- never [Activity.detectionContext], which is
+            // diagnostic text for reviewing a candidate, not something to publish.
             description = activity.notes.orEmpty(),
             startIso = START_TIME_FORMAT.format(Instant.ofEpochSecond(activity.startTimestamp).atZone(zone)),
             durationSeconds = (activity.endTimestamp - activity.startTimestamp).coerceAtLeast(0),

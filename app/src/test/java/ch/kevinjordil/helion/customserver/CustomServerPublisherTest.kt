@@ -130,6 +130,33 @@ class CustomServerPublisherTest {
     }
 
     @Test
+    fun `the detection context never reaches the description, only the owner's own notes do`() = runTest {
+        val activityId = db.activities().upsert(
+            Activity(
+                startTimestamp = now - 1_800,
+                endTimestamp = now,
+                sport = SportType.BADMINTON,
+                title = "Entraînement du lundi",
+                notes = "Bonne séance",
+                detectionContext = "Fréquence cardiaque 120–150 bpm (repos habituel ≈ 58 bpm).",
+                origin = ActivityOrigin.SLOT,
+                status = ActivityStatus.CONFIRMED,
+            ),
+        )
+        db.minuteSamples().upsertAll(
+            listOf(
+                MinuteSample(timestamp = now - 1_800, steps = null, intensity = null, rawKind = null, heartRate = 120, sleepStage = null),
+            ),
+        )
+
+        publisher.send(activityId)
+
+        val request = api.seenRequests.single()
+        assertEquals("Bonne séance", request.description)
+        assertTrue(!request.description.contains("Fréquence cardiaque"))
+    }
+
+    @Test
     fun `calories is omitted when there is no profile to estimate from`() = runTest {
         // publisher in setUp() has no profile wired in -- see CustomServerPublisher's own
         // "optional so tests with no profile still work" kdoc.

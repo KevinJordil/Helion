@@ -133,7 +133,7 @@ Fields:
 | `file`             | file          | The activity's TCX. Filename matches the Downloads export, e.g. `badminton-2026-08-26-2010.tcx`. |
 | `sport`            | text          | A stable, lower-case slug (`badminton`, `running`, `cycling`, `walking`, `swimming`, `other`) — never a translated label, so it never changes with the app's display language. |
 | `title`            | text          | The activity's title, or `Helion` if it has none.                    |
-| `description`      | text          | The activity's notes. May be empty.                                  |
+| `description`      | text          | The owner's own notes on the activity. May be empty. Never the detection explanation shown while reviewing a candidate -- that is diagnostic text for the app, not something sent anywhere. |
 | `start`            | text          | ISO 8601 with a UTC offset, e.g. `2026-08-26T20:10:00+02:00`.         |
 | `duration_seconds` | text (integer)| End minus start, in seconds.                                         |
 | `calories`         | text (integer)| Present only when Helion has both a complete profile and heart-rate data to estimate from — omitted entirely otherwise, never sent as `0`. |

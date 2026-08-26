@@ -117,3 +117,31 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("ALTER TABLE `publication` ADD COLUMN `lastErrorDetail` TEXT")
     }
 }
+
+/**
+ * Adds `activity.detectionContext` (see [Activity]'s own kdoc) and, for existing rows,
+ * moves detection's evidence sentence out of `notes` and into it. Before this migration,
+ * a SLOT- or DETECTED-origin candidate's `notes` held exactly the rendered
+ * `activity_candidate_note` sentence -- the only thing either detection pass ever wrote
+ * there -- which is also what was, wrongly, forwarded as the export `description`. Any row
+ * whose `notes` still has that exact shape (`origin` is SLOT or DETECTED, and the text
+ * starts with "Fréquence cardiaque" and ends with "bpm)." -- the sentence's own fixed
+ * wrapping) is therefore known, not guessed, to hold unedited detection text: it is moved
+ * to `detectionContext` and `notes` is cleared, exactly reversing the mistake. A row that
+ * does not match -- the owner replaced or appended to it after reviewing -- is left
+ * completely alone: his words stay in `notes` and `detectionContext` stays null, since
+ * there is no way to tell after the fact which part, if any, is still detection text, and
+ * losing something he actually wrote would be worse than leaving one old row's `notes`
+ * export a sentence that was already being sent before this fix shipped. No row is ever
+ * deleted or merged away either way.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `activity` ADD COLUMN `detectionContext` TEXT")
+        db.execSQL(
+            "UPDATE `activity` SET `detectionContext` = `notes`, `notes` = NULL " +
+                "WHERE `origin` IN ('SLOT', 'DETECTED') " +
+                "AND `notes` LIKE 'Fréquence cardiaque%bpm).'",
+        )
+    }
+}

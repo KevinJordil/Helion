@@ -19,6 +19,7 @@ import ch.kevinjordil.helion.store.MIGRATION_3_4
 import ch.kevinjordil.helion.store.MIGRATION_4_5
 import ch.kevinjordil.helion.store.MIGRATION_5_6
 import ch.kevinjordil.helion.store.MIGRATION_6_7
+import ch.kevinjordil.helion.store.MIGRATION_7_8
 import ch.kevinjordil.helion.strava.HttpStravaApi
 import ch.kevinjordil.helion.strava.StravaAuth
 import ch.kevinjordil.helion.strava.StravaPublisher
@@ -34,7 +35,7 @@ class AppContainer(context: Context) {
 
     val database: HelionDatabase = Room
         .databaseBuilder(context, HelionDatabase::class.java, "helion.db")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
         .build()
 
     val exportLocation = ExportLocation(context)
@@ -107,7 +108,8 @@ class AppContainer(context: Context) {
      * Wired onto [ingestor] rather than passed to its constructor -- see [Ingestor.detector]'s
      * own kdoc for why. `noteFor` renders `activity_candidate_note`, the one place a
      * detection pass' evidence (the heart-rate range it saw, against the owner's own resting
-     * rate) becomes the French sentence stored on [ch.kevinjordil.helion.store.Activity.notes].
+     * rate) becomes the French sentence stored on
+     * [ch.kevinjordil.helion.store.Activity.detectionContext].
      */
     init {
         ingestor.detector = ActivityDetector(

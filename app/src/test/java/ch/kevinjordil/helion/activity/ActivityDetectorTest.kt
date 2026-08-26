@@ -137,7 +137,49 @@ class ActivityDetectorTest {
         assertEquals(ActivityStatus.CANDIDATE, activity.status)
         assertEquals(reachedAt, activity.startTimestamp)
         assertEquals(leftAt + 60, activity.endTimestamp)
-        assertTrue(activity.notes!!.isNotBlank())
+        assertEquals("Badminton du mardi", activity.title)
+        assertTrue(activity.detectionContext!!.isNotBlank())
+        assertEquals(null, activity.notes)
+    }
+
+    @Test
+    fun `a hand-edited title on a slot-origin activity survives a later re-detection pass`() = runTest {
+        seedQuietBaseline()
+
+        val matchDate = LocalDate.ofEpochDay(95)
+        val dayStart = matchDate.atStartOfDay(zone).toEpochSecond()
+        db.slots().upsert(
+            Slot(
+                label = "Badminton du mardi",
+                dayOfWeek = matchDate.dayOfWeek,
+                startSecondOfDay = 20 * 3_600,
+                endSecondOfDay = 22 * 3_600,
+                sport = SportType.BADMINTON,
+            ),
+        )
+
+        val declaredStart = dayStart + 20 * 3_600
+        val declaredEnd = dayStart + 22 * 3_600
+        val reachedAt = dayStart + 20 * 3_600 + 10 * 60
+        val leftAt = dayStart + 21 * 3_600 + 45 * 60
+
+        val minutes = mutableListOf<MinuteSample>()
+        var t = declaredStart
+        while (t < reachedAt) { minutes.add(quiet(t)); t += 60 }
+        while (t <= leftAt) { minutes.add(elevated(t)); t += 60 }
+        while (t < declaredEnd) { minutes.add(quiet(t)); t += 60 }
+        db.minuteSamples().upsertAll(minutes)
+
+        detector.detect(dayStart, dayStart + day)
+        val created = db.activities().all().single()
+        db.activities().update(created.copy(title = "Un nom à moi"))
+
+        // Re-running detection over the exact same window must never touch the row again:
+        // `overlapping` already reports it as decided, so the hand-edited title stands.
+        val createdAgain = detector.detect(dayStart, dayStart + day)
+
+        assertEquals(0, createdAgain)
+        assertEquals("Un nom à moi", db.activities().all().single().title)
     }
 
     @Test

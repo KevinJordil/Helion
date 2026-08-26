@@ -27,10 +27,12 @@ private const val SECONDS_PER_DAY = 86_400L
  * never be recalculated, overwritten or merged away by a later [detect] call -- there is
  * simply no code path here that touches a row it did not just create.
  *
- * [noteFor] renders the localised evidence line stored on [Activity.notes] --
+ * [noteFor] renders the localised evidence line stored on [Activity.detectionContext] --
  * `activity_candidate_note` in `strings.xml` -- kept as an injected function rather than a
  * direct string-resource lookup so the passes and this orchestrator stay testable without
- * an Android `Context`.
+ * an Android `Context`. It is deliberately never written to [Activity.notes]: that field is
+ * for the owner's own words, and only those ever leave the device on export -- see
+ * [Activity.detectionContext]'s own kdoc.
  */
 class ActivityDetector(
     private val db: HelionDatabase,
@@ -69,7 +71,8 @@ class ActivityDetector(
                         endTimestamp = trimmed.end,
                         sport = slot.sport,
                         title = slot.label,
-                        notes = noteFor(trimmed.minHeartRate, trimmed.maxHeartRate, baseline.restingBpm.roundToInt()),
+                        notes = null,
+                        detectionContext = noteFor(trimmed.minHeartRate, trimmed.maxHeartRate, baseline.restingBpm.roundToInt()),
                         origin = ActivityOrigin.SLOT,
                         status = ActivityStatus.CANDIDATE,
                         slotId = slot.id,
@@ -99,7 +102,8 @@ class ActivityDetector(
                     // review, exactly like a manually drawn activity starts out.
                     sport = SportType.OTHER,
                     title = null,
-                    notes = noteFor(session.minHeartRate, session.maxHeartRate, baseline.restingBpm.roundToInt()),
+                    notes = null,
+                    detectionContext = noteFor(session.minHeartRate, session.maxHeartRate, baseline.restingBpm.roundToInt()),
                     origin = ActivityOrigin.DETECTED,
                     status = ActivityStatus.CANDIDATE,
                     slotId = null,

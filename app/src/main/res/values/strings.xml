@@ -32,6 +32,7 @@
     <string name="activity_detail_title">Activité</string>
     <string name="activity_not_found">Cette activité n\'existe plus.</string>
     <string name="activity_title_label">Titre</string>
+    <string name="activity_detection_context_label">Contexte de détection (non publié)</string>
     <string name="activity_notes_label">Notes</string>
     <string name="activity_start_label">Début</string>
     <string name="activity_end_label">Fin</string>
