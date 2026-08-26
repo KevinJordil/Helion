@@ -42,6 +42,7 @@ import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
 import ch.kevinjordil.helion.strava.StravaConfig
 import ch.kevinjordil.helion.strava.buildShareIntent
+import ch.kevinjordil.helion.strava.missingUploadScope
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.ZoneId
@@ -199,7 +200,10 @@ fun ActivityDetailScreen(
             )
             if (currentPublication.state == PublicationState.FAILED) {
                 Text(
-                    stringResource(publicationFailureReasonRes(currentPublication.lastError)),
+                    stringResource(
+                        publicationFailureReasonRes(currentPublication.lastError),
+                        *publicationFailureReasonArgs(currentPublication.lastError, currentPublication.lastErrorDetail).toTypedArray(),
+                    ),
                     style = HelionType.bodySmall,
                     color = colors.accentAmber,
                 )
@@ -213,6 +217,17 @@ fun ActivityDetailScreen(
         authStatus.lastFailure?.let { failure ->
             Text(
                 stringResource(stravaAuthFailureRes(failure), *stravaAuthFailureArgs(failure).toTypedArray()),
+                style = HelionType.bodySmall,
+                color = colors.accentAmber,
+            )
+        }
+
+        // Told proactively, from the scope Strava's own token response actually granted --
+        // not only inferred after a publish attempt comes back 401 (see
+        // PublicationFailureReason.UPLOAD_FORBIDDEN's own kdoc for that other path).
+        if (authStatus.missingUploadScope()) {
+            Text(
+                stringResource(R.string.strava_scope_write_missing),
                 style = HelionType.bodySmall,
                 color = colors.accentAmber,
             )

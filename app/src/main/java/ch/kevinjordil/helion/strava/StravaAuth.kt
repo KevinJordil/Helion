@@ -85,7 +85,24 @@ data class StravaAuthStatus(
     val connected: Boolean,
     val everConnected: Boolean,
     val lastFailure: StravaAuthFailure?,
+    /** [StravaTokenStore.grantedScope] -- see its own kdoc. Null when unknown (never connected,
+     * or connected before this field existed). */
+    val grantedScope: String?,
 )
+
+/**
+ * Whether [StravaAuthStatus.grantedScope] is known to exclude [StravaConfig.SCOPE] --
+ * i.e. whether an upload is known to be impossible without reconnecting. Strava documents
+ * the token response's `scope` as space-delimited but accepts either space or comma on the
+ * request side, so both are checked here defensively. A null or blank [StravaAuthStatus.grantedScope]
+ * means "unknown", not "missing": only an explicit grant that excludes the scope counts as
+ * missing, so an owner who connected before this field existed is not shown a false warning.
+ */
+fun StravaAuthStatus.missingUploadScope(): Boolean {
+    if (!connected) return false
+    val scope = grantedScope?.takeIf { it.isNotBlank() } ?: return false
+    return !scope.split(' ', ',').map { it.trim() }.contains(StravaConfig.SCOPE)
+}
 
 /**
  * Drives the browser-based OAuth flow (building the authorize URL, exchanging the returned
@@ -111,6 +128,7 @@ class StravaAuth(
         connected = tokenStore.isAuthorized,
         everConnected = tokenStore.hasEverConnected,
         lastFailure = tokenStore.readLastAuthFailure(),
+        grantedScope = tokenStore.grantedScope,
     )
 
     private fun refreshStatus() {
@@ -139,7 +157,15 @@ class StravaAuth(
             "?client_id=${urlEncode(StravaConfig.clientId)}" +
             "&redirect_uri=${urlEncode(StravaConfig.REDIRECT_URI)}" +
             "&response_type=code" +
-            "&approval_prompt=auto" +
+            // "force" always shows the consent screen, even if this client id was already
+            // approved before. "auto" (the default) can silently reuse an *older* approval
+            // instead -- this account's very first connection to this app was a read-only
+            // grant, and "auto" would let that narrower approval satisfy this request
+            // without ever asking again, leaving activity:write ungranted and every upload
+            // failing with a 401 that looks like a connection problem. Never revert this to
+            // "auto": the owner must see the consent screen so the scope actually requested
+            // is the scope actually granted.
+            "&approval_prompt=force" +
             "&scope=${urlEncode(StravaConfig.SCOPE)}"
     }
 
@@ -173,6 +199,13 @@ class StravaAuth(
                 refreshToken = json.getString("refresh_token"),
                 expiresAt = json.getLong("expires_at"),
             )
+            // The token exchange response's own `scope` field -- space-delimited per
+            // Strava's docs -- is the authoritative record of what was actually granted,
+            // which can be narrower than StravaConfig.SCOPE if the owner unchecked
+            // something on the consent screen. Recorded even when blank/missing (null),
+            // rather than left stale from a previous connection.
+            tokenStore.grantedScope = json.optString("scope", "").takeIf { it.isNotBlank() }
+            refreshStatus()
             null
         } catch (e: JSONException) {
             StravaAuthFailure.Rejected(e.message ?: "unexpected response")

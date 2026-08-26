@@ -9,17 +9,24 @@ import org.json.JSONObject
 /** The real network implementation of [StravaApi], built on plain [HttpURLConnection]. */
 class HttpStravaApi : StravaApi {
 
+    /**
+     * `POST /uploads` per Strava's current API reference: required fields are `file` and
+     * `data_type` (`tcx` here); `name` and `external_id` are accepted optional fields.
+     * There is no `sport_type` field on this endpoint at all -- it is not silently ignored,
+     * it is simply not part of the documented request shape, so it is never sent here. The
+     * resulting activity's sport is set afterwards via [updateActivity] (`PUT
+     * /activities/{id}`, which does document `sport_type`), once the upload has actually
+     * resolved to an activity id -- see [StravaPublisher.finalizeSport].
+     */
     override fun createUpload(
         accessToken: String,
         tcx: String,
-        sportType: String,
         name: String,
         externalId: String,
     ): UploadCreated {
         val boundary = "helion-${UUID.randomUUID()}"
         val body = ByteArrayOutputStream().apply {
             writeFormField(boundary, "data_type", "tcx")
-            writeFormField(boundary, "sport_type", sportType)
             writeFormField(boundary, "name", name)
             writeFormField(boundary, "external_id", externalId)
             writeFileField(boundary, "file", "activity.tcx", "application/octet-stream", tcx.toByteArray(Charsets.UTF_8))

@@ -3,9 +3,11 @@ package ch.kevinjordil.helion.strava
 import ch.kevinjordil.helion.store.SportType
 
 /**
- * The Strava `sport_type` value submitted with an upload (see [StravaApi.createUpload]).
- * This is independent of [tcxSport] -- it is read by Strava from the upload request itself,
- * not from the TCX body, so it can be exact even where TCX's own three-value schema cannot.
+ * The Strava `sport_type` value set via [StravaApi.updateActivity] once an upload resolves
+ * (see [StravaPublisher.finalizeSport]) -- `POST /uploads` itself has no field for this at
+ * all, so it cannot be sent with the upload. This is independent of [tcxSport] -- it is set
+ * through a request field, not read from the TCX body, so it can be exact even where TCX's
+ * own three-value schema cannot.
  *
  * Strava has a dedicated `Badminton` sport type, used directly. The others have no exact
  * Strava counterpart for what this strap can report (no GPS, no distance), so the closest

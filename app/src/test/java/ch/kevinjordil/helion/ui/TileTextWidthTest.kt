@@ -754,12 +754,19 @@ class StravaLabelWidthTest {
         "Échec de la publication",
     )
 
+    /**
+     * The `strava_reason_*` sentences with a plausible worst-case Strava detail spliced into
+     * the ones that carry a `%1$s` placeholder ([ch.kevinjordil.helion.store.Publication.lastErrorDetail],
+     * see [ch.kevinjordil.helion.strava.describeStravaUploadError]) -- deliberately long, same
+     * reasoning as [authFailureMessages]' own kdoc.
+     */
     private fun reasonMessages() = listOf(
         "Compte Strava non connecté. Connectez-vous pour publier.",
         "Autorisation Strava expirée. Reconnectez-vous.",
         "Strava n'est pas configuré sur cet appareil. Utilisez le partage.",
-        "Connexion à Strava impossible. Réessayez plus tard.",
-        "Strava a refusé la publication.",
+        "Connexion à Strava impossible : Unable to resolve host",
+        "Strava a refusé la publication : Bad Request (Application client_id invalid)",
+        "Droits insuffisants : HTTP 401: activity:write missing",
     )
 
     /**
@@ -775,7 +782,20 @@ class StravaLabelWidthTest {
     )
 
     private fun settingsStatusMessages() = listOf("Compte connecté.", "Compte non connecté.")
-    private fun settingsActionLabels() = listOf("Se connecter à Strava", "Se déconnecter de Strava")
+    private fun settingsActionLabels() = listOf("Se connecter à Strava", "Se déconnecter de Strava", "Se reconnecter à Strava")
+
+    /**
+     * The granted-scope line (`strava_settings_scope`/`strava_settings_scope_unknown`) and
+     * the missing-write-scope warning (`strava_scope_write_missing`), added so the owner can
+     * see his upload permission at a glance instead of only after a failed publish. The
+     * scope string itself is Strava's own space-delimited list, plausibly all six documented
+     * values at once.
+     */
+    private fun scopeMessages() = listOf(
+        "Autorisations accordées : read activity:write activity:read_all",
+        "Autorisations accordées : inconnues.",
+        "Droits insuffisants pour publier sur Strava. Reconnectez-vous.",
+    )
 
     @Test
     fun `the Strava section label fits a full-width row at a 1_3x font scale`() {
@@ -800,6 +820,14 @@ class StravaLabelWidthTest {
         settingsActionLabels().forEach { label ->
             val width = proseWidthDp(label)
             assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `the granted-scope line and write-missing warning fit within two lines at the narrowest width`() {
+        scopeMessages().forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
         }
     }
 

@@ -16,6 +16,7 @@ import ch.kevinjordil.helion.store.MIGRATION_2_3
 import ch.kevinjordil.helion.store.MIGRATION_3_4
 import ch.kevinjordil.helion.store.MIGRATION_4_5
 import ch.kevinjordil.helion.store.MIGRATION_5_6
+import ch.kevinjordil.helion.store.MIGRATION_6_7
 import ch.kevinjordil.helion.strava.HttpStravaApi
 import ch.kevinjordil.helion.strava.StravaAuth
 import ch.kevinjordil.helion.strava.StravaPublisher
@@ -30,7 +31,7 @@ class AppContainer(context: Context) {
 
     val database: HelionDatabase = Room
         .databaseBuilder(context, HelionDatabase::class.java, "helion.db")
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
         .build()
 
     val exportLocation = ExportLocation(context)

@@ -105,3 +105,15 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("ALTER TABLE `publication` ADD COLUMN `uploadId` TEXT")
     }
 }
+
+/**
+ * Adds `publication.lastErrorDetail` -- Strava's own explanation text for a failed publish
+ * attempt (see [Publication]'s own kdoc), which used to be thrown away entirely: every
+ * failure kind collapsed to a bare reason code with no way to show what Strava actually
+ * said. A plain ADD COLUMN: the column is new and nullable, nothing existing is rebuilt.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `publication` ADD COLUMN `lastErrorDetail` TEXT")
+    }
+}

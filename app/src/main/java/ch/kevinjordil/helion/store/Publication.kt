@@ -49,6 +49,12 @@ enum class PublicationState {
  * [uploadId] is the target's asynchronous job id for an in-flight upload (see
  * [PublicationState.UPLOADING]'s kdoc) -- it is what makes an interrupted upload resumable
  * rather than resubmitted from scratch.
+ *
+ * [lastErrorDetail] is Strava's own explanation text for [lastError] (its response body's
+ * `message`/`errors[]`, or the field-name-shaped detail an HTTP status alone cannot convey --
+ * see [ch.kevinjordil.helion.strava.describeStravaError]), never the access token, refresh
+ * token or client secret. Null for the reasons that need no further detail ([lastError] values
+ * decided locally, before any request reached Strava, such as no stored authorisation at all).
  */
 @Entity(
     tableName = "publication",
@@ -70,6 +76,7 @@ data class Publication(
     val state: PublicationState,
     val lastAttempt: Long?,
     val lastError: String?,
+    val lastErrorDetail: String? = null,
 )
 
 @Dao

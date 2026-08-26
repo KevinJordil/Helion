@@ -11,6 +11,7 @@ import ch.kevinjordil.helion.store.PublicationDao
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
 import ch.kevinjordil.helion.ui.settings.Profile
+import java.net.HttpURLConnection
 import java.time.ZoneId
 
 /** Machine-readable failure reasons stored in [Publication.lastError], mapped to French in the UI. */
@@ -21,8 +22,39 @@ object PublicationFailureReason {
     /** Was authorised before; Strava has since revoked or rejected that authorisation. */
     const val AUTH_EXPIRED = "auth_expired"
     const val NOT_CONFIGURED = "not_configured"
+
+    /** The request never reached Strava, or its response never came back -- a genuine transport failure. */
     const val NETWORK_ERROR = "network_error"
+
+    /**
+     * Strava answered with a non-2xx status other than 401 -- a validation error, a
+     * malformed request, a server-side failure. [Publication.lastErrorDetail] carries its
+     * own message.
+     */
     const val REMOTE_ERROR = "remote_error"
+
+    /**
+     * Strava answered 401 to an upload-related call made with a token [StravaAccessTokenProvider]
+     * just handed over as valid. Distinct from [AUTH_EXPIRED]: that reason means there was no
+     * usable token at all (the auth layer already knew and said so before any request went
+     * out); this one means a token that *was* accepted moments earlier got rejected by the
+     * upload/activity endpoints specifically, which is what a token authorised without the
+     * `activity:write` scope looks like from here. Reconnecting fixes [AUTH_EXPIRED]; it only
+     * fixes this if the owner actually grants the scope this time -- worth telling apart so a
+     * scope problem is never reported as if it were an expired token.
+     */
+    const val UPLOAD_FORBIDDEN = "upload_forbidden"
+}
+
+/**
+ * Strava's own explanation for a rejected upload/activity-update call, with the HTTP status
+ * prefixed -- [describeStravaError] alone only falls back to a bare status when the body
+ * does not parse as Strava's documented error shape, so a parsed message would otherwise
+ * carry no status at all. Never built from anything secret, same as [describeStravaError].
+ */
+internal fun describeStravaUploadError(exception: StravaHttpException): String {
+    val described = describeStravaError(exception)
+    return if (described.startsWith("HTTP ")) described else "HTTP ${exception.statusCode}: $described"
 }
 
 /**
@@ -83,20 +115,24 @@ class StravaPublisher(
             return Result.Failed(reason)
         }
 
+        val name = activityName(activity)
+        val sportType = stravaSportType(activity.sport)
+
         if (existing != null && existing.state == PublicationState.PUBLISHED && existing.remoteId != null) {
             return try {
-                api.updateActivity(accessToken, existing.remoteId, activityName(activity), stravaSportType(activity.sport))
-                publications.upsert(existing.copy(lastAttempt = now(), lastError = null))
+                api.updateActivity(accessToken, existing.remoteId, name, sportType)
+                publications.upsert(existing.copy(lastAttempt = now(), lastError = null, lastErrorDetail = null))
                 Result.Published(existing.remoteId)
             } catch (e: Exception) {
-                recordFailure(activityId, existing, PublicationFailureReason.NETWORK_ERROR)
-                Result.Failed(PublicationFailureReason.NETWORK_ERROR)
+                val (reason, detail) = classifyFailure(e)
+                recordFailure(activityId, existing, reason, detail)
+                Result.Failed(reason)
             }
         }
 
         val resumableUploadId = existing?.uploadId
         if (existing != null && existing.state == PublicationState.UPLOADING && resumableUploadId != null) {
-            return resolveUpload(activityId, accessToken, resumableUploadId)
+            return resolveUpload(activityId, accessToken, resumableUploadId, name, sportType)
         }
 
         val samples = minuteSamples.between(activity.startTimestamp, activity.endTimestamp)
@@ -105,7 +141,10 @@ class StravaPublisher(
         val externalId = "helion-activity-$activityId"
 
         return try {
-            val created = api.createUpload(accessToken, tcx, stravaSportType(activity.sport), activityName(activity), externalId)
+            // Strava's `POST /uploads` has no `sport_type` field at all (see
+            // [HttpStravaApi.createUpload]'s own kdoc) -- the real sport is set afterwards,
+            // once the upload resolves, via `PUT /activities/{id}` (see [resolveUpload]).
+            val created = api.createUpload(accessToken, tcx, name, externalId)
             // Written before the poll loop even starts -- see the class kdoc's case 3.
             publications.upsert(
                 Publication(
@@ -118,28 +157,39 @@ class StravaPublisher(
                     lastError = null,
                 ),
             )
-            resolveUpload(activityId, accessToken, created.uploadId)
+            resolveUpload(activityId, accessToken, created.uploadId, name, sportType)
         } catch (e: Exception) {
-            recordFailure(activityId, existing, PublicationFailureReason.NETWORK_ERROR)
-            Result.Failed(PublicationFailureReason.NETWORK_ERROR)
+            val (reason, detail) = classifyFailure(e)
+            recordFailure(activityId, existing, reason, detail)
+            Result.Failed(reason)
         }
     }
 
-    private suspend fun resolveUpload(activityId: Long, accessToken: String, uploadId: String): Result {
+    /**
+     * Resolves an in-flight upload job -- freshly submitted or resumed from an interrupted
+     * previous attempt -- and, on success, sets the real sport via [finalizeSport] since
+     * `POST /uploads` never got the chance to (see [publish]'s own comment on that call).
+     */
+    private suspend fun resolveUpload(activityId: Long, accessToken: String, uploadId: String, name: String, sportType: String): Result {
         val status = try {
             api.pollUpload(accessToken, uploadId)
         } catch (e: Exception) {
-            // Poll itself failed (e.g. transient network) -- the row keeps its uploadId
-            // untouched so the next attempt polls the same job rather than resubmitting.
-            return Result.Failed(PublicationFailureReason.NETWORK_ERROR)
+            // Poll itself failed -- the row's state and uploadId are left exactly as they
+            // were (see recordPollFailureDetail's own kdoc) so the next attempt polls the
+            // same job rather than resubmitting.
+            val (reason, detail) = classifyFailure(e)
+            recordPollFailureDetail(activityId, reason, detail)
+            return Result.Failed(reason)
         }
         return when (status) {
             is UploadStatus.Done -> {
                 markPublished(activityId, status.activityId)
+                finalizeSport(accessToken, status.activityId, name, sportType)
                 Result.Published(status.activityId)
             }
             is UploadStatus.Duplicate -> {
                 markPublished(activityId, status.activityId)
+                finalizeSport(accessToken, status.activityId, name, sportType)
                 Result.Published(status.activityId)
             }
             is UploadStatus.Processing -> {
@@ -166,10 +216,30 @@ class StravaPublisher(
                         state = PublicationState.FAILED,
                         lastAttempt = now(),
                         lastError = PublicationFailureReason.REMOTE_ERROR,
+                        lastErrorDetail = status.message,
                     ),
                 )
                 Result.Failed(PublicationFailureReason.REMOTE_ERROR)
             }
+        }
+    }
+
+    /**
+     * Sets the real sport and name on a just-uploaded remote activity via `PUT
+     * /activities/{id}` -- the endpoint that actually accepts `sport_type`, unlike `POST
+     * /uploads` (see [HttpStravaApi.createUpload]'s own kdoc). Best-effort: the file is
+     * already safely and durably uploaded by the time this runs, so a failure here (the
+     * token that just worked for the upload/poll calls would have to fail moments later)
+     * is swallowed rather than turning an otherwise-successful publish into a failure --
+     * the activity still exists on Strava, just possibly under the wrong sport until the
+     * next publish attempt (the already-published path at the top of [publish] retries
+     * this same call every time).
+     */
+    private fun finalizeSport(accessToken: String, remoteId: String, name: String, sportType: String) {
+        try {
+            api.updateActivity(accessToken, remoteId, name, sportType)
+        } catch (e: Exception) {
+            // Best-effort, see kdoc above.
         }
     }
 
@@ -187,8 +257,31 @@ class StravaPublisher(
         )
     }
 
-    private suspend fun recordFailure(activityId: Long, existing: Publication?, reason: String) {
-        val row = existing?.copy(state = PublicationState.FAILED, lastAttempt = now(), lastError = reason)
+    /**
+     * [reason, detail] for an exception from any upload-related [api] call. A
+     * [StravaHttpException] is a genuine answer from Strava -- its status and body say
+     * why -- so it becomes [PublicationFailureReason.UPLOAD_FORBIDDEN] (401, most likely an
+     * insufficient scope on an otherwise-valid token) or [PublicationFailureReason.REMOTE_ERROR]
+     * (any other non-2xx, with Strava's own message as the detail). Anything else -- no
+     * connectivity, a timeout, a reset connection -- never reached Strava at all and is
+     * [PublicationFailureReason.NETWORK_ERROR]; its detail is the local exception's own
+     * message, which never contains the access token, refresh token or client secret since
+     * none of those flow through an [java.io.IOException] message.
+     */
+    private fun classifyFailure(e: Exception): Pair<String, String?> = when (e) {
+        is StravaHttpException -> {
+            val reason = if (e.statusCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                PublicationFailureReason.UPLOAD_FORBIDDEN
+            } else {
+                PublicationFailureReason.REMOTE_ERROR
+            }
+            reason to describeStravaUploadError(e)
+        }
+        else -> PublicationFailureReason.NETWORK_ERROR to (e.message ?: "network error")
+    }
+
+    private suspend fun recordFailure(activityId: Long, existing: Publication?, reason: String, detail: String? = null) {
+        val row = existing?.copy(state = PublicationState.FAILED, lastAttempt = now(), lastError = reason, lastErrorDetail = detail)
             ?: Publication(
                 activityId = activityId,
                 target = PublicationTarget.STRAVA,
@@ -197,8 +290,21 @@ class StravaPublisher(
                 state = PublicationState.FAILED,
                 lastAttempt = now(),
                 lastError = reason,
+                lastErrorDetail = detail,
             )
         publications.upsert(row)
+    }
+
+    /**
+     * Records only [reason]/[detail] for a resumable poll's transient failure, leaving
+     * [Publication.state] and [Publication.uploadId] exactly as they were -- unlike
+     * [recordFailure], this never flips the row to [PublicationState.FAILED]: the upload
+     * job is still alive on Strava's side, and the whole point of [PublicationState.UPLOADING]
+     * is that the next attempt polls it again instead of resubmitting.
+     */
+    private suspend fun recordPollFailureDetail(activityId: Long, reason: String, detail: String?) {
+        val row = publications.get(activityId, PublicationTarget.STRAVA) ?: return
+        publications.upsert(row.copy(lastAttempt = now(), lastError = reason, lastErrorDetail = detail))
     }
 
     /**

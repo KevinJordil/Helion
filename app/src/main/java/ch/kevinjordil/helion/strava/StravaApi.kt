@@ -34,8 +34,12 @@ interface StravaApi {
      * Submits [tcx] as a new upload. [externalId] is Strava's own de-duplication key: a
      * second submit with the same value that Strava has already seen resolves to
      * [UploadStatus.Duplicate] instead of creating a second activity.
+     *
+     * Deliberately takes no sport type: Strava's `POST /uploads` has no field for one (see
+     * [HttpStravaApi.createUpload]'s own kdoc) -- the caller sets the real sport afterwards,
+     * once the upload resolves, via [updateActivity].
      */
-    fun createUpload(accessToken: String, tcx: String, sportType: String, name: String, externalId: String): UploadCreated
+    fun createUpload(accessToken: String, tcx: String, name: String, externalId: String): UploadCreated
 
     fun pollUpload(accessToken: String, uploadId: String): UploadStatus
 

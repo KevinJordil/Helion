@@ -54,6 +54,18 @@ class StravaTokenStore(context: Context) {
         get() = prefs.getString(KEY_LAST_AUTH_FAILURE_DETAIL, null)
         set(value) = prefs.edit().putString(KEY_LAST_AUTH_FAILURE_DETAIL, value).apply()
 
+    /**
+     * The space-delimited scope Strava's token exchange actually granted (its `scope` field --
+     * see [StravaAuth.exchangeCode]), which can be narrower than [StravaConfig.SCOPE] requested
+     * if the owner unchecked something on the consent screen. Null until a code exchange has
+     * completed at least once since this field was added, or after [clear]. This is what lets
+     * Réglages tell the owner he lacks upload permission before he ever attempts a publish,
+     * instead of only after a 401.
+     */
+    var grantedScope: String?
+        get() = prefs.getString(KEY_GRANTED_SCOPE, null)
+        set(value) = prefs.edit().putString(KEY_GRANTED_SCOPE, value).apply()
+
     fun save(accessToken: String, refreshToken: String, expiresAt: Long) {
         this.accessToken = accessToken
         this.refreshToken = refreshToken
@@ -80,5 +92,6 @@ class StravaTokenStore(context: Context) {
         const val KEY_EVER_CONNECTED = "has_ever_connected"
         const val KEY_LAST_AUTH_FAILURE_KIND = "last_auth_failure_kind"
         const val KEY_LAST_AUTH_FAILURE_DETAIL = "last_auth_failure_detail"
+        const val KEY_GRANTED_SCOPE = "granted_scope"
     }
 }

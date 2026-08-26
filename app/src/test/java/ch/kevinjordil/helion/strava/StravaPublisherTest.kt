@@ -10,9 +10,11 @@ import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
 import ch.kevinjordil.helion.store.SportType
+import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -44,15 +46,16 @@ private class FakeStravaApi : StravaApi {
     var pollResult: UploadStatus = UploadStatus.Processing
     var throwOnCreate: Exception? = null
     var throwOnPoll: Exception? = null
+    var throwOnUpdate: Exception? = null
     val seenExternalIds = mutableListOf<String>()
-    val seenSportTypes = mutableListOf<String>()
     val seenTcx = mutableListOf<String>()
+    val seenUpdateNames = mutableListOf<String>()
+    val seenUpdateSportTypes = mutableListOf<String>()
 
-    override fun createUpload(accessToken: String, tcx: String, sportType: String, name: String, externalId: String): UploadCreated {
+    override fun createUpload(accessToken: String, tcx: String, name: String, externalId: String): UploadCreated {
         createUploadCalls++
         throwOnCreate?.let { throw it }
         seenExternalIds.add(externalId)
-        seenSportTypes.add(sportType)
         seenTcx.add(tcx)
         return UploadCreated(nextUploadId)
     }
@@ -65,6 +68,9 @@ private class FakeStravaApi : StravaApi {
 
     override fun updateActivity(accessToken: String, remoteId: String, name: String, sportType: String) {
         updateCalls++
+        throwOnUpdate?.let { throw it }
+        seenUpdateNames.add(name)
+        seenUpdateSportTypes.add(sportType)
     }
 }
 
@@ -136,7 +142,10 @@ class StravaPublisherTest {
         assertEquals(1, api.createUploadCalls)
         assertEquals(1, api.pollCalls)
         assertEquals(listOf("helion-activity-$activityId"), api.seenExternalIds)
-        assertEquals(listOf("Badminton"), api.seenSportTypes)
+        // The sport is never sent to POST /uploads (it has no field for one) -- it is set
+        // afterwards via PUT /activities/{id}, once the upload has actually resolved.
+        assertEquals(1, api.updateCalls)
+        assertEquals(listOf("Badminton"), api.seenUpdateSportTypes)
 
         val row = db.publications().get(activityId, PublicationTarget.STRAVA)
         assertEquals(PublicationState.PUBLISHED, row?.state)
@@ -329,5 +338,118 @@ class StravaPublisherTest {
 
         assertEquals(1, api.seenTcx.size)
         assertTrue(api.seenTcx.single().contains("<Calories>0<"))
+    }
+
+    /**
+     * The defect this whole file's own kdoc leads with: [StravaHttpException] extends
+     * [IOException], so a bare `catch (e: Exception)` used to map an HTTP error response,
+     * a 401, and a genuine transport failure to the exact same [PublicationFailureReason.NETWORK_ERROR] --
+     * discarding the status code and Strava's own response body every time. These three
+     * tests are the guarantee that each of those three cases now produces a distinct
+     * outcome, with Strava's message preserved in [ch.kevinjordil.helion.store.Publication.lastErrorDetail]
+     * wherever Strava actually answered.
+     */
+    @Test
+    fun `an HTTP error response from createUpload is reported as a remote error carrying Strava's own message`() = runTest {
+        val activityId = seedActivity()
+        api.throwOnCreate = StravaHttpException(
+            statusCode = 400,
+            body = """{"message":"Bad Request","errors":[{"resource":"Upload","field":"data_type","code":"invalid"}]}""",
+            message = "Strava request failed with HTTP 400",
+        )
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.REMOTE_ERROR), result)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationFailureReason.REMOTE_ERROR, row?.lastError)
+        assertTrue(row?.lastErrorDetail.orEmpty().contains("400"))
+        assertTrue(row?.lastErrorDetail.orEmpty().contains("Bad Request"))
+    }
+
+    @Test
+    fun `a 401 from createUpload is reported as an insufficient-scope upload failure, never as an expired token`() = runTest {
+        val activityId = seedActivity()
+        api.throwOnCreate = StravaHttpException(
+            statusCode = 401,
+            body = """{"message":"Authorization Error","errors":[{"resource":"Athlete","field":"activity:write","code":"missing"}]}""",
+            message = "Strava request failed with HTTP 401",
+        )
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.UPLOAD_FORBIDDEN), result)
+        assertNotEquals(PublicationFailureReason.AUTH_EXPIRED, PublicationFailureReason.UPLOAD_FORBIDDEN)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationFailureReason.UPLOAD_FORBIDDEN, row?.lastError)
+        assertTrue(row?.lastErrorDetail.orEmpty().contains("401"))
+    }
+
+    @Test
+    fun `a genuine transport failure from createUpload is reported as a network error, distinct from the other two`() = runTest {
+        val activityId = seedActivity()
+        api.throwOnCreate = IOException("Unable to resolve host")
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.NETWORK_ERROR), result)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationFailureReason.NETWORK_ERROR, row?.lastError)
+        assertEquals("Unable to resolve host", row?.lastErrorDetail)
+        assertNotEquals(row?.lastError, PublicationFailureReason.REMOTE_ERROR)
+        assertNotEquals(row?.lastError, PublicationFailureReason.UPLOAD_FORBIDDEN)
+    }
+
+    @Test
+    fun `a poll error carrying an HTTP status is classified the same way as a createUpload error`() = runTest {
+        val activityId = seedActivity()
+        db.publications().upsert(
+            ch.kevinjordil.helion.store.Publication(
+                activityId = activityId,
+                target = PublicationTarget.STRAVA,
+                remoteId = null,
+                uploadId = "upload-in-flight",
+                state = PublicationState.UPLOADING,
+                lastAttempt = now - 60,
+                lastError = null,
+            ),
+        )
+        api.throwOnPoll = StravaHttpException(statusCode = 401, body = """{"message":"Authorization Error"}""", message = "HTTP 401")
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Failed(PublicationFailureReason.UPLOAD_FORBIDDEN), result)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        // Still resumable: a poll failure never flips the row to FAILED or drops uploadId.
+        assertEquals(PublicationState.UPLOADING, row?.state)
+        assertEquals("upload-in-flight", row?.uploadId)
+        assertEquals(PublicationFailureReason.UPLOAD_FORBIDDEN, row?.lastError)
+        assertTrue(row?.lastErrorDetail.orEmpty().contains("401"))
+    }
+
+    @Test
+    fun `Strava's own error message from a poll result is preserved, not discarded for a bare reason code`() = runTest {
+        val activityId = seedActivity()
+        api.pollResult = UploadStatus.Errored("file is a duplicate of another upload")
+
+        val result = publisher.publish(activityId)
+
+        assertTrue(result is StravaPublisher.Result.Failed)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationFailureReason.REMOTE_ERROR, row?.lastError)
+        assertEquals("file is a duplicate of another upload", row?.lastErrorDetail)
+    }
+
+    @Test
+    fun `a failure finalising the sport after a successful upload never turns success into failure`() = runTest {
+        val activityId = seedActivity()
+        api.pollResult = UploadStatus.Done("remote-42")
+        api.throwOnUpdate = IOException("transient")
+
+        val result = publisher.publish(activityId)
+
+        assertEquals(StravaPublisher.Result.Published("remote-42"), result)
+        val row = db.publications().get(activityId, PublicationTarget.STRAVA)
+        assertEquals(PublicationState.PUBLISHED, row?.state)
     }
 }

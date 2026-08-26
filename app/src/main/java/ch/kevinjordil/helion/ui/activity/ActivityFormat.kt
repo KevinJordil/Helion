@@ -60,7 +60,23 @@ fun publicationFailureReasonRes(reason: String?): Int = when (reason) {
     PublicationFailureReason.AUTH_EXPIRED -> R.string.strava_reason_auth_expired
     PublicationFailureReason.NOT_CONFIGURED -> R.string.strava_reason_not_configured
     PublicationFailureReason.NETWORK_ERROR -> R.string.strava_reason_network_error
+    PublicationFailureReason.UPLOAD_FORBIDDEN -> R.string.strava_reason_upload_forbidden
     else -> R.string.strava_reason_remote_error
+}
+
+/**
+ * The `stringResource` format args for [publicationFailureReasonRes] --
+ * [ch.kevinjordil.helion.store.Publication.lastErrorDetail] fills the one `%1$s` placeholder
+ * every variant carries except the three decided locally before any request ever reached
+ * Strava ([PublicationFailureReason.NEVER_CONNECTED], [PublicationFailureReason.AUTH_EXPIRED],
+ * [PublicationFailureReason.NOT_CONFIGURED]), which have nothing from Strava to show.
+ */
+fun publicationFailureReasonArgs(reason: String?, detail: String?): List<Any> = when (reason) {
+    PublicationFailureReason.NEVER_CONNECTED,
+    PublicationFailureReason.AUTH_EXPIRED,
+    PublicationFailureReason.NOT_CONFIGURED,
+    -> emptyList()
+    else -> listOf(detail ?: "?")
 }
 
 /**

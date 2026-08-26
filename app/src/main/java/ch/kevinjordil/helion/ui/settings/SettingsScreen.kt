@@ -34,6 +34,7 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.BuildConfig
 import ch.kevinjordil.helion.strava.StravaConfig
+import ch.kevinjordil.helion.strava.missingUploadScope
 import ch.kevinjordil.helion.ui.activity.stravaAuthFailureArgs
 import ch.kevinjordil.helion.ui.activity.stravaAuthFailureRes
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
@@ -276,6 +277,29 @@ private fun StravaSection(container: AppContainer) {
         color = colors.textSecondary,
     )
 
+    // The scope Strava's own token response actually granted (see StravaAuth.exchangeCode),
+    // shown plainly so the owner can see at a glance whether he has upload permission --
+    // rather than only discovering a missing scope once a publish attempt fails with 401.
+    if (authStatus.connected) {
+        val scope = authStatus.grantedScope
+        Text(
+            if (scope != null) {
+                stringResource(R.string.strava_settings_scope, scope)
+            } else {
+                stringResource(R.string.strava_settings_scope_unknown)
+            },
+            style = HelionType.bodySmall,
+            color = colors.textSecondary,
+        )
+        if (authStatus.missingUploadScope()) {
+            Text(
+                stringResource(R.string.strava_scope_write_missing),
+                style = HelionType.bodySmall,
+                color = colors.accentAmber,
+            )
+        }
+    }
+
     authStatus.lastFailure?.let { failure ->
         Text(
             stringResource(stravaAuthFailureRes(failure), *stravaAuthFailureArgs(failure).toTypedArray()),
@@ -284,13 +308,16 @@ private fun StravaSection(container: AppContainer) {
         )
     }
 
-    if (authStatus.connected) {
-        OutlinedButton(onClick = { container.stravaAuth.disconnect() }) {
-            Text(stringResource(R.string.strava_disconnect_action))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (authStatus.connected) {
+            OutlinedButton(onClick = { container.stravaAuth.disconnect() }) {
+                Text(stringResource(R.string.strava_disconnect_action))
+            }
         }
-    } else {
-        Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(container.stravaAuth.authorizeUrl()))) }) {
-            Text(stringResource(R.string.strava_connect_action))
+        if (!authStatus.connected || authStatus.missingUploadScope()) {
+            Button(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(container.stravaAuth.authorizeUrl()))) }) {
+                Text(stringResource(if (authStatus.connected) R.string.strava_reconnect_action else R.string.strava_connect_action))
+            }
         }
     }
 }

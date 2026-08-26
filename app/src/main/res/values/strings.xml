@@ -59,14 +59,19 @@
     <string name="strava_reason_never_connected">Compte Strava non connecté. Connectez-vous pour publier.</string>
     <string name="strava_reason_auth_expired">Autorisation Strava expirée. Reconnectez-vous.</string>
     <string name="strava_reason_not_configured">Strava n\'est pas configuré sur cet appareil. Utilisez le partage.</string>
-    <string name="strava_reason_network_error">Connexion à Strava impossible. Réessayez plus tard.</string>
-    <string name="strava_reason_remote_error">Strava a refusé la publication.</string>
+    <string name="strava_reason_network_error">Connexion à Strava impossible : %1$s</string>
+    <string name="strava_reason_remote_error">Strava a refusé la publication : %1$s</string>
+    <string name="strava_reason_upload_forbidden">Droits insuffisants : %1$s</string>
     <string name="strava_auth_declined">Autorisation refusée sur Strava : %1$s</string>
     <string name="strava_auth_rejected">Strava a refusé la connexion : %1$s</string>
     <string name="strava_auth_network_error">Connexion à Strava impossible : %1$s</string>
     <string name="strava_settings_section_title">Strava</string>
     <string name="strava_settings_connected">Compte connecté.</string>
     <string name="strava_settings_not_connected">Compte non connecté.</string>
+    <string name="strava_settings_scope">Autorisations accordées : %1$s</string>
+    <string name="strava_settings_scope_unknown">Autorisations accordées : inconnues.</string>
+    <string name="strava_scope_write_missing">Droits insuffisants pour publier sur Strava. Reconnectez-vous.</string>
+    <string name="strava_reconnect_action">Se reconnecter à Strava</string>
 
     <string name="calorie_section_title">Calories (estimé)</string>
     <string name="calorie_value">≈ %1$d kcal</string>
