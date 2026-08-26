@@ -82,7 +82,7 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .allowMainThreadQueries()
             .build()
 
@@ -177,6 +177,25 @@ class MigrationTest {
             assertEquals(
                 "Bad Request (Upload data_type invalid)",
                 db.publications().get(activityId, PublicationTarget.STRAVA)?.lastErrorDetail,
+            )
+
+            // MIGRATION_9_10 added publication.lastMessage from nothing; it must
+            // round-trip on a row created after the migration ran.
+            db.publications().upsert(
+                Publication(
+                    activityId = activityId,
+                    target = PublicationTarget.CUSTOM_SERVER,
+                    remoteId = null,
+                    uploadId = null,
+                    state = PublicationState.PUBLISHED,
+                    lastAttempt = 7_000,
+                    lastError = null,
+                    lastMessage = "HTTP 202: Activité reçue.",
+                ),
+            )
+            assertEquals(
+                "HTTP 202: Activité reçue.",
+                db.publications().get(activityId, PublicationTarget.CUSTOM_SERVER)?.lastMessage,
             )
         } finally {
             db.close()
@@ -289,7 +308,7 @@ class MigrationTest {
         seedVersion7Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .allowMainThreadQueries()
             .build()
 
@@ -340,7 +359,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .allowMainThreadQueries()
             .build()
 

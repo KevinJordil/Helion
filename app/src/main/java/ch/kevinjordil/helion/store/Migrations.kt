@@ -161,3 +161,16 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         db.execSQL("ALTER TABLE `activity` ADD COLUMN `notified` INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * Adds `publication.lastMessage` -- the owner's own server's verbatim response text for a
+ * *successful* send (see [Publication.lastMessage]'s own kdoc), which used to be read off
+ * the connection and thrown away entirely: a repeat send and a fresh one both just said
+ * "sent", with no way to see what the server actually answered. A plain ADD COLUMN: the
+ * column is new and nullable, nothing existing is rebuilt.
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `publication` ADD COLUMN `lastMessage` TEXT")
+    }
+}

@@ -297,6 +297,16 @@ fun ActivityDetailScreen(
                     style = HelionType.bodySmall,
                     color = colors.accentAmber,
                 )
+            } else if (currentCustomServerPublication.lastMessage != null) {
+                // The server's own text, verbatim (status included) -- see
+                // CustomServerPublisher's own kdoc for why this replaces nothing when
+                // there was no real message to show (an empty body, or one unreadable as
+                // text): the state label above already stands on its own in that case.
+                Text(
+                    stringResource(R.string.custom_server_response_detail, currentCustomServerPublication.lastMessage),
+                    style = HelionType.bodySmall,
+                    color = colors.textSecondary,
+                )
             }
         }
 

@@ -22,6 +22,16 @@ data class CustomServerSendRequest(
 )
 
 /**
+ * A 2xx response from the owner's own server, kept verbatim: [statusCode] and [body] exactly
+ * as sent, before any sanitizing or capping -- that happens once, in
+ * [CustomServerPublisher], the same place a non-2xx response's body already gets that
+ * treatment. `200` and `202` both mean success (the owner's server uses `200` for "already
+ * received, nothing re-sent to Strava" and `202` for "freshly accepted") -- [CustomServerPublisher]
+ * is what turns that distinction into a stored [ch.kevinjordil.helion.store.PublicationState].
+ */
+data class CustomServerResponse(val statusCode: Int, val body: String)
+
+/**
  * The one call [CustomServerPublisher] needs. Kept as an interface so tests can script a
  * non-2xx response or a transport failure without a real network call; [HttpCustomServerApi]
  * is the only implementation used outside tests.
@@ -30,11 +40,12 @@ interface CustomServerApi {
 
     /**
      * POSTs [request] as `multipart/form-data` to [serverUrl] with `Authorization: Bearer
-     * $token`. Throws [CustomServerHttpException] on a non-2xx response, or a plain
-     * [IOException] (unreachable host, timeout, reset connection, ...) when the request
-     * never got a response at all.
+     * $token`. Returns the response verbatim on any 2xx status (see [CustomServerResponse]).
+     * Throws [CustomServerHttpException] on a non-2xx response, or a plain [IOException]
+     * (unreachable host, timeout, reset connection, ...) when the request never got a
+     * response at all.
      */
-    fun send(serverUrl: String, token: String, request: CustomServerSendRequest)
+    fun send(serverUrl: String, token: String, request: CustomServerSendRequest): CustomServerResponse
 }
 
 /**

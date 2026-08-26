@@ -22,6 +22,7 @@ import ch.kevinjordil.helion.store.MIGRATION_5_6
 import ch.kevinjordil.helion.store.MIGRATION_6_7
 import ch.kevinjordil.helion.store.MIGRATION_7_8
 import ch.kevinjordil.helion.store.MIGRATION_8_9
+import ch.kevinjordil.helion.store.MIGRATION_9_10
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
 import ch.kevinjordil.helion.ui.settings.CustomServerConfig
 import ch.kevinjordil.helion.ui.settings.NotificationPreference
@@ -36,7 +37,7 @@ class AppContainer(context: Context) {
         .databaseBuilder(context, HelionDatabase::class.java, "helion.db")
         .addMigrations(
             MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
-            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
         )
         .build()
 

@@ -145,9 +145,14 @@ A plain `http://` URL is refused until you explicitly tick the confirmation
 checkbox next to it in Réglages — an activity carries heart-rate data, and sending
 it in clear text is a choice, not a default.
 
-Any non-2xx response, an unreachable host, and a rejected token each show their own
-message on the activity detail screen — the real HTTP status and response body for
-the first, the transport error for the second, never a generic "failed".
+Any 2xx response is a success — `200` and `202` both are, `200` meaning "already
+received this activity, nothing was re-sent to Strava" and `202` meaning "freshly
+accepted"; the activity detail screen tells the two apart. Whatever your server
+answers — success or failure — its own response text is shown verbatim on the
+activity detail screen, next to the real HTTP status, so its exact wording and
+status code are what you see while debugging your own server; an unreachable host
+still shows a plain transport error instead, since there is no response to show in
+that case.
 
 ## Working on the code
 

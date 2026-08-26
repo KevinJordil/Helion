@@ -40,6 +40,16 @@ enum class PublicationState {
     /** The target accepted it; [Publication.remoteId] is its id there. */
     PUBLISHED,
 
+    /**
+     * The target already had this activity and did not act on it again -- currently only
+     * ever produced for [PublicationTarget.CUSTOM_SERVER], on a `200` response to a repeat
+     * send (see [ch.kevinjordil.helion.customserver.CustomServerPublisher]'s own kdoc on
+     * why a repeat send is safe): distinct from [PUBLISHED] (a `202`, freshly accepted)
+     * because "nothing was re-sent" is genuinely useful for the owner to see, not just an
+     * internal detail.
+     */
+    ALREADY_KNOWN,
+
     /** The last attempt failed; see [Publication.lastError]. */
     FAILED,
 }
@@ -64,6 +74,13 @@ enum class PublicationState {
  * body's message, or the field-name-shaped detail an HTTP status alone cannot convey),
  * never a token or credential. Null for the reasons that need no further detail
  * ([lastError] values decided locally, before any request ever reached the target).
+ *
+ * [lastMessage] is the mirror of [lastErrorDetail] for a *successful* attempt: the
+ * target's own response text for [PublicationState.PUBLISHED] or
+ * [PublicationState.ALREADY_KNOWN], never a token or credential. Null whenever the
+ * response carried no usable text (an empty body, or one that could not be read as text)
+ * -- the UI falls back to its own generic wording for [lastError]/[state] in that case,
+ * same as it already does for [lastErrorDetail].
  */
 @Entity(
     tableName = "publication",
@@ -86,6 +103,7 @@ data class Publication(
     val lastAttempt: Long?,
     val lastError: String?,
     val lastErrorDetail: String? = null,
+    val lastMessage: String? = null,
 )
 
 @Dao

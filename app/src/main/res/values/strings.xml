@@ -63,6 +63,7 @@
     <string name="custom_server_send_action">Envoyer à mon serveur</string>
     <string name="custom_server_state_pending">En attente</string>
     <string name="custom_server_state_sent">Envoyée à mon serveur</string>
+    <string name="custom_server_state_already_known">Déjà reçue par mon serveur</string>
     <string name="custom_server_state_failed">Échec de l\'envoi</string>
     <string name="custom_server_reason_not_configured">Serveur non configuré. Renseignez son adresse et le jeton dans Réglages.</string>
     <string name="custom_server_reason_invalid_url">Adresse du serveur invalide. Corrigez-la dans Réglages.</string>
@@ -70,6 +71,7 @@
     <string name="custom_server_reason_network_error">Connexion au serveur impossible : %1$s</string>
     <string name="custom_server_reason_unauthorized">Jeton refusé par le serveur : %1$s</string>
     <string name="custom_server_reason_remote_error">Le serveur a refusé l\'envoi : %1$s</string>
+    <string name="custom_server_response_detail">Réponse du serveur : %1$s</string>
 
     <string name="custom_server_settings_section_title">Serveur personnel</string>
     <string name="custom_server_url_label">Adresse du serveur</string>

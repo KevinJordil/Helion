@@ -3,6 +3,7 @@ package ch.kevinjordil.helion.customserver
 import ch.kevinjordil.helion.export.writeFileField
 import ch.kevinjordil.helion.export.writeFormField
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
@@ -13,7 +14,7 @@ import java.util.UUID
  */
 class HttpCustomServerApi : CustomServerApi {
 
-    override fun send(serverUrl: String, token: String, request: CustomServerSendRequest) {
+    override fun send(serverUrl: String, token: String, request: CustomServerSendRequest): CustomServerResponse {
         val boundary = "helion-${UUID.randomUUID()}"
         val body = buildCustomServerMultipartBody(boundary, request)
 
@@ -27,7 +28,7 @@ class HttpCustomServerApi : CustomServerApi {
         }
         try {
             connection.outputStream.use { it.write(body) }
-            readCustomServerResponse(connection)
+            return readCustomServerResponse(connection)
         } finally {
             connection.disconnect()
         }
@@ -60,12 +61,25 @@ internal fun buildCustomServerMultipartBody(boundary: String, request: CustomSer
 /**
  * Reads the response for a just-submitted request, throwing [CustomServerHttpException] on
  * a non-2xx status with the response body attached -- never swallowing the real reason.
+ *
+ * Reading the body is itself wrapped: an unreachable host or a dropped connection is a
+ * transport failure that already surfaces as a thrown [java.io.IOException] before this is
+ * ever called, but the body of an otherwise-received response can still fail to read as
+ * text (a stream that breaks mid-read, say) -- that is not a transport failure, so it is
+ * treated as "no message" (an empty body) rather than propagating, leaving
+ * [CustomServerPublisher] to fall back to its own wording exactly as it does for a
+ * genuinely empty body.
  */
-internal fun readCustomServerResponse(connection: HttpURLConnection) {
+internal fun readCustomServerResponse(connection: HttpURLConnection): CustomServerResponse {
     val code = connection.responseCode
     val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-    val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+    val text = try {
+        stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+    } catch (e: IOException) {
+        ""
+    }
     if (code !in 200..299) {
         throw CustomServerHttpException(code, text)
     }
+    return CustomServerResponse(code, text)
 }

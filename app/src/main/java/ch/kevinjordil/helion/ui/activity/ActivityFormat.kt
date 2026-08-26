@@ -46,10 +46,13 @@ fun needsAttention(status: ActivityStatus): Boolean = status == ActivityStatus.C
  * own kdoc): [PublicationState.UPLOADING] is never actually produced for
  * [ch.kevinjordil.helion.store.PublicationTarget.CUSTOM_SERVER], but the `when` still
  * covers it rather than silently falling through, in case that ever changes.
+ * [PublicationState.ALREADY_KNOWN] gets its own distinct label from [PublicationState.PUBLISHED]
+ * -- "already had it, sent nothing on" is worth telling apart from "just accepted".
  */
 fun customServerStateLabelRes(state: PublicationState): Int = when (state) {
     PublicationState.PENDING, PublicationState.UPLOADING -> R.string.custom_server_state_pending
     PublicationState.PUBLISHED -> R.string.custom_server_state_sent
+    PublicationState.ALREADY_KNOWN -> R.string.custom_server_state_already_known
     PublicationState.FAILED -> R.string.custom_server_state_failed
 }
 

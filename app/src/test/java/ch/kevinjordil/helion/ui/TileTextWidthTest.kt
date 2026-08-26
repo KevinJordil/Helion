@@ -909,7 +909,12 @@ class CustomServerLabelWidthTest {
         return emPerChar.sum() * 13f * fontScale
     }
 
-    private fun stateLabels() = listOf("En attente", "Envoyée à mon serveur", "Échec de l'envoi")
+    private fun stateLabels() = listOf(
+        "En attente",
+        "Envoyée à mon serveur",
+        "Déjà reçue par mon serveur",
+        "Échec de l'envoi",
+    )
 
     /**
      * The `custom_server_reason_*` sentences with a plausible worst-case detail spliced
@@ -923,6 +928,30 @@ class CustomServerLabelWidthTest {
         "Connexion au serveur impossible : Unable to resolve host",
         "Jeton refusé par le serveur : HTTP 401: invalid or expired token",
         "Le serveur a refusé l'envoi : HTTP 500: internal server error, try again later",
+    )
+
+    /**
+     * The owner's own server's actual sentences (see `README.md`'s custom-server section),
+     * embedded exactly as [ch.kevinjordil.helion.customserver.CustomServerPublisher] and
+     * [ch.kevinjordil.helion.customserver.formatServerDetail] produce them -- a real
+     * server's wording, not a plausible placeholder like [reasonMessages] uses, and
+     * noticeably longer for it (one embeds the settings URL in full). Checked against its
+     * own, more generous budget below: unlike every other string in this file, the server's
+     * own text is variable-length by design (see the module's own brief), so the `Text` it
+     * lands in wraps -- it is never given `maxLines` or `TextOverflow.Ellipsis` -- rather
+     * than being clipped to a fixed line count the way a bounded strings.xml sentence can
+     * safely be. This still bounds it to a sane number of lines, not an unbounded one: a
+     * report of a genuinely broken wrap (a single unbreakable run, say) would still show up
+     * here.
+     */
+    private fun serverProvidedMessages() = listOf(
+        "Jeton refusé par le serveur : HTTP 401: Jeton refusé : il doit être identique à celui " +
+            "enregistré sur http://192.168.1.50:8787/settings.",
+        "Le serveur a refusé l'envoi : HTTP 400: Champs manquants ou invalides : sport, start, duration_seconds.",
+        "Le serveur a refusé l'envoi : HTTP 400: Aucun fichier .tcx reçu dans le champ « file ».",
+        "Réponse du serveur : HTTP 202: Activité « test 34 » reçue (badminton, 57 min). Import Strava en cours.",
+        "Réponse du serveur : HTTP 200: Déjà reçue le 26.08.2026 à 19:06 sous le titre « test 34 ». " +
+            "Rien n'est renvoyé à Strava.",
     )
 
     @Test
@@ -952,6 +981,14 @@ class CustomServerLabelWidthTest {
         reasonMessages().forEach { message ->
             val width = proseWidthDp(message)
             assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the owner's own server's real sentences -- success and failure alike -- still wrap within a sane number of lines`() {
+        serverProvidedMessages().forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, four-line budget is ${rowWidthDp * 4}dp", width <= rowWidthDp * 4)
         }
     }
 

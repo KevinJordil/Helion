@@ -46,8 +46,46 @@ object CustomServerFailureReason {
 
 private val START_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
 
-/** How much of a non-2xx response body is kept as [Publication.lastErrorDetail] -- generous for a real diagnosis, short of pasting an entire HTML error page into the UI. */
-private const val MAX_BODY_DETAIL_LENGTH = 500
+/**
+ * How much of a response body is kept as [Publication.lastErrorDetail] or
+ * [Publication.lastMessage] -- generous for a real diagnosis, short of pasting an entire
+ * HTML error page into the UI. Shared by both, since a success and a failure response come
+ * from the same server and are sanitized by the same [sanitizeServerMessage].
+ */
+private const val MAX_SERVER_MESSAGE_LENGTH = 500
+
+/** Appended to a server message trimmed by [sanitizeServerMessage], so a capped message never reads as complete when it is not. */
+private const val TRUNCATION_MARKER = "…"
+
+/**
+ * Cleans up [raw] -- arbitrary text from the owner's own server, rendered straight into the
+ * UI -- before it is stored or shown anywhere: trims surrounding whitespace, strips control
+ * characters that could break layout (anything other than a plain newline or tab), and caps
+ * the result at [MAX_SERVER_MESSAGE_LENGTH] so a stray HTML error page cannot flood the
+ * screen. Returns null for a body that has nothing left to show once cleaned -- an empty
+ * response, or one that was only whitespace or control bytes -- so the caller can fall back
+ * to its own wording instead of showing a blank line.
+ */
+internal fun sanitizeServerMessage(raw: String): String? {
+    val withoutControlChars = raw.filter { it == '\n' || it == '\t' || !it.isISOControl() }
+    val cleaned = withoutControlChars.trim()
+    if (cleaned.isEmpty()) return null
+    return if (cleaned.length > MAX_SERVER_MESSAGE_LENGTH) {
+        cleaned.take(MAX_SERVER_MESSAGE_LENGTH) + TRUNCATION_MARKER
+    } else {
+        cleaned
+    }
+}
+
+/**
+ * "HTTP $statusCode: $message" when [rawBody] sanitizes to something real, or just
+ * "HTTP $statusCode" when it does not (an empty body, or one that reads as nothing once
+ * cleaned) -- the owner still sees the exact status either way, never a blank detail.
+ */
+internal fun formatServerDetail(statusCode: Int, rawBody: String): String {
+    val message = sanitizeServerMessage(rawBody)
+    return if (message != null) "HTTP $statusCode: $message" else "HTTP $statusCode"
+}
 
 /**
  * Sends one [ch.kevinjordil.helion.store.Activity] to the owner's own server as one
@@ -55,8 +93,9 @@ private const val MAX_BODY_DETAIL_LENGTH = 500
  *
  * There is no asynchronous upload job to resume here: the request either lands in one call
  * or it does not, so this reuses [ch.kevinjordil.helion.store.Publication] and
- * [PublicationState] purely as a *record* of the last attempt (state, timestamp, failure
- * reason and detail) rather than as a resumable workflow -- [PublicationState.UPLOADING]
+ * [PublicationState] purely as a *record* of the last attempt (state, timestamp, and either
+ * a failure reason and detail or a success message) rather than as a resumable workflow --
+ * [PublicationState.UPLOADING]
  * and [Publication.uploadId]/[Publication.remoteId] are simply never used for
  * [PublicationTarget.CUSTOM_SERVER]: this transport has no asynchronous job id and no
  * server-assigned resource id to remember. A second send of the same activity is still
@@ -78,7 +117,13 @@ class CustomServerPublisher(
 ) {
 
     sealed class Result {
-        object Sent : Result()
+        /**
+         * [alreadyKnown] mirrors the row's stored [PublicationState]: true for a `200`
+         * (the server already had this activity and sent nothing on to Strava again),
+         * false for a `202` (freshly accepted). [message] is the server's own sanitized
+         * response text (see [sanitizeServerMessage]), or null when it had none to show.
+         */
+        data class Sent(val alreadyKnown: Boolean, val statusCode: Int, val message: String?) : Result()
         data class Failed(val reason: String) : Result()
     }
 
@@ -124,9 +169,15 @@ class CustomServerPublisher(
         )
 
         return try {
-            api.send(serverUrl, token, request)
-            markSent(activityId)
-            Result.Sent
+            val response = api.send(serverUrl, token, request)
+            // Any 2xx is a success. The server uses 200 for "already received, nothing
+            // re-sent to Strava" and 202 for "freshly accepted" -- see
+            // [ch.kevinjordil.helion.store.PublicationState.ALREADY_KNOWN]'s own kdoc for
+            // why that distinction is worth keeping, not just collapsing to "sent".
+            val alreadyKnown = response.statusCode == HttpURLConnection.HTTP_OK
+            val message = sanitizeServerMessage(response.body)
+            markSent(activityId, alreadyKnown, response.statusCode, message)
+            Result.Sent(alreadyKnown, response.statusCode, message)
         } catch (e: Exception) {
             val (reason, detail) = classifyFailure(e)
             recordFailure(activityId, reason, detail)
@@ -152,39 +203,50 @@ class CustomServerPublisher(
             } else {
                 CustomServerFailureReason.REMOTE_ERROR
             }
-            reason to "HTTP ${e.statusCode}: ${e.body.take(MAX_BODY_DETAIL_LENGTH)}"
+            reason to formatServerDetail(e.statusCode, e.body)
         }
         else -> CustomServerFailureReason.NETWORK_ERROR to (e.message ?: "network error")
     }
 
-    private suspend fun markSent(activityId: Long) {
+    private suspend fun markSent(activityId: Long, alreadyKnown: Boolean, statusCode: Int, message: String?) {
         publications.upsert(
             Publication(
                 activityId = activityId,
                 target = PublicationTarget.CUSTOM_SERVER,
                 remoteId = null,
                 uploadId = null,
-                state = PublicationState.PUBLISHED,
+                state = if (alreadyKnown) PublicationState.ALREADY_KNOWN else PublicationState.PUBLISHED,
                 lastAttempt = now(),
                 lastError = null,
                 lastErrorDetail = null,
+                // Null when there was nothing real to show (an empty body, or one that
+                // sanitized to nothing) -- the UI then shows only the plain state label,
+                // never a blank message line.
+                lastMessage = message?.let { "HTTP $statusCode: $it" },
             ),
         )
     }
 
     private suspend fun recordFailure(activityId: Long, reason: String, detail: String? = null) {
         val existing = publications.get(activityId, PublicationTarget.CUSTOM_SERVER)
-        val row = existing?.copy(state = PublicationState.FAILED, lastAttempt = now(), lastError = reason, lastErrorDetail = detail)
-            ?: Publication(
-                activityId = activityId,
-                target = PublicationTarget.CUSTOM_SERVER,
-                remoteId = null,
-                uploadId = null,
-                state = PublicationState.FAILED,
-                lastAttempt = now(),
-                lastError = reason,
-                lastErrorDetail = detail,
-            )
+        val row = existing?.copy(
+            state = PublicationState.FAILED,
+            lastAttempt = now(),
+            lastError = reason,
+            lastErrorDetail = detail,
+            // Clears out a previous success's message: this attempt failed, so nothing
+            // from an earlier send should linger and be shown alongside it.
+            lastMessage = null,
+        ) ?: Publication(
+            activityId = activityId,
+            target = PublicationTarget.CUSTOM_SERVER,
+            remoteId = null,
+            uploadId = null,
+            state = PublicationState.FAILED,
+            lastAttempt = now(),
+            lastError = reason,
+            lastErrorDetail = detail,
+        )
         publications.upsert(row)
     }
 }
