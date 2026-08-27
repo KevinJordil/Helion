@@ -51,10 +51,15 @@ import kotlin.math.abs
 private val NIGHT_CHART_CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 
 /** Height of the heart-rate panel -- unchanged from the chart's previous single-panel height. */
-private val HEART_RATE_PANEL_HEIGHT = 160.dp
+private val HEART_RATE_PANEL_HEIGHT = 140.dp
 
-/** Height of one hypnogram lane row, matched to the label next to it. */
-private val HYPNOGRAM_LANE_HEIGHT = 22.dp
+/**
+ * Height of one hypnogram lane row. Deliberately taller than the label beside it: thin
+ * lanes made the stage bands hard to read on a phone. The lanes are also stacked with no
+ * gap (see the Column wrapping them below), so the hypnogram reads as one solid block
+ * whose filled row steps up and down over the night, rather than four separate strips.
+ */
+private val HYPNOGRAM_LANE_HEIGHT = 30.dp
 
 /**
  * Width of the label column that sits to the left of every row in the merged figure --
@@ -209,19 +214,23 @@ fun NightChartSection(
                     modifier = Modifier.weight(1f).height(HEART_RATE_PANEL_HEIGHT),
                 )
             }
-            lanes.forEach { lane ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.width(LANE_LABEL_WIDTH)) {
-                        Text(phaseLabel.getValue(lane).uppercase(), style = HelionType.labelSmall, color = colors.textSecondary)
+            // No vertical arrangement: the lanes must touch, so the occupied band is
+            // continuous down the night instead of being cut by gaps.
+            Column(modifier = Modifier.fillMaxWidth()) {
+                lanes.forEach { lane ->
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.width(LANE_LABEL_WIDTH)) {
+                            Text(phaseLabel.getValue(lane).uppercase(), style = HelionType.labelSmall, color = colors.textSecondary)
+                        }
+                        HypnogramLaneCanvas(
+                            bars = hypnogramBars,
+                            lane = lane,
+                            laneColor = phaseColor.getValue(lane),
+                            cursorColor = colors.textSecondary,
+                            scrubFraction = scrubFraction,
+                            modifier = Modifier.weight(1f).height(HYPNOGRAM_LANE_HEIGHT),
+                        )
                     }
-                    HypnogramLaneCanvas(
-                        bars = hypnogramBars,
-                        lane = lane,
-                        laneColor = phaseColor.getValue(lane),
-                        cursorColor = colors.textSecondary,
-                        scrubFraction = scrubFraction,
-                        modifier = Modifier.weight(1f).height(HYPNOGRAM_LANE_HEIGHT),
-                    )
                 }
             }
         } else {

@@ -270,6 +270,15 @@ private fun SelectedNightCard(
             Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
         }
 
+        NightChartSection(
+            episode = episode,
+            showRespiratory = showRespiratoryOverlay,
+            onShowRespiratoryChange = onShowRespiratoryOverlayChange,
+            showMovement = showMovementOverlay,
+            onShowMovementChange = onShowMovementOverlayChange,
+            modifier = Modifier.padding(top = 16.dp),
+        )
+
         when (phaseSource) {
             is SleepPhaseSource.Measured -> SleepPhaseBreakdown(phaseSource.minutes)
             is SleepPhaseSource.Estimated -> SleepPhaseBreakdown(phaseSource.minutes)
@@ -290,14 +299,6 @@ private fun SelectedNightCard(
             StatItem(stringResource(R.string.sleep_efficiency), "${(episode.sleepEfficiency * 100).toInt()} %", Modifier.fillMaxWidth())
         }
 
-        NightChartSection(
-            episode = episode,
-            showRespiratory = showRespiratoryOverlay,
-            onShowRespiratoryChange = onShowRespiratoryOverlayChange,
-            showMovement = showMovementOverlay,
-            onShowMovementChange = onShowMovementOverlayChange,
-            modifier = Modifier.padding(top = 16.dp),
-        )
     }
 }
 
