@@ -232,6 +232,7 @@
     <string name="sleep_no_nights">Aucune nuit enregistrée pour l\'instant.</string>
     <string name="sleep_history_in_progress_tag">en cours</string>
     <string name="sleep_history_incomplete_tag">incomplet</string>
+    <string name="sleep_history_estimated_tag">estimé</string>
     <string name="sleep_previous_night">Nuit précédente</string>
     <string name="sleep_next_night">Nuit suivante</string>
 

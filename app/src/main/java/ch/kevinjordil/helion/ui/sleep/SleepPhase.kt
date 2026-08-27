@@ -178,6 +178,38 @@ fun sleepPhaseBreakdown(minutes: List<PhaseMinute>): Map<SleepPhase, Int> =
         .eachCount()
 
 /**
+ * One segment of the history list's per-night composition bar (see
+ * `SleepHistory.kt`'s `StageCompositionBar`): [phase] and its share of that night's own
+ * minutes, `0f..1f`.
+ */
+data class StageComposition(val phase: SleepPhase, val fraction: Float)
+
+/**
+ * The whole-night stage composition backing the history list's bar -- unlike
+ * [sleepPhaseBreakdown], [SleepPhase.AWAKE] is included: the bar's point is "what did this
+ * night actually look like", and time spent awake is part of that picture, not a figure
+ * reported elsewhere instead.
+ *
+ * Segments are always returned in [SleepPhase.values]'s fixed declaration order (AWAKE,
+ * LIGHT, REM, DEEP) -- not sorted by size -- so every night's bar lines its segments up the
+ * same way left to right and stays comparable row to row; a phase entirely absent from
+ * [minutes] is simply omitted rather than emitted as a zero-width segment.
+ *
+ * Null for an empty track: there are no minutes to divide into shares, and the caller must
+ * show that as "no data" (see [ch.kevinjordil.helion.ui.sleep.SleepPhaseSource.NotEstimable])
+ * rather than a fabricated split.
+ */
+fun nightStageComposition(minutes: List<PhaseMinute>): List<StageComposition>? {
+    if (minutes.isEmpty()) return null
+    val total = minutes.size
+    val counts = minutes.groupingBy { it.phase }.eachCount()
+    return SleepPhase.values().mapNotNull { phase ->
+        val count = counts[phase] ?: return@mapNotNull null
+        StageComposition(phase, count.toFloat() / total)
+    }
+}
+
+/**
  * One contiguous stretch of a single stage over an episode's own span, as reported by the
  * device itself -- see [ch.kevinjordil.helion.source.parseSleepSessionBlob]. [startTimestamp]
  * and [endTimestamp] are both Unix seconds and both inclusive, matching

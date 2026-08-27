@@ -115,4 +115,44 @@ class SleepPhaseTest {
         assertEquals(0, result.count)
         assertEquals(0L, result.durationMinutes)
     }
+
+    @Test
+    fun `night stage composition is null for an empty track`() {
+        assertEquals(null, nightStageComposition(emptyList()))
+    }
+
+    @Test
+    fun `night stage composition splits minutes into fixed-order shares that sum to one`() {
+        val minutes = (0 until 40).map { PhaseMinute(ts(it), SleepPhase.LIGHT) } +
+            (40 until 60).map { PhaseMinute(ts(it), SleepPhase.DEEP) } +
+            (60 until 100).map { PhaseMinute(ts(it), SleepPhase.REM) }
+
+        val composition = nightStageComposition(minutes)
+        checkNotNull(composition)
+
+        // Fixed enum order (AWAKE, LIGHT, REM, DEEP), not sorted by size -- LIGHT is the
+        // biggest share here but must still come before REM and DEEP.
+        assertEquals(listOf(SleepPhase.LIGHT, SleepPhase.REM, SleepPhase.DEEP), composition.map { it.phase })
+        assertEquals(0.4f, composition.first { it.phase == SleepPhase.LIGHT }.fraction, 0.0001f)
+        assertEquals(0.4f, composition.first { it.phase == SleepPhase.REM }.fraction, 0.0001f)
+        assertEquals(0.2f, composition.first { it.phase == SleepPhase.DEEP }.fraction, 0.0001f)
+        assertEquals(1f, composition.sumOf { it.fraction.toDouble() }.toFloat(), 0.0001f)
+    }
+
+    @Test
+    fun `night stage composition omits a phase entirely absent from the track rather than a zero-width segment`() {
+        val minutes = (0 until 10).map { PhaseMinute(ts(it), SleepPhase.LIGHT) }
+        val composition = nightStageComposition(minutes)
+        checkNotNull(composition)
+        assertEquals(listOf(SleepPhase.LIGHT), composition.map { it.phase })
+        assertEquals(1f, composition.single().fraction, 0.0001f)
+    }
+
+    @Test
+    fun `night stage composition of a single minute does not divide by zero`() {
+        val composition = nightStageComposition(listOf(PhaseMinute(ts(0), SleepPhase.AWAKE)))
+        checkNotNull(composition)
+        assertEquals(listOf(SleepPhase.AWAKE), composition.map { it.phase })
+        assertEquals(1f, composition.single().fraction, 0.0001f)
+    }
 }

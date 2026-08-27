@@ -57,9 +57,11 @@ private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM"
  * Monday-first exactly like [java.time.DayOfWeek.getValue]) -- e.g. "Mer 24/08" -- so a
  * night's date is never shown without which day of the week it was. Abbreviated to three
  * letters to stay inside the same width budget as the bare date; see
- * SleepDateWidthTest.
+ * SleepDateWidthTest. Internal rather than private: [ch.kevinjordil.helion.ui.sleep]'s
+ * history-list row (see `SleepHistory.kt`) formats the same date the same way, and a
+ * night's date must never read differently in the two places it appears.
  */
-private fun weekdayDateText(date: LocalDate, weekdayAbbreviations: List<String>): String =
+internal fun weekdayDateText(date: LocalDate, weekdayAbbreviations: List<String>): String =
     "${weekdayAbbreviations[date.dayOfWeek.value - 1]} ${DATE_FORMAT.format(date)}"
 
 /** Buckets an episode's own span into roughly ten-minute slices, clamped to a sane range for very short or very long episodes. */
@@ -434,35 +436,8 @@ private fun StatItem(label: String, value: String, modifier: Modifier = Modifier
     }
 }
 
-@Composable
-private fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit) {
-    val colors = HelionThemeTokens.colors
-    val hours = episode.durationAsleepMinutes / 60
-    val minutes = episode.durationAsleepMinutes % 60
-    val weekdays = stringArrayResource(R.array.weekday_short).toList()
-    val tag = when {
-        episode.isInProgress -> stringResource(R.string.sleep_history_in_progress_tag)
-        episode.hasDataGap -> stringResource(R.string.sleep_history_incomplete_tag)
-        else -> null
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick, role = Role.Button)
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(weekdayDateText(episode.date, weekdays), style = HelionType.body, color = colors.textSecondary)
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                stringResource(R.string.sleep_duration_format, hours.toInt(), minutes.toInt()),
-                style = HelionType.body,
-                color = colors.textPrimary,
-            )
-            tag?.let { Text(it, style = HelionType.labelSmall, color = colors.accentAmber) }
-        }
-    }
-}
+// HistoryRow now lives in SleepHistory.kt, alongside the per-row stage composition bar and
+// the pure geometry it draws from -- see that file's own kdoc for why it was split out.
 
 private fun episodeBucketCount(episode: SleepEpisode): Int {
     val spanMinutes = (episode.wokeAt - episode.fellAsleepAt) / 60 + 1

@@ -476,6 +476,75 @@ class SleepScreenWidthTest {
 }
 
 /**
+ * Same real-glyph-measurement approach, for the history list's row (`HistoryRow` in
+ * `SleepHistory.kt`) once it grew a compact stage-composition bar between the date and the
+ * duration: both of those now sit in fixed-width columns instead of `SpaceBetween`-ing
+ * across the whole row, so each needs its own budget checked the same way
+ * [SleepScreenWidthTest] checks the detail card's own composed strings.
+ *
+ * `HistoryRow` sets both the weekday+date and the duration in [HelionType.body] (IBM Plex
+ * Sans regular, 15sp, no letter-spacing) rather than the mono value styles
+ * [SleepScreenWidthTest] measures, so this measures against `ibmplexsans_regular.ttf`
+ * instead. The row's own tag ("en cours"/"incomplet"/"estimé") stays in
+ * [HelionType.labelSmall], the same mono style [SleepScreenWidthTest] already covers
+ * elsewhere, measured here against the same duration column it now sits under.
+ */
+class SleepHistoryRowWidthTest {
+
+    private val fontScale = 1.3f
+
+    private val bodyFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun bodyWidthDp(text: String): Float {
+        val emPerChar = text.map { bodyFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 15f * fontScale
+    }
+
+    private fun tagWidthDp(text: String): Float {
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 11f
+        val letterSpacingTotalSp = 1f * text.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    @Test
+    fun `every weekday abbreviation next to the widest date fits the history row's date column`() {
+        val columnWidthDp = 104f
+        listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim").forEach { weekday ->
+            val text = "$weekday 30/08"
+            val width = bodyWidthDp(text)
+            assertTrue("\"$text\" measured ${width}dp, column is ${columnWidthDp}dp", width <= columnWidthDp)
+        }
+    }
+
+    @Test
+    fun `the widest duration fits the history row's duration column`() {
+        val columnWidthDp = 96f
+        val width = bodyWidthDp("23 h 59")
+        assertTrue("\"23 h 59\" measured ${width}dp, column is ${columnWidthDp}dp", width <= columnWidthDp)
+    }
+
+    @Test
+    fun `every history row tag fits the duration column at a 1_3x font scale`() {
+        val columnWidthDp = 96f
+        listOf("en cours", "incomplet", "estimé").forEach { tag ->
+            val width = tagWidthDp(tag)
+            assertTrue("\"$tag\" measured ${width}dp, column is ${columnWidthDp}dp", width <= columnWidthDp)
+        }
+    }
+}
+
+/**
  * The minimum of a TrueType font needed to answer one question: how wide, in em units, is
  * a given character's glyph. Parses only `head` (unitsPerEm), `maxp` (glyph count), `hhea`
  * (how many `hmtx` entries carry their own width), `hmtx` (the widths), and a `cmap`
