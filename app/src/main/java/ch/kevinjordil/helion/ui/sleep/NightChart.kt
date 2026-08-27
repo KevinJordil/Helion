@@ -228,6 +228,11 @@ fun NightChartSection(
                             laneColor = phaseColor.getValue(lane),
                             cursorColor = colors.textSecondary,
                             scrubFraction = scrubFraction,
+                            onScrub = { fraction ->
+                                scrubFraction = fraction
+                                scrubbedReading = scrubReading(heartRateReadings, fraction)
+                            },
+                            onScrubEnd = { scrubFraction = null; scrubbedReading = null },
                             modifier = Modifier.weight(1f).height(HYPNOGRAM_LANE_HEIGHT),
                         )
                     }
@@ -478,20 +483,40 @@ private fun HypnogramLaneCanvas(
     laneColor: Color,
     cursorColor: Color,
     scrubFraction: Float?,
+    onScrub: (Float) -> Unit,
+    onScrubEnd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Canvas(modifier = modifier) {
+    var canvasWidthPx by remember { mutableStateOf(0f) }
+
+    Canvas(
+        modifier = modifier
+            .onSizeChanged { size: IntSize -> canvasWidthPx = size.width.toFloat() }
+            // The lanes drive the shared cursor too, not just the heart-rate panel above:
+            // a stage band is often the thing being pointed at, and having to reach back up
+            // to the curve to move the cursor over it reads as the lanes being inert.
+            .pointerInput(bars) {
+                detectDragGestures(
+                    onDragEnd = onScrubEnd,
+                    onDragCancel = onScrubEnd,
+                ) { change, _ ->
+                    if (canvasWidthPx > 0f) {
+                        onScrub(change.position.x.coerceIn(0f, canvasWidthPx) / canvasWidthPx)
+                    }
+                }
+            },
+    ) {
         if (bars.isNotEmpty()) {
-            val strokeWidth = (size.width / 96f).coerceIn(1.5f, 4f)
+            // Filled buckets, not centred strokes: a stroke narrower than the bucket
+            // spacing leaves a gap between consecutive occupied buckets, which reads as
+            // an interrupted stage. One bucket wide, plus a pixel so neighbours seam.
+            val bucketWidth = size.width / bars.size
             bars.forEach { (xFraction, category) ->
                 if (category != lane) return@forEach
-                val x = xFraction * size.width
-                drawLine(
+                drawRect(
                     color = laneColor,
-                    start = Offset(x, size.height),
-                    end = Offset(x, 0f),
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round,
+                    topLeft = Offset(xFraction * size.width, 0f),
+                    size = Size(bucketWidth + 1f, size.height),
                 )
             }
         }

@@ -144,6 +144,36 @@ class DurationTextWidthTest {
         return (glyphWidthSp + letterSpacingTotalSp) * fontScale
     }
 
+    /**
+     * The three phase durations share one row across the screen (see `SleepPhaseBreakdown`),
+     * so each gets a third of the content width minus the two 6dp gaps:
+     * `(280 - 2*6) / 3 = 89.3`dp. Measured at StatItem's own value size, not the hero
+     * duration's -- a third-width column is what the compact `"%dh%02d"` format exists for.
+     */
+    @Test
+    fun `each phase duration and label fits a third-width column`() {
+        val columnWidthDp = (screenContentWidthDp - 2 * 6f) / 3f
+        // StatItem's own two styles: valueMedium 22sp for the figure, labelSmall 11sp with
+        // 1sp tracking for the uppercase label above it (see Type.kt and StatItem).
+        fun widthAt(text: String, sizeSp: Float, trackingSp: Float = 0f): Float =
+            (text.map { font.advanceWidthEm(it) }.sum() * sizeSp + trackingSp * text.length) * fontScale
+
+        listOf("23h59", "8h07", "0h59").forEach { value ->
+            val width = widthAt(value, sizeSp = 22f)
+            assertTrue(
+                "value \"$value\" measured ${width}dp, a third-width column is ${columnWidthDp}dp",
+                width <= columnWidthDp,
+            )
+        }
+        listOf("PROFOND", "PARADOXAL", "LÉGER").forEach { label ->
+            val width = widthAt(label, sizeSp = 11f, trackingSp = 1f)
+            assertTrue(
+                "label \"$label\" measured ${width}dp, a third-width column is ${columnWidthDp}dp",
+                width <= columnWidthDp,
+            )
+        }
+    }
+
     @Test
     fun `the widest possible sleep duration fits one line at the narrowest supported width`() {
         val widest = "23 h 59"

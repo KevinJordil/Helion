@@ -270,6 +270,13 @@ private fun SelectedNightCard(
             Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
         }
 
+
+        when (phaseSource) {
+            is SleepPhaseSource.Measured -> SleepPhaseBreakdown(phaseSource.minutes)
+            is SleepPhaseSource.Estimated -> SleepPhaseBreakdown(phaseSource.minutes)
+            SleepPhaseSource.NotEstimable -> Unit
+        }
+
         NightChartSection(
             episode = episode,
             showRespiratory = showRespiratoryOverlay,
@@ -278,12 +285,6 @@ private fun SelectedNightCard(
             onShowMovementChange = onShowMovementOverlayChange,
             modifier = Modifier.padding(top = 16.dp),
         )
-
-        when (phaseSource) {
-            is SleepPhaseSource.Measured -> SleepPhaseBreakdown(phaseSource.minutes)
-            is SleepPhaseSource.Estimated -> SleepPhaseBreakdown(phaseSource.minutes)
-            SleepPhaseSource.NotEstimable -> Unit
-        }
 
         // Each on its own full-width line, not sharing a row: "12 · 24 min" is already a
         // composed count-plus-duration phrase, and a disturbed night's widest plausible
@@ -318,12 +319,19 @@ private fun SelectedNightCard(
 @Composable
 private fun SleepPhaseBreakdown(minutes: List<PhaseMinute>) {
     val breakdown = sleepPhaseBreakdown(minutes)
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
-            StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
-        }
-        StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.fillMaxWidth())
+    // One row of three, full width: the three phases are one quantity split three ways and
+    // read as a comparison, which a two-plus-one layout breaks. Fits at a third width only
+    // because phaseDurationText is compact ("1h36", not "1 h 36") -- see SleepScreenWidthTest.
+    Row(
+        // 6dp, not the 8dp used elsewhere: "PARADOXAL" is the widest label in the app and
+        // overflows a third-width column by under a dp at an enlarged font scale with 8dp
+        // gaps. Tightening the gap keeps the word whole -- see DurationTextWidthTest.
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
+        StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
+        StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.weight(1f))
     }
 }
 
@@ -350,7 +358,10 @@ internal fun phaseLabelRes(phase: SleepPhase): Int = when (phase) {
 private fun phaseDurationText(minutesInPhase: Int): String {
     val hours = minutesInPhase / 60
     val minutes = minutesInPhase % 60
-    return if (hours > 0) "%d h %02d".format(hours, minutes) else "%d min".format(minutes)
+    // Always the hours form, even under an hour ("0h47"): the three phases sit side by side
+    // as a comparison, so their digits should align column to column, and "59 min" does not
+    // fit a third-width column at this value size anyway -- see DurationTextWidthTest.
+    return "%dh%02d".format(hours, minutes)
 }
 
 @Composable
