@@ -1,6 +1,5 @@
 package ch.kevinjordil.helion.ui.sleep
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.AppContainer
@@ -39,8 +37,6 @@ import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceForSleepDuration
 import ch.kevinjordil.helion.ui.quality.referenceMessage
-import ch.kevinjordil.helion.ui.ribbon.HypnogramRibbon
-import ch.kevinjordil.helion.ui.ribbon.buildCategoryRibbon
 import ch.kevinjordil.helion.ui.theme.HelionColors
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
@@ -63,11 +59,6 @@ private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM"
  */
 internal fun weekdayDateText(date: LocalDate, weekdayAbbreviations: List<String>): String =
     "${weekdayAbbreviations[date.dayOfWeek.value - 1]} ${DATE_FORMAT.format(date)}"
-
-/** Buckets an episode's own span into roughly ten-minute slices, clamped to a sane range for very short or very long episodes. */
-private const val EPISODE_BUCKET_MINUTES = 10
-private const val MIN_EPISODE_BUCKETS = 24
-private const val MAX_EPISODE_BUCKETS = 96
 
 /**
  * The night's duration, sized down from [HelionType.hero]: a full 88sp hero numeral wraps
@@ -258,9 +249,8 @@ private fun SelectedNightCard(
             )
         }
 
-        // Computed once here (rather than inside SleepPhaseSection) so the same
-        // measured-vs-estimated source drives both the title/hypnogram and the
-        // per-stage breakdown placed right after it.
+        // Computed once here (rather than inside NightChartSection, which resolves its own
+        // copy for the chart) so the per-stage breakdown below uses the same source.
         val phaseSource = remember(episode) { resolveSleepPhases(episode) }
 
         if (!episode.isInProgress && !episode.hasDataGap) {
@@ -279,11 +269,6 @@ private fun SelectedNightCard(
             )
             Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
         }
-
-        // The hypnogram sits between the recommended-range caption above and the
-        // per-stage breakdown below -- see SleepPhaseSection's kdoc for why its title
-        // stays paired with it.
-        SleepPhaseSection(episode, phaseSource)
 
         when (phaseSource) {
             is SleepPhaseSource.Measured -> SleepPhaseBreakdown(phaseSource.minutes)
@@ -317,70 +302,10 @@ private fun SelectedNightCard(
 }
 
 /**
- * Phase title and hypnogram for [episode] -- see [resolveSleepPhases] for which source
- * (the device's own measured segments, or the heuristic estimator) is actually in use,
- * and why an episode can only ever be in one of those two states plus
- * [SleepPhaseSource.NotEstimable]. [source] is resolved once by the caller so it stays in
- * sync with the per-stage breakdown rendered separately, right after it (see
- * [SleepPhaseBreakdown]). Only the estimated path spells out "estimé", both in its own
- * section title and its own not-estimable fallback: that is the one place Helion shows
- * something it did not measure, and it must never read as a plain fact next to the
- * numbers it did measure. The measured path uses a plain title and never mentions
- * estimation at all.
- */
-@Composable
-private fun SleepPhaseSection(episode: SleepEpisode, source: SleepPhaseSource) {
-    val colors = HelionThemeTokens.colors
-
-    val titleRes = if (source is SleepPhaseSource.Estimated) {
-        R.string.sleep_phase_title_estimated
-    } else {
-        R.string.sleep_phase_title
-    }
-
-    Column(modifier = Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(titleRes).uppercase(), style = HelionType.label, color = colors.textSecondary)
-
-        when (source) {
-            is SleepPhaseSource.NotEstimable ->
-                Text(stringResource(R.string.sleep_phase_not_estimable), style = HelionType.bodySmall, color = colors.textSecondary)
-
-            is SleepPhaseSource.Measured -> SleepPhaseHypnogram(episode, source.minutes)
-            is SleepPhaseSource.Estimated -> SleepPhaseHypnogram(episode, source.minutes)
-        }
-    }
-}
-
-/** The hypnogram shared by [SleepPhaseSource.Measured] and [SleepPhaseSource.Estimated] -- only the section title above differs between the two. */
-@Composable
-private fun SleepPhaseHypnogram(episode: SleepEpisode, minutes: List<PhaseMinute>) {
-    val colors = HelionThemeTokens.colors
-    val phaseColor = phaseColors(colors)
-    val lanes = listOf(SleepPhase.AWAKE, SleepPhase.REM, SleepPhase.LIGHT, SleepPhase.DEEP)
-    val phaseLabel = lanes.associateWith { phase -> stringResource(phaseLabelRes(phase)) }
-    // One lane per stage, éveil to profond, so a transition between stages is
-    // a visible jump between lanes -- a single blended track (or a stacked
-    // share breakdown) never shows *when* the night switched stages, only how
-    // much of each it had. See HypnogramRibbon's kdoc.
-    HypnogramRibbon(
-        bars = buildCategoryRibbon(
-            items = minutes.map { it.timestamp to it.phase },
-            windowStart = episode.fellAsleepAt,
-            windowEnd = episode.wokeAt + 60,
-            bucketCount = episodeBucketCount(episode),
-        ),
-        lanes = lanes,
-        laneColor = { phase -> phaseColor.getValue(phase) },
-        laneLabel = { phase -> phaseLabel.getValue(phase) },
-        labelColor = colors.textSecondary,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
-/**
  * The per-stage breakdown (profond, paradoxal, léger) for either [SleepPhaseSource.Measured]
- * or [SleepPhaseSource.Estimated] -- placed directly below [SleepPhaseSection]'s title and
- * hypnogram in [SelectedNightCard], which it used to sit above.
+ * or [SleepPhaseSource.Estimated] -- the hypnogram itself now lives inside
+ * [NightChartSection], stacked directly under the heart-rate line on the same time axis, so
+ * this breakdown is the only phase content left in [SelectedNightCard]'s upper section.
  *
  * Two columns, not three: at this value size, a single phase's widest
  * plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
@@ -438,8 +363,3 @@ private fun StatItem(label: String, value: String, modifier: Modifier = Modifier
 
 // HistoryRow now lives in SleepHistory.kt, alongside the per-row stage composition bar and
 // the pure geometry it draws from -- see that file's own kdoc for why it was split out.
-
-private fun episodeBucketCount(episode: SleepEpisode): Int {
-    val spanMinutes = (episode.wokeAt - episode.fellAsleepAt) / 60 + 1
-    return (spanMinutes / EPISODE_BUCKET_MINUTES).toInt().coerceIn(MIN_EPISODE_BUCKETS, MAX_EPISODE_BUCKETS)
-}

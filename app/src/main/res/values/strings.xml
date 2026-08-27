@@ -236,7 +236,6 @@
     <string name="sleep_previous_night">Nuit précédente</string>
     <string name="sleep_next_night">Nuit suivante</string>
 
-    <string name="sleep_phase_title">Stades</string>
     <string name="sleep_phase_title_estimated">Stades (estimé)</string>
     <string name="sleep_phase_deep">Profond</string>
     <string name="sleep_phase_rem">Paradoxal</string>
@@ -245,8 +244,6 @@
     <string name="sleep_phase_not_estimable">Stades non estimables : fréquence cardiaque insuffisante cette nuit-là.</string>
 
     <string name="sleep_night_chart_title">Fréquence cardiaque</string>
-    <string name="sleep_chart_bands_note">Bandes en arrière-plan : stades de sommeil (voir Stades ci-dessous).</string>
-    <string name="sleep_chart_bands_note_estimated">Bandes en arrière-plan : stades de sommeil estimés (voir Stades ci-dessous).</string>
     <string name="sleep_overlay_scale_note">Chaque courbe superposée est à sa propre échelle.</string>
     <string name="sleep_overlay_respiratory">Respiration</string>
     <string name="sleep_overlay_movement">Mouvement</string>

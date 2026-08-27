@@ -157,8 +157,8 @@ class DurationTextWidthTest {
 }
 
 /**
- * Confirms the hypnogram's fixed lane-label column (`HypnogramRibbon`'s 90dp label width,
- * in `DayRibbon.kt`) actually fits the longest of the four stage labels at
+ * Confirms the night chart's fixed lane-label column (`LANE_LABEL_WIDTH`, 90dp, in
+ * `NightChart.kt`) actually fits the longest of the four stage labels at
  * `HelionType.labelSmall` -- the style the lane labels are set in -- at the same 1.3x
  * accessibility font scale [TileTextWidthTest] checks tile captions against. Same
  * real-glyph measurement approach; see [TileTextWidthTest]'s kdoc for why.
