@@ -61,8 +61,12 @@ object MetricCatalog {
      * is fidelity -- so the cut is made here, at the display layer, and only changes what
      * the chart and the stats show; the archive underneath stays untouched.
      */
-    private const val MIN_PLAUSIBLE_SKIN_TEMPERATURE = 25.0
-    private const val MAX_PLAUSIBLE_SKIN_TEMPERATURE = 42.0
+    // internal, not private: ch.kevinjordil.helion.healthconnect.HealthConnectRecordMapper
+    // applies this exact same cut before a temperature reading ever reaches Health Connect
+    // -- see that file's own kdoc for why an off-body sentinel must never be exported
+    // looking like a real skin temperature.
+    internal const val MIN_PLAUSIBLE_SKIN_TEMPERATURE = 25.0
+    internal const val MAX_PLAUSIBLE_SKIN_TEMPERATURE = 42.0
 
     /**
      * Huami reports 255 bpm when the sensor did not measure anything, and a real export

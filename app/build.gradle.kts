@@ -54,6 +54,7 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.work.runtime.ktx)
+    implementation(libs.health.connect.client)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
