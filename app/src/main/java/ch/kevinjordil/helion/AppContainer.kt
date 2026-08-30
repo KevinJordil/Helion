@@ -5,6 +5,9 @@ import androidx.room.Room
 import ch.kevinjordil.helion.activity.ActivityDetector
 import ch.kevinjordil.helion.customserver.CustomServerPublisher
 import ch.kevinjordil.helion.customserver.HttpCustomServerApi
+import ch.kevinjordil.helion.healthconnect.HealthConnectExporter
+import ch.kevinjordil.helion.healthconnect.enqueueHealthConnectExport
+import ch.kevinjordil.helion.healthconnect.realHealthConnectWriterOrNull
 import ch.kevinjordil.helion.source.BroadcastCommandSender
 import ch.kevinjordil.helion.source.BroadcastExportSignal
 import ch.kevinjordil.helion.source.BroadcastSyncSignal
@@ -25,6 +28,7 @@ import ch.kevinjordil.helion.store.MIGRATION_8_9
 import ch.kevinjordil.helion.store.MIGRATION_9_10
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
 import ch.kevinjordil.helion.ui.settings.CustomServerConfig
+import ch.kevinjordil.helion.ui.settings.HealthConnectConfig
 import ch.kevinjordil.helion.ui.settings.NotificationPreference
 import ch.kevinjordil.helion.ui.settings.Profile
 import ch.kevinjordil.helion.ui.settings.StepsGoal
@@ -63,6 +67,22 @@ class AppContainer(context: Context) {
         profile = profile,
         zone = ZoneId.systemDefault(),
         now = { System.currentTimeMillis() / 1000 },
+    )
+
+    /** The Réglages on/off switch for the Health Connect export -- see [HealthConnectConfig]'s own kdoc. */
+    val healthConnectConfig = HealthConnectConfig(context)
+
+    /**
+     * The one entry point [ch.kevinjordil.helion.source.Ingestor] (via
+     * [ch.kevinjordil.helion.healthconnect.HealthConnectSyncWorker]) and Réglages' own
+     * "Exporter maintenant" button both call. [realHealthConnectWriterOrNull] is re-checked
+     * on every call rather than resolved once here: Health Connect being installed, or the
+     * owner's permission grant, can both change between one call and the next.
+     */
+    val healthConnectExporter = HealthConnectExporter(
+        db = database,
+        config = healthConnectConfig,
+        writerProvider = { realHealthConnectWriterOrNull(context) },
     )
 
     val stepsGoal = StepsGoal(context)
@@ -106,5 +126,6 @@ class AppContainer(context: Context) {
             noteFor = { min, max, resting -> context.getString(R.string.activity_candidate_note, min, max, resting) },
         )
         ingestor.notifier = CandidateNotifier(context, notificationPreference)
+        ingestor.healthConnectExportTrigger = { enqueueHealthConnectExport(context) }
     }
 }

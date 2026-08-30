@@ -79,6 +79,20 @@
     <string name="custom_server_token_label">Jeton partagé</string>
     <string name="custom_server_allow_plain_http">Autoriser l\'envoi en HTTP non chiffré (déconseillé pour des données de santé)</string>
 
+    <string name="health_connect_section_title">Health Connect</string>
+    <string name="health_connect_explanation">Envoie vers Health Connect (et donc vers Samsung Health) : sommeil avec ses phases mesurées par le bracelet, activités confirmées avec leur fréquence cardiaque, ainsi que fréquence cardiaque, pas, VFC, SpO2, température cutanée et fréquence respiratoire. Une nuit sans mesure d\'appareil n\'est jamais envoyée. Une activité à confirmer ou ignorée n\'est jamais envoyée.</string>
+    <string name="health_connect_toggle_label">Envoyer mes données à Health Connect</string>
+    <string name="health_connect_not_installed">Health Connect n\'est pas installé sur ce téléphone.</string>
+    <string name="health_connect_update_required">L\'application Health Connect installée est trop ancienne.</string>
+    <string name="health_connect_permission_missing">Autorisation refusée ou révoquée : rien n\'est envoyé à Health Connect.</string>
+    <string name="health_connect_export_now">Exporter maintenant</string>
+    <string name="health_connect_exporting">Export en cours…</string>
+    <string name="health_connect_result_disabled">Export désactivé.</string>
+    <string name="health_connect_result_unavailable">Health Connect indisponible sur ce téléphone.</string>
+    <string name="health_connect_result_permission_missing">Autorisation refusée ou révoquée : rien n\'a été envoyé.</string>
+    <string name="health_connect_result_success">Dernier export : %1$d nuits, %2$d activités, %3$d relevés de fréquence cardiaque, %4$d jours de pas, %5$d VFC, %6$d SpO2, %7$d températures, %8$d respirations.</string>
+    <string name="health_connect_result_failed">Échec de l\'export : %1$s</string>
+
     <string name="calorie_section_title">Calories (estimé)</string>
     <string name="calorie_value">≈ %1$d kcal</string>
     <string name="calorie_needs_profile">Renseignez votre profil dans Réglages pour estimer les calories.</string>

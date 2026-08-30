@@ -101,6 +101,18 @@ class Ingestor(
      */
     var notifier: CandidateNotificationSink? = null
 
+    /**
+     * Set by [ch.kevinjordil.helion.AppContainer] after construction, same reasoning as
+     * [detector] and [notifier]. Called once at the end of a pass that actually stored
+     * something new -- never for a pass that found nothing to ingest, and never awaited
+     * here: this is expected to enqueue a background job (see
+     * [ch.kevinjordil.helion.healthconnect.enqueueHealthConnectExport]), not run the export
+     * itself, so a slow or unavailable Health Connect can never slow this pass down. Left
+     * null, a pass simply never triggers an export -- the safe default for a test with no
+     * interest in Health Connect at all.
+     */
+    var healthConnectExportTrigger: (() -> Unit)? = null
+
     suspend fun ingest(databasePath: String?, force: Boolean = false, skipSyncRequest: Boolean = false): IngestResult {
         if (databasePath == null) return IngestResult.NoSource
         return passLock.withLock { runPass(databasePath, force, skipSyncRequest) }
@@ -196,6 +208,17 @@ class Ingestor(
         )
         runDetectionOver(samples.minutes)
         runNotificationsOver()
+        if (samples.minutes.isNotEmpty() || samples.points.isNotEmpty() || samples.stageSegments.isNotEmpty()) {
+            // Best-effort like the two calls above: enqueuing must never turn a genuinely
+            // successful ingest pass into a reported failure.
+            try {
+                healthConnectExportTrigger?.invoke()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Swallowed -- see this property's own kdoc.
+            }
+        }
         IngestResult.Ingested(samples.minutes.size, samples.points.size, triggered, samples.stageSegments.size)
     } catch (e: CancellationException) {
         // A cooperative stop (e.g. WorkManager tearing down the worker mid-pass) is not

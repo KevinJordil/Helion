@@ -1117,6 +1117,97 @@ class CustomServerLabelWidthTest {
 }
 
 /**
+ * The Health Connect section added to Réglages (`SettingsScreen.kt`'s `HealthConnectSection`).
+ * Same 280dp budget and 1.3x font scale as [CustomServerLabelWidthTest] -- the identical
+ * 20dp-padded root `Column`.
+ */
+class HealthConnectLabelWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun proseWidthDp(text: String): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 13f * fontScale
+    }
+
+    @Test
+    fun `the Health Connect section title fits a full-width row at a 1_3x font scale`() {
+        val width = labelWidthDp("Health Connect")
+        assertTrue("\"Health Connect\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `the toggle label and export-now action fit a full-width row`() {
+        listOf("Envoyer mes données à Health Connect", "Exporter maintenant", "Export en cours…").forEach { label ->
+            val width = proseWidthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the explanation paragraph -- the longest prose on this screen -- still wraps within a generous line budget`() {
+        val message = "Envoie vers Health Connect (et donc vers Samsung Health) : sommeil avec ses phases mesurées " +
+            "par le bracelet, activités confirmées avec leur fréquence cardiaque, ainsi que fréquence cardiaque, " +
+            "pas, VFC, SpO2, température cutanée et fréquence respiratoire. Une nuit sans mesure d'appareil n'est " +
+            "jamais envoyée. Une activité à confirmer ou ignorée n'est jamais envoyée."
+        val width = proseWidthDp(message)
+        assertTrue("measured ${width}dp, eleven-line budget is ${rowWidthDp * 11}dp", width <= rowWidthDp * 11)
+    }
+
+    @Test
+    fun `the availability and permission messages each fit within two lines`() {
+        val messages = listOf(
+            "Health Connect n'est pas installé sur ce téléphone.",
+            "L'application Health Connect installée est trop ancienne.",
+            "Autorisation refusée ou révoquée : rien n'est envoyé à Health Connect.",
+        )
+        messages.forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the last-export summary -- every count at a generous worst case -- still wraps within a sane number of lines`() {
+        // Deliberately generous counts, the same "plausible worst case" spirit
+        // CustomServerLabelWidthTest's own reasonMessages() uses: a full night, a few
+        // activities and a whole day of point-series readings.
+        val message = "Dernier export : 1 nuits, 3 activités, 1440 relevés de fréquence cardiaque, " +
+            "1 jours de pas, 500 VFC, 500 SpO2, 500 températures, 500 respirations."
+        val width = proseWidthDp(message)
+        assertTrue("measured ${width}dp, six-line budget is ${rowWidthDp * 6}dp", width <= rowWidthDp * 6)
+    }
+
+    @Test
+    fun `a failed export shows the real, potentially long underlying error within a generous line budget`() {
+        val message = "Échec de l'export : java.io.IOException: Health Connect service unavailable, retry later"
+        val width = proseWidthDp(message)
+        assertTrue("measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
+    }
+}
+
+/**
  * The profile fields added to Réglages (`SettingsScreen.kt`): the section title and each
  * field's label at [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall]/`label`, the sex
  * options ("Homme"/"Femme") and the short privacy note underneath. Same 280dp budget as

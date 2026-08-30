@@ -27,12 +27,36 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+      Health Connect write permissions, requested at runtime through
+      androidx.health.connect.client.PermissionController, see
+      ch.kevinjordil.helion.healthconnect.HealthConnectConfig and SettingsScreen's own
+      Health Connect section. Declaring these here only makes the permissions requestable;
+      it grants nothing on its own, and refusing or later revoking any of them leaves the
+      rest of Helion untouched (see ch.kevinjordil.helion.healthconnect.HealthConnectExporter).
+    -->
+    <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
+    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.WRITE_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.WRITE_OXYGEN_SATURATION" />
+    <uses-permission android:name="android.permission.health.WRITE_RESPIRATORY_RATE" />
+    <uses-permission android:name="android.permission.health.WRITE_SKIN_TEMPERATURE" />
+
+    <!--
       Package visibility (API 30+), kept for whatever future need to resolve the Strava
       app or a market:// listing. ch.kevinjordil.helion.export.buildOpenStravaIntent
       itself opens Strava's web uploader directly and needs neither.
     -->
+    <!--
+      Health Connect is a separate, optional system component (the "Health Connect" app on
+      API 26-33, folded into Android itself from 14 on some devices); package visibility
+      is what lets ch.kevinjordil.helion.healthconnect.HealthConnectAvailability tell
+      "not installed" apart from every other failure, see its own kdoc.
+    -->
     <queries>
         <package android:name="com.strava" />
+        <package android:name="com.google.android.apps.healthdata" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
@@ -56,6 +80,18 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              Android 14+ shows Health Connect's own permission-rationale link only for an
+              app that declares an activity handling this; MainActivity resolving it (a
+              plain relaunch, same as tapping the launcher icon) is enough to satisfy it.
+              Without this, the permission-request flow itself still works; only that one
+              link would be absent from Health Connect's own permission screen.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity>
 
