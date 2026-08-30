@@ -5,16 +5,23 @@ A personal health tracker for the Amazfit Helio Strap, built as a companion to
 
 Helion never talks to the wristband. Gadgetbridge owns the Bluetooth link and the
 Zepp OS protocol; Helion drives it through its Intent API, reads the database it
-exports, and keeps its own archive on the phone. Nothing leaves the device.
+exports, and keeps its own archive on the phone. By default, nothing leaves the
+device.
 
     Helio Strap ──BLE──▶ Gadgetbridge ──intents + file──▶ Helion ──▶ Strava
+                                                              │
+                                                              ▶ Health Connect ──▶ Samsung Health
 
-Everything is stored locally in the app's own database. There is no account, no
-server, and no automatic publishing: an activity reaches Strava only when you
+Everything is stored locally in the app's own database first. There is no account
+and no automatic publishing by default: an activity reaches Strava only when you
 explicitly choose to save a file and import it yourself — see
 [Getting an activity onto Strava](#getting-an-activity-onto-strava). You can also
 send an activity straight to a server of your own; see
 [Sending an activity to your own server](#sending-an-activity-to-your-own-server).
+The one exception is Health Connect: once you turn it on in Réglages, Helion keeps
+that shared system store in sync on its own — see
+[Exporting to Health Connect](#exporting-to-health-connect). Off (the default),
+this app writes nothing anywhere outside its own archive.
 
 ## Status
 
@@ -153,6 +160,51 @@ activity detail screen, next to the real HTTP status, so its exact wording and
 status code are what you see while debugging your own server; an unreachable host
 still shows a plain transport error instead, since there is no response to show in
 that case.
+
+## Exporting to Health Connect
+
+Samsung Health cannot read the Helio Strap at all, but it synchronises
+bidirectionally with Android's Health Connect. Turn the export on in Réglages and
+Helion keeps Health Connect in sync on its own from then on — no per-item button,
+unlike the custom-server target above. Off (the default), nothing is written.
+
+Turning it on asks, right there, for Health Connect's own runtime write
+permissions — one per record type below. Refusing, or revoking any of them later
+from Android's own permission screen, leaves the rest of the app untouched: writing
+simply stops, and Réglages says so plainly next to the toggle. Health Connect
+itself is a separate, optional system component; if it is not installed, or the
+installed version is too old, Réglages says that too instead of writing anything.
+
+What is written, as the matching Health Connect record type:
+
+| Helion data                                   | Health Connect record                                    |
+|------------------------------------------------|-----------------------------------------------------------|
+| Sleep, with the device's own hypnogram stages   | `SleepSessionRecord`, with `Stage`s                        |
+| Confirmed or published activities               | `ExerciseSessionRecord`, plus their own `HeartRateRecord`  |
+| Heart rate, steps                               | `HeartRateRecord`, `StepsRecord` (one of each per UTC day) |
+| HRV, SpO2, skin temperature, respiratory rate    | `HeartRateVariabilityRmssdRecord`, `OxygenSaturationRecord`, `SkinTemperatureRecord`, `RespiratoryRateRecord` |
+
+Only [`ActivityStatus.CONFIRMED`](app/src/main/java/ch/kevinjordil/helion/store/Activity.kt)
+or `PUBLISHED` activities are ever exported — a candidate the owner has not looked
+at, or one explicitly dismissed, is never written, the same rule the rest of this
+app enforces everywhere else. A night with no device-reported hypnogram (this
+app's own minute-derived estimate instead) is never exported either — writing a
+guess into a store another app treats as measured data would misrepresent it.
+
+Every record carries a stable client record id derived from Helion's own identity
+(an activity's id, a sleep session's own wake time, a reading's own timestamp) —
+re-running the export updates the matching record instead of duplicating it, the
+same discipline `external_id` already gives the custom-server target. Badminton
+maps exactly (`EXERCISE_TYPE_BADMINTON`); cycling maps to Health Connect's generic
+biking type (it has no plain "cycling"); swimming maps to its pool type, the more
+common recreational setting, since this app's own sport list never distinguishes
+open water from a pool the way Health Connect does.
+
+The export runs automatically after every ingest pass that stored something new,
+and on demand via **Exporter maintenant** in Réglages — as a background job, never
+awaited by ingestion itself, so a slow or unreachable Health Connect can never slow
+a sync down. Réglages shows whether the export is on, whether the permission is
+granted, when the last pass ran, and exactly what it wrote or why it failed.
 
 ## Working on the code
 
