@@ -59,4 +59,17 @@ interface SleepStageSegmentDao {
     /** The watermark for ingestion: the most recent session already stored, by its own wake time. */
     @Query("SELECT MAX(sessionEnd) FROM sleep_stage_segment")
     suspend fun latestSessionEnd(): Long?
+
+    /**
+     * Every segment of every session whose own [sessionEnd] is newer than [since] -- what
+     * [ch.kevinjordil.helion.healthconnect.HealthConnectExporter] reads to find sessions not
+     * yet exported. Deliberately keyed on [sessionEnd] rather than a minute-overlap window
+     * like [overlapping]: a session is only ever exported as a whole (see
+     * [ch.kevinjordil.helion.healthconnect.sleepSessionRecordFor]), so its own identity --
+     * the same one [SleepStageSegment]'s own kdoc already grounds every group in -- is the
+     * right thing to compare a watermark against, not the time range its segments happen to
+     * cover.
+     */
+    @Query("SELECT * FROM sleep_stage_segment WHERE sessionEnd > :since ORDER BY sessionEnd, startTimestamp")
+    suspend fun since(since: Long): List<SleepStageSegment>
 }

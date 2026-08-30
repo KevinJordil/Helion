@@ -48,12 +48,16 @@ fun needsAttention(status: ActivityStatus): Boolean = status == ActivityStatus.C
  * covers it rather than silently falling through, in case that ever changes.
  * [PublicationState.ALREADY_KNOWN] gets its own distinct label from [PublicationState.PUBLISHED]
  * -- "already had it, sent nothing on" is worth telling apart from "just accepted".
+ * [PublicationState.REMOVED] is never actually produced for
+ * [ch.kevinjordil.helion.store.PublicationTarget.CUSTOM_SERVER] either (see that state's own
+ * kdoc -- it is a Health Connect-only outcome), but the `when` still covers it for the same
+ * "never silently fall through" reason as [PublicationState.UPLOADING].
  */
 fun customServerStateLabelRes(state: PublicationState): Int = when (state) {
     PublicationState.PENDING, PublicationState.UPLOADING -> R.string.custom_server_state_pending
     PublicationState.PUBLISHED -> R.string.custom_server_state_sent
     PublicationState.ALREADY_KNOWN -> R.string.custom_server_state_already_known
-    PublicationState.FAILED -> R.string.custom_server_state_failed
+    PublicationState.FAILED, PublicationState.REMOVED -> R.string.custom_server_state_failed
 }
 
 /**

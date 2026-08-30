@@ -150,6 +150,28 @@ interface ActivityDao {
     suspend fun withStatus(status: ActivityStatus): List<Activity>
 
     /**
+     * Every activity the owner has actually approved -- [ActivityStatus.CONFIRMED] or
+     * [ActivityStatus.PUBLISHED] -- and only these two: what
+     * [ch.kevinjordil.helion.healthconnect.HealthConnectExporter] scans on every pass to
+     * decide which exercise sessions belong in Health Connect at all. Never
+     * [ActivityStatus.CANDIDATE] (not yet looked at) or [ActivityStatus.DISMISSED] (the
+     * owner said no) -- see that exporter's own kdoc for why this is the one rule the whole
+     * feature exists to enforce.
+     */
+    @Query("SELECT * FROM activity WHERE status IN ('CONFIRMED', 'PUBLISHED') ORDER BY startTimestamp")
+    suspend fun confirmedOrPublished(): List<Activity>
+
+    /**
+     * Every [ActivityStatus.DISMISSED] activity -- what
+     * [ch.kevinjordil.helion.healthconnect.HealthConnectExporter] checks against its own
+     * [ch.kevinjordil.helion.store.PublicationDao] records to find one that was written to
+     * Health Connect before being dismissed, and remove it there too. See that exporter's
+     * kdoc for why this path is not currently reachable through the app's own UI.
+     */
+    @Query("SELECT * FROM activity WHERE status = 'DISMISSED'")
+    suspend fun dismissed(): List<Activity>
+
+    /**
      * Every [ActivityStatus.CANDIDATE] row no notification has been posted for yet -- what
      * [ch.kevinjordil.helion.source.Ingestor] reads after every pass to decide whether to
      * notify at all, and whether that is a single-candidate or a batch notification. Scoped

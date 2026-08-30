@@ -174,3 +174,36 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         db.execSQL("ALTER TABLE `publication` ADD COLUMN `lastMessage` TEXT")
     }
 }
+
+/**
+ * Adds `health_connect_export_state`, the single-row report
+ * [ch.kevinjordil.helion.healthconnect.HealthConnectExporter] keeps of its own progress --
+ * see [HealthConnectExportState]'s own kdoc. A brand-new table, nothing to carry over from
+ * any existing row: every installed app is exporting to Health Connect for the first time
+ * once this migration runs, whether or not the owner has since turned the feature on.
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `health_connect_export_state` (" +
+                "`id` INTEGER NOT NULL, " +
+                "`heartRateWatermark` INTEGER NOT NULL, " +
+                "`hrvWatermark` INTEGER NOT NULL, " +
+                "`spo2Watermark` INTEGER NOT NULL, " +
+                "`temperatureWatermark` INTEGER NOT NULL, " +
+                "`respiratoryRateWatermark` INTEGER NOT NULL, " +
+                "`sleepSessionWatermark` INTEGER NOT NULL, " +
+                "`lastRunAttempt` INTEGER, " +
+                "`lastError` TEXT, " +
+                "`sleepSessionsWritten` INTEGER NOT NULL, " +
+                "`exerciseSessionsWritten` INTEGER NOT NULL, " +
+                "`heartRateRecordsWritten` INTEGER NOT NULL, " +
+                "`stepsRecordsWritten` INTEGER NOT NULL, " +
+                "`hrvRecordsWritten` INTEGER NOT NULL, " +
+                "`spo2RecordsWritten` INTEGER NOT NULL, " +
+                "`temperatureRecordsWritten` INTEGER NOT NULL, " +
+                "`respiratoryRateRecordsWritten` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`id`))",
+        )
+    }
+}

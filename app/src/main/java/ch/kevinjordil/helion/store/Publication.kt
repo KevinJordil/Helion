@@ -20,6 +20,15 @@ enum class PublicationTarget {
 
     /** The owner's own server, configured in Réglages -- see [ch.kevinjordil.helion.customserver.CustomServerPublisher]. */
     CUSTOM_SERVER,
+
+    /**
+     * Health Connect, via [ch.kevinjordil.helion.healthconnect.HealthConnectExporter] --
+     * only ever used for a [ActivityStatus.CONFIRMED] or [ActivityStatus.PUBLISHED]
+     * activity's exercise session, never a candidate. [Publication.remoteId] here is the
+     * record id Health Connect itself assigned on insert, which is what lets a later
+     * dismissal be undone there too -- see [HealthConnectExporter]'s own kdoc.
+     */
+    HEALTH_CONNECT,
 }
 
 /** How a publish attempt to a [PublicationTarget] currently stands. */
@@ -52,6 +61,17 @@ enum class PublicationState {
 
     /** The last attempt failed; see [Publication.lastError]. */
     FAILED,
+
+    /**
+     * The target once had this activity, and Helion has since asked it to remove it --
+     * currently only ever produced for [PublicationTarget.HEALTH_CONNECT], when an activity
+     * already exported there is later dismissed (see
+     * [ch.kevinjordil.helion.healthconnect.HealthConnectExporter]'s own kdoc on that path,
+     * including why it is not reachable through the app's own UI today). Distinct from
+     * [FAILED]: this is not an error, it is the correct end state for something the owner
+     * decided never happened after all.
+     */
+    REMOVED,
 }
 
 /**

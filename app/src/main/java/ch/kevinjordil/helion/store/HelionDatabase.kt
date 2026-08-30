@@ -13,8 +13,9 @@ import androidx.room.TypeConverters
         Activity::class,
         Slot::class,
         Publication::class,
+        HealthConnectExportState::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -26,4 +27,5 @@ abstract class HelionDatabase : RoomDatabase() {
     abstract fun activities(): ActivityDao
     abstract fun slots(): SlotDao
     abstract fun publications(): PublicationDao
+    abstract fun healthConnectExportState(): HealthConnectExportStateDao
 }
