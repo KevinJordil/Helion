@@ -12,6 +12,7 @@ import ch.kevinjordil.helion.store.ActivityOrigin
 import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.store.MinuteSample
+import ch.kevinjordil.helion.store.PointSample
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
@@ -50,6 +51,23 @@ class HealthConnectExporterTest {
         override suspend fun deleteByClientId(recordType: KClass<out Record>, clientRecordIds: List<String>) {
             deleted += recordType to clientRecordIds
         }
+    }
+
+    /** Succeeds on every `insertOrUpdate` call except the [failOnCall]-th, simulating a Health Connect chunk failure partway through a multi-batch pass. */
+    private class FailingWriter(private val failOnCall: Int) : HealthConnectWriter {
+        val inserted = mutableListOf<Record>()
+        var insertCalls = 0
+
+        override suspend fun hasWritePermission(): Boolean = true
+
+        override suspend fun insertOrUpdate(records: List<Record>): Int {
+            insertCalls++
+            if (insertCalls == failOnCall) throw RuntimeException("simulated Health Connect chunk failure")
+            inserted += records
+            return records.size
+        }
+
+        override suspend fun deleteByClientId(recordType: KClass<out Record>, clientRecordIds: List<String>) {}
     }
 
     @Before
@@ -180,5 +198,70 @@ class HealthConnectExporterTest {
         val writer = FakeWriter()
         exporter(config, writer).export()
         assertTrue(writer.deleted.isEmpty())
+    }
+
+    @Test
+    fun `a small export goes to Health Connect in a single batch`() = runTest {
+        db.activities().upsert(activity(1, ActivityStatus.CONFIRMED))
+        db.minuteSamples().upsertAll(listOf(MinuteSample(1000, steps = 5, intensity = null, rawKind = null, heartRate = 80, sleepStage = null)))
+
+        val config = HealthConnectConfig(context).apply { enabled = true }
+        val writer = FakeWriter()
+        val outcome = exporter(config, writer).export()
+
+        assertTrue(outcome is HealthConnectExportOutcome.Completed)
+        assertEquals(1, writer.insertCalls)
+    }
+
+    @Test
+    fun `a large export -- past the batch byte budget -- goes out over several insertOrUpdate calls`() = runTest {
+        // 9000 same-shaped point samples: each is far too small on its own to matter, but
+        // their combined estimated size clears HEALTH_CONNECT_BATCH_BYTE_BUDGET, exactly the
+        // shape of the real failure (weeks of small records adding up, not one huge one).
+        db.pointSamples().upsertAll((1..9000L).map { PointSample("hrv", it, 45.0) })
+
+        val config = HealthConnectConfig(context).apply { enabled = true }
+        val writer = FakeWriter()
+        val outcome = exporter(config, writer).export()
+
+        assertTrue(outcome is HealthConnectExportOutcome.Completed)
+        assertEquals(9000, (outcome as HealthConnectExportOutcome.Completed).summary.hrvRecords)
+        assertTrue("expected more than one insertOrUpdate call for a large export", writer.insertCalls > 1)
+    }
+
+    @Test
+    fun `a batch failure partway through leaves the earlier batches written, reports what it wrote, and is safe to re-run`() = runTest {
+        db.pointSamples().upsertAll((1..9000L).map { PointSample("hrv", it, 45.0) })
+
+        val config = HealthConnectConfig(context).apply { enabled = true }
+        val failingWriter = FailingWriter(failOnCall = 2)
+        val outcome = exporter(config, failingWriter).export()
+
+        assertTrue(outcome is HealthConnectExportOutcome.Failed)
+        val failed = outcome as HealthConnectExportOutcome.Failed
+        // Something from the first, successful batch was reported -- not a flat zero -- and
+        // not everything, since the pass genuinely stopped partway through.
+        assertTrue(failed.partialSummary.hrvRecords > 0)
+        assertTrue(failed.partialSummary.hrvRecords < 9000)
+        assertEquals(failed.partialSummary.hrvRecords, failingWriter.inserted.size)
+
+        // The persisted state agrees -- Réglages reads the same honest partial count back,
+        // not zero, the next time it shows the last pass' own result.
+        val persisted = db.healthConnectExportState().get()!!
+        assertEquals(failed.partialSummary.hrvRecords, persisted.hrvRecordsWritten)
+        assertEquals(failed.reason, persisted.lastError)
+
+        // A retry never advanced the watermark, so it re-reads the exact same range and
+        // rebuilds the exact same client record ids for the batch that already made it --
+        // Health Connect resolves those as updates, never duplicates -- plus whatever never
+        // made it the first time.
+        val retryWriter = FakeWriter()
+        val retryOutcome = exporter(config, retryWriter).export()
+        assertTrue(retryOutcome is HealthConnectExportOutcome.Completed)
+        assertEquals(9000, (retryOutcome as HealthConnectExportOutcome.Completed).summary.hrvRecords)
+
+        val firstBatchIds = failingWriter.inserted.map { it.metadata.clientRecordId }.toSet()
+        val retryIds = retryWriter.inserted.map { it.metadata.clientRecordId }.toSet()
+        assertTrue(firstBatchIds.all { it in retryIds })
     }
 }

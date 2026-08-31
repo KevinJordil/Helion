@@ -2,6 +2,7 @@ package ch.kevinjordil.helion.ui.settings
 
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.healthconnect.HealthConnectExportOutcome
+import ch.kevinjordil.helion.healthconnect.HealthConnectExportSummary
 import ch.kevinjordil.helion.store.HealthConnectExportState
 
 /**
@@ -24,8 +25,26 @@ fun healthConnectOutcomeMessage(outcome: HealthConnectExportOutcome): Pair<Int, 
         temperatureRecords = outcome.summary.temperatureRecords,
         respiratoryRateRecords = outcome.summary.respiratoryRateRecords,
     )
-    is HealthConnectExportOutcome.Failed -> R.string.health_connect_result_failed to listOf(outcome.reason)
+    is HealthConnectExportOutcome.Failed -> healthConnectFailureMessage(outcome.reason, outcome.partialSummary)
 }
+
+/**
+ * "Échec de l'export" alone when [partialSummary] is [HealthConnectExportSummary.EMPTY] --
+ * the pass never wrote anything -- otherwise the same per-kind breakdown
+ * [healthConnectSummaryMessage] uses for a full success, folded into the failure sentence: a
+ * multi-batch export that failed halfway is never reported as if nothing happened (see
+ * [ch.kevinjordil.helion.healthconnect.HealthConnectExporter]'s own kdoc on batching).
+ */
+private fun healthConnectFailureMessage(reason: String, partialSummary: HealthConnectExportSummary): Pair<Int, List<Any>> =
+    if (partialSummary == HealthConnectExportSummary.EMPTY) {
+        R.string.health_connect_result_failed to listOf(reason)
+    } else {
+        R.string.health_connect_result_failed_partial to listOf(
+            partialSummary.sleepSessions, partialSummary.exerciseSessions, partialSummary.heartRateRecords, partialSummary.stepsRecords,
+            partialSummary.hrvRecords, partialSummary.spo2Records, partialSummary.temperatureRecords, partialSummary.respiratoryRateRecords,
+            reason,
+        )
+    }
 
 private fun healthConnectSummaryMessage(
     sleepSessions: Int,
@@ -51,7 +70,19 @@ private fun healthConnectSummaryMessage(
 fun healthConnectStateMessage(state: HealthConnectExportState?): Pair<Int, List<Any>>? {
     if (state?.lastRunAttempt == null) return null
     return if (state.lastError != null) {
-        R.string.health_connect_result_failed to listOf(state.lastError)
+        healthConnectFailureMessage(
+            reason = state.lastError,
+            partialSummary = HealthConnectExportSummary(
+                sleepSessions = state.sleepSessionsWritten,
+                exerciseSessions = state.exerciseSessionsWritten,
+                heartRateRecords = state.heartRateRecordsWritten,
+                stepsRecords = state.stepsRecordsWritten,
+                hrvRecords = state.hrvRecordsWritten,
+                spo2Records = state.spo2RecordsWritten,
+                temperatureRecords = state.temperatureRecordsWritten,
+                respiratoryRateRecords = state.respiratoryRateRecordsWritten,
+            ),
+        )
     } else {
         healthConnectSummaryMessage(
             sleepSessions = state.sleepSessionsWritten,

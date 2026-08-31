@@ -92,6 +92,7 @@
     <string name="health_connect_result_permission_missing">Autorisation refusée ou révoquée : rien n\'a été envoyé.</string>
     <string name="health_connect_result_success">Dernier export : %1$d nuits, %2$d activités, %3$d relevés de fréquence cardiaque, %4$d jours de pas, %5$d VFC, %6$d SpO2, %7$d températures, %8$d respirations.</string>
     <string name="health_connect_result_failed">Échec de l\'export : %1$s</string>
+    <string name="health_connect_result_failed_partial">Échec de l\'export après %1$d nuits, %2$d activités, %3$d relevés de fréquence cardiaque, %4$d jours de pas, %5$d VFC, %6$d SpO2, %7$d températures, %8$d respirations écrits : %9$s</string>
 
     <string name="calorie_section_title">Calories (estimé)</string>
     <string name="calorie_value">≈ %1$d kcal</string>

@@ -151,6 +151,43 @@ class HealthConnectRecordMapperTest {
     }
 
     @Test
+    fun `a heart-rate record within the per-record sample cap is returned unchanged`() {
+        val samples = listOf(
+            MinuteSample(timestamp = 0, steps = null, intensity = null, rawKind = null, heartRate = 70, sleepStage = null),
+            MinuteSample(timestamp = 60, steps = null, intensity = null, rawKind = null, heartRate = 71, sleepStage = null),
+        )
+        val record = dailyHeartRateRecordFor(0, samples, NOW)!!
+        val parts = splitHeartRateRecordIfOversized(record)
+        assertEquals(1, parts.size)
+        assertEquals(record, parts.single())
+    }
+
+    @Test
+    fun `a heart-rate series longer than the per-record sample cap is split across several records, none over the cap`() {
+        val sampleCount = 1_500
+        val samples = (0 until sampleCount).map {
+            MinuteSample(timestamp = it * 60L, steps = null, intensity = null, rawKind = null, heartRate = 70, sleepStage = null)
+        }
+        val record = dailyHeartRateRecordFor(0, samples, NOW)!!
+        assertEquals(sampleCount, record.samples.size)
+
+        val parts = splitHeartRateRecordIfOversized(record)
+
+        assertTrue("expected more than one part for $sampleCount samples", parts.size > 1)
+        for (part in parts) {
+            assertTrue(part.samples.size <= 1000)
+        }
+        // Every original sample survives the split, none duplicated, order preserved.
+        assertEquals(record.samples, parts.flatMap { it.samples })
+        // Each part gets its own, stable client record id -- a re-run rebuilds and updates
+        // the exact same ids rather than duplicating them.
+        val ids = parts.map { it.metadata.clientRecordId }
+        assertEquals(ids.toSet().size, ids.size)
+        assertTrue(ids.all { it!!.startsWith(record.metadata.clientRecordId!!) })
+        assertEquals(ids, splitHeartRateRecordIfOversized(record).map { it.metadata.clientRecordId })
+    }
+
+    @Test
     fun `utcEpochDayOf buckets a timestamp into the correct UTC calendar day`() {
         assertEquals(0L, utcEpochDayOf(0))
         assertEquals(0L, utcEpochDayOf(86_399))

@@ -18,6 +18,7 @@ import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.PointSample
 import ch.kevinjordil.helion.store.SleepStageSegment
+import androidx.health.connect.client.records.metadata.Metadata
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
 import ch.kevinjordil.helion.ui.sleep.devicePhaseOf
 import ch.kevinjordil.helion.ui.sleep.SleepPhase
@@ -159,6 +160,51 @@ fun dailyHeartRateRecordFor(epochDay: Long, samples: List<MinuteSample>, now: Lo
         },
         metadata = healthConnectMetadata(healthConnectDailyHeartRateClientId(epochDay), now),
     )
+}
+
+/**
+ * Health Connect's own per-request byte ceiling (see [HealthConnectExporter]'s own kdoc for
+ * the crash this whole batching effort exists to fix) applies to the *whole* insert call, not
+ * to one record on its own -- but a single [HeartRateRecord] carrying a very long
+ * [HeartRateRecord.samples] list can still be disproportionately large next to every other
+ * record in a batch, and Health Connect's own developer guidance settles on 1000 as the unit
+ * it batches everything around ("chunk requests to at most 1000 records per write request").
+ * There is no separately published ceiling on samples *within* one series record, so this
+ * reuses that same figure as a conservative per-record cap: it is not an arbitrary number,
+ * and it does real work here -- this device samples heart rate once a minute, so a full UTC
+ * day ([dailyHeartRateRecordFor]) can carry up to 1440 samples, comfortably over this cap,
+ * while a typical activity's own span ([exerciseHeartRateRecordFor]) rarely comes close.
+ */
+private const val MAX_SAMPLES_PER_HEART_RATE_RECORD = 1000
+
+/**
+ * Splits [record] into several [HeartRateRecord]s of at most [MAX_SAMPLES_PER_HEART_RATE_RECORD]
+ * samples each when it exceeds that cap, or returns it unchanged (as the only element of a
+ * one-item list) otherwise. [record.samples] is assumed already sorted by time -- both
+ * [dailyHeartRateRecordFor] and [exerciseHeartRateRecordFor] sort or naturally produce theirs
+ * in order -- so consecutive chunks never overlap in time.
+ *
+ * Each part gets its own client record id, built from [record]'s own id with a stable
+ * `-partN` suffix: deterministic given the same (sorted, unsplit) sample list, so a re-run
+ * produces the exact same part ids and updates them in place rather than duplicating them --
+ * the same stability [HealthConnectExporter]'s whole batching story depends on.
+ */
+fun splitHeartRateRecordIfOversized(record: HeartRateRecord): List<HeartRateRecord> {
+    if (record.samples.size <= MAX_SAMPLES_PER_HEART_RATE_RECORD) return listOf(record)
+    return record.samples.chunked(MAX_SAMPLES_PER_HEART_RATE_RECORD).mapIndexed { index, chunk ->
+        HeartRateRecord(
+            startTime = chunk.first().time,
+            startZoneOffset = record.startZoneOffset,
+            endTime = chunk.last().time,
+            endZoneOffset = record.endZoneOffset,
+            samples = chunk,
+            metadata = Metadata.autoRecorded(
+                device = HELION_DEVICE,
+                clientRecordId = "${record.metadata.clientRecordId}-part$index",
+                clientRecordVersion = record.metadata.clientRecordVersion,
+            ),
+        )
+    }
 }
 
 /**

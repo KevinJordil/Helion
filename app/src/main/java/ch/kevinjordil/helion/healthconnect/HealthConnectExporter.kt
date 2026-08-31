@@ -28,10 +28,24 @@ sealed interface HealthConnectExportOutcome {
     data object PermissionMissing : HealthConnectExportOutcome
 
     data class Completed(val summary: HealthConnectExportSummary) : HealthConnectExportOutcome
-    data class Failed(val reason: String) : HealthConnectExportOutcome
+
+    /**
+     * [partialSummary] is what actually made it to Health Connect before [reason] cut the
+     * pass short -- see [HealthConnectExporter]'s own kdoc on batching for why a failure
+     * partway through is never all-or-nothing. Defaults to [HealthConnectExportSummary.EMPTY]
+     * for a failure that never got as far as writing anything at all (permission revoked
+     * mid-pass, a database read failing before the first batch).
+     */
+    data class Failed(val reason: String, val partialSummary: HealthConnectExportSummary = HealthConnectExportSummary.EMPTY) : HealthConnectExportOutcome
 }
 
-/** What one successful pass actually wrote -- one count per record kind, never a single opaque total. */
+/**
+ * What one pass actually wrote -- one count per record kind, never a single opaque total.
+ * Counts the physical Health Connect records this app wrote, which can exceed one per
+ * calendar day for [heartRateRecords]: a day whose sample count crosses Health Connect's
+ * per-record cap is split across several records (see `splitHeartRateRecordIfOversized` in
+ * [HealthConnectRecordMapper.kt][ch.kevinjordil.helion.healthconnect]), each counted here.
+ */
 data class HealthConnectExportSummary(
     val sleepSessions: Int,
     val exerciseSessions: Int,
@@ -41,7 +55,12 @@ data class HealthConnectExportSummary(
     val spo2Records: Int,
     val temperatureRecords: Int,
     val respiratoryRateRecords: Int,
-)
+) {
+    companion object {
+        /** Every count zero -- what a [HealthConnectExportOutcome.Failed] carries when nothing was written before it failed. */
+        val EMPTY = HealthConnectExportSummary(0, 0, 0, 0, 0, 0, 0, 0)
+    }
+}
 
 private const val POINT_SERIES_HRV = "hrv"
 private const val POINT_SERIES_SPO2 = "spo2"
@@ -78,6 +97,38 @@ private const val SECONDS_PER_DAY = 86_400L
  * Every other series (sleep, heart rate, steps, HRV, SpO2, skin temperature, respiratory
  * rate) is the device's own recording, not a judgement call, so it is written without any
  * per-item confirmation -- see this feature's own top-level brief.
+ *
+ * ### Batching
+ *
+ * Health Connect refuses a whole `insertRecords` call once its total serialised size passes
+ * [HEALTH_CONNECT_MAX_CHUNK_BYTES] -- weeks of this device's minute-level data comfortably
+ * exceeds that on its own, which is exactly the crash this class exists to avoid repeating.
+ * [runPass] never hands the whole pass to one `insertOrUpdate` call: [batchBySize] groups the
+ * records into batches under [HEALTH_CONNECT_BATCH_BYTE_BUDGET] first (see that file's own
+ * kdoc for why the budget sits well under the real ceiling rather than against it), and each
+ * batch is written in its own call.
+ *
+ * This is safe to interrupt. Every record this app ever writes carries a stable client
+ * record id (see this file's own kdoc below on the `helion-<kind>-<id>` scheme), so a batch
+ * Health Connect already has just gets updated in place the next time this pass -- or the
+ * next pass, or a retry after a failure -- sends it again; nothing is ever duplicated by
+ * writing the same batch twice. Watermarks and `*Written` counts are only persisted once
+ * every batch in the pass has succeeded (see the end of [runPass]), so a pass that fails
+ * partway through never advances anything: the next run re-reads and rebuilds the exact same
+ * records from the exact same starting point, and Health Connect resolves the ones it already
+ * has as updates rather than as new writes.
+ *
+ * That last property is also the answer to whether the *first* export -- the one that, on
+ * enabling this feature, covers the whole archive at once and is by far the most likely to
+ * need several batches -- deserves different handling from every incremental one after it: it
+ * does not, deliberately. A bespoke "resume from batch N" path would save some redundant
+ * re-sends on a retry, but it would do so by persisting progress *within* a pass, which is
+ * exactly the kind of partial state this class otherwise avoids on purpose (see the
+ * `*Written` fields' own kdoc on [ch.kevinjordil.helion.store.HealthConnectExportState]). The
+ * plain retry-the-whole-pass design already converges correctly for a backlog of any size,
+ * costing only some repeated (cheap, in-place) updates for whatever the previous attempt
+ * already got through -- a real but bounded cost, not a correctness risk, and not worth the
+ * extra state machine for a feature that runs in the background and is not time-critical.
  */
 class HealthConnectExporter(
     private val db: HelionDatabase,
@@ -98,11 +149,23 @@ class HealthConnectExporter(
             HealthConnectExportOutcome.Completed(summary)
         } catch (e: CancellationException) {
             throw e
+        } catch (e: BatchWriteFailed) {
+            recordFailure(nowSeconds, e.reason, e.partialSummary)
+            HealthConnectExportOutcome.Failed(e.reason, e.partialSummary)
         } catch (e: Exception) {
-            recordFailure(nowSeconds, e.message ?: e::class.simpleName.orEmpty())
-            HealthConnectExportOutcome.Failed(e.message ?: e::class.simpleName.orEmpty())
+            val reason = e.message ?: e::class.simpleName.orEmpty()
+            recordFailure(nowSeconds, reason, HealthConnectExportSummary.EMPTY)
+            HealthConnectExportOutcome.Failed(reason, HealthConnectExportSummary.EMPTY)
         }
     }
+
+    /** One kind of record this exporter writes, tagging [TaggedRecord] so a batch can be credited to [HealthConnectExportSummary] by kind once it is actually written. */
+    private enum class RecordKind { SLEEP, EXERCISE, HEART_RATE, STEPS, HRV, SPO2, TEMPERATURE, RESPIRATORY_RATE }
+
+    private data class TaggedRecord(val record: Record, val kind: RecordKind)
+
+    /** Thrown out of [writeBatches] when a batch fails partway through the pass, carrying what had already been written -- caught in [export] to build an honest [HealthConnectExportOutcome.Failed]. */
+    private class BatchWriteFailed(val reason: String, val partialSummary: HealthConnectExportSummary) : Exception(reason)
 
     private suspend fun runPass(writer: HealthConnectWriter, nowSeconds: Long): HealthConnectExportSummary {
         val state = db.healthConnectExportState().get() ?: HealthConnectExportState()
@@ -115,9 +178,17 @@ class HealthConnectExporter(
         val temperature = exportPointSeries(state.temperatureWatermark, nowSeconds, POINT_SERIES_TEMPERATURE, ::skinTemperatureRecordFor)
         val respiratoryRate = exportPointSeries(state.respiratoryRateWatermark, nowSeconds, POINT_SERIES_RESPIRATORY_RATE, ::respiratoryRateRecordFor)
 
-        val allRecords: List<Record> = sleep.records + activities.records + minutes.heartRateRecords +
-            minutes.stepsRecords + hrv.records + spo2.records + temperature.records + respiratoryRate.records
-        writer.insertOrUpdate(allRecords)
+        val tagged = mutableListOf<TaggedRecord>()
+        tagRecords(tagged, sleep.records, RecordKind.SLEEP)
+        tagRecords(tagged, activities.records, RecordKind.EXERCISE)
+        tagRecords(tagged, minutes.heartRateRecords, RecordKind.HEART_RATE)
+        tagRecords(tagged, minutes.stepsRecords, RecordKind.STEPS)
+        tagRecords(tagged, hrv.records, RecordKind.HRV)
+        tagRecords(tagged, spo2.records, RecordKind.SPO2)
+        tagRecords(tagged, temperature.records, RecordKind.TEMPERATURE)
+        tagRecords(tagged, respiratoryRate.records, RecordKind.RESPIRATORY_RATE)
+
+        val summary = writeBatches(writer, tagged)
 
         markActivitiesPublished(activities.eligible, nowSeconds)
         cleanupDismissed(writer, nowSeconds)
@@ -132,28 +203,66 @@ class HealthConnectExporter(
                 sleepSessionWatermark = sleep.newWatermark,
                 lastRunAttempt = nowSeconds,
                 lastError = null,
-                sleepSessionsWritten = sleep.records.size,
-                exerciseSessionsWritten = activities.records.size,
-                heartRateRecordsWritten = minutes.heartRateRecords.size,
-                stepsRecordsWritten = minutes.stepsRecords.size,
-                hrvRecordsWritten = hrv.records.size,
-                spo2RecordsWritten = spo2.records.size,
-                temperatureRecordsWritten = temperature.records.size,
-                respiratoryRateRecordsWritten = respiratoryRate.records.size,
+                sleepSessionsWritten = summary.sleepSessions,
+                exerciseSessionsWritten = summary.exerciseSessions,
+                heartRateRecordsWritten = summary.heartRateRecords,
+                stepsRecordsWritten = summary.stepsRecords,
+                hrvRecordsWritten = summary.hrvRecords,
+                spo2RecordsWritten = summary.spo2Records,
+                temperatureRecordsWritten = summary.temperatureRecords,
+                respiratoryRateRecordsWritten = summary.respiratoryRateRecords,
             ),
         )
 
-        return HealthConnectExportSummary(
-            sleepSessions = sleep.records.size,
-            exerciseSessions = activities.records.size,
-            heartRateRecords = minutes.heartRateRecords.size,
-            stepsRecords = minutes.stepsRecords.size,
-            hrvRecords = hrv.records.size,
-            spo2Records = spo2.records.size,
-            temperatureRecords = temperature.records.size,
-            respiratoryRateRecords = respiratoryRate.records.size,
-        )
+        return summary
     }
+
+    /**
+     * Tags every record in [records] as [kind], splitting a [HeartRateRecord] that exceeds
+     * Health Connect's per-record sample cap into several tagged parts first (see
+     * `splitHeartRateRecordIfOversized`) -- the only one of the record kinds this app writes
+     * that can carry an oversized sample list on its own (see that function's own kdoc).
+     */
+    private fun tagRecords(into: MutableList<TaggedRecord>, records: List<Record>, kind: RecordKind) {
+        for (record in records) {
+            val parts = if (record is HeartRateRecord) splitHeartRateRecordIfOversized(record) else listOf(record)
+            for (part in parts) into += TaggedRecord(part, kind)
+        }
+    }
+
+    /**
+     * Writes [tagged] to [writer] in batches under [HEALTH_CONNECT_BATCH_BYTE_BUDGET] (see
+     * this class' own kdoc on batching), returning an honest [HealthConnectExportSummary] of
+     * what actually made it -- every kind's count from every batch that succeeded. On a
+     * failure partway through, throws [BatchWriteFailed] carrying that same partial summary
+     * rather than losing track of what earlier, already-successful batches wrote.
+     */
+    private suspend fun writeBatches(writer: HealthConnectWriter, tagged: List<TaggedRecord>): HealthConnectExportSummary {
+        val batches = batchBySize(tagged, HEALTH_CONNECT_BATCH_BYTE_BUDGET) { estimateRecordBytes(it.record) }
+        val written = mutableMapOf<RecordKind, Int>()
+        for (batch in batches) {
+            try {
+                writer.insertOrUpdate(batch.map { it.record })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                throw BatchWriteFailed(e.message ?: e::class.simpleName.orEmpty(), summaryFrom(written))
+            }
+            for (item in batch) written.merge(item.kind, 1, Int::plus)
+        }
+        return summaryFrom(written)
+    }
+
+    private fun summaryFrom(written: Map<RecordKind, Int>): HealthConnectExportSummary = HealthConnectExportSummary(
+        sleepSessions = written[RecordKind.SLEEP] ?: 0,
+        exerciseSessions = written[RecordKind.EXERCISE] ?: 0,
+        heartRateRecords = written[RecordKind.HEART_RATE] ?: 0,
+        stepsRecords = written[RecordKind.STEPS] ?: 0,
+        hrvRecords = written[RecordKind.HRV] ?: 0,
+        spo2Records = written[RecordKind.SPO2] ?: 0,
+        temperatureRecords = written[RecordKind.TEMPERATURE] ?: 0,
+        respiratoryRateRecords = written[RecordKind.RESPIRATORY_RATE] ?: 0,
+    )
 
     private data class SleepExportResult(val records: List<SleepSessionRecord>, val newWatermark: Long)
 
@@ -300,20 +409,28 @@ class HealthConnectExporter(
         return PointSeriesExportResult(records, newPoints.maxOf { it.timestamp })
     }
 
-    private suspend fun recordFailure(nowSeconds: Long, reason: String) {
+    /**
+     * Persists [reason] as the pass' own failure and [partial] as what it actually managed
+     * to write before that -- never a flat zero, so Réglages' own "last export" line stays
+     * honest about a partial pass instead of implying nothing happened at all (see this
+     * class' own kdoc on batching, and [ch.kevinjordil.helion.ui.settings.healthConnectStateMessage]
+     * for where this is read back). Watermarks are left untouched -- see this class' own
+     * kdoc on why a failed pass never advances anything.
+     */
+    private suspend fun recordFailure(nowSeconds: Long, reason: String, partial: HealthConnectExportSummary) {
         val state = db.healthConnectExportState().get() ?: HealthConnectExportState()
         db.healthConnectExportState().put(
             state.copy(
                 lastRunAttempt = nowSeconds,
                 lastError = reason,
-                sleepSessionsWritten = 0,
-                exerciseSessionsWritten = 0,
-                heartRateRecordsWritten = 0,
-                stepsRecordsWritten = 0,
-                hrvRecordsWritten = 0,
-                spo2RecordsWritten = 0,
-                temperatureRecordsWritten = 0,
-                respiratoryRateRecordsWritten = 0,
+                sleepSessionsWritten = partial.sleepSessions,
+                exerciseSessionsWritten = partial.exerciseSessions,
+                heartRateRecordsWritten = partial.heartRateRecords,
+                stepsRecordsWritten = partial.stepsRecords,
+                hrvRecordsWritten = partial.hrvRecords,
+                spo2RecordsWritten = partial.spo2Records,
+                temperatureRecordsWritten = partial.temperatureRecords,
+                respiratoryRateRecordsWritten = partial.respiratoryRateRecords,
             ),
         )
     }
