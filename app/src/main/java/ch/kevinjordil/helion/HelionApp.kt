@@ -24,6 +24,7 @@ class HelionApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        installCrashLog(this)
         container = AppContainer(this)
 
         // Scheduled unconditionally, not only once a location has been chosen: this is
