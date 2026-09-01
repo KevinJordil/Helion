@@ -24,10 +24,14 @@ data class TrimmedEffort(val start: Long, val end: Long, val minHeartRate: Int, 
  * without needing to pre-trim it itself.
  *
  * The boundaries are the first and last minute whose heart rate clears
- * [HeartRateBaseline.elevatedThresholdBpm], with everything in between kept as one
- * continuous span regardless of any dip inside it -- [detectFreeSessions] (pass 2) is
- * where dip *tolerance* as a splitting rule lives; here there is only one occurrence to
- * decide about, so its extremes are enough.
+ * [HeartRateBaseline.floorThresholdBpm] -- the *stay-in* half of the hysteresis pair, not
+ * the higher *enter* threshold: a slot occurrence is already a declared commitment (the
+ * owner said he would be there), so pass 1 does not need the same "did real effort ever
+ * start" confirmation pass 2 needs before trusting an elevated stretch at all. Everything
+ * between the first and last floor-crossing minute is kept as one continuous span
+ * regardless of any dip inside it -- [detectFreeSessions] (pass 2) is where dip *tolerance*
+ * as a splitting rule lives; here there is only one occurrence to decide about, so its
+ * extremes are enough.
  *
  * Returns null -- create nothing -- in two cases:
  * - No minute in range clears the threshold at all: the window is flat, he was not there.
@@ -40,7 +44,7 @@ fun trimSlotOccurrence(
     baseline: HeartRateBaseline,
     thresholds: DetectionThresholds = DetectionThresholds(),
 ): TrimmedEffort? {
-    val threshold = baseline.elevatedThresholdBpm(thresholds)
+    val threshold = baseline.floorThresholdBpm(thresholds)
     val elevated = minutes.filter {
         it.timestamp >= occurrence.start && it.timestamp < occurrence.end && it.heartRate != null && it.heartRate >= threshold
     }

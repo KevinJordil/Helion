@@ -97,10 +97,12 @@ class ActivityDetector(
                 Activity(
                     startTimestamp = session.start,
                     endTimestamp = session.end,
-                    // The sport is genuinely unknown -- heart rate alone never identifies
-                    // which sport was played -- so this is left for the owner to set on
-                    // review, exactly like a manually drawn activity starts out.
-                    sport = SportType.OTHER,
+                    // Heart rate alone never identifies which sport was played, so this is
+                    // still just a starting guess for the owner to correct on review, not a
+                    // claim -- but badminton is what he actually plays, and defaulting to
+                    // it here saves him the one tap it would otherwise cost on every single
+                    // candidate this pass ever proposes.
+                    sport = SportType.BADMINTON,
                     title = null,
                     notes = null,
                     detectionContext = noteFor(session.minHeartRate, session.maxHeartRate, baseline.restingBpm.roundToInt()),

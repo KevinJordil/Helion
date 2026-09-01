@@ -3,10 +3,11 @@ package ch.kevinjordil.helion.activity
 import ch.kevinjordil.helion.store.MinuteSample
 import java.time.Instant
 import java.time.ZoneId
+import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The owner's own resting heart rate and day-to-day spread, derived from his own history --
+ * The owner's own resting heart rate and observed ceiling, derived from his own history --
  * never an absolute constant, because a fixed bpm number tuned on one person is wrong for
  * everyone else, including a future export of this same app for someone else's wrist.
  *
@@ -15,16 +16,34 @@ import kotlin.math.min
  * standing resting measurement while awake, and quiet stretches of an ordinary day
  * (sitting, sleeping) already dominate any reasonably sized history, so a low percentile of
  * everything lands close to true rest without needing to cross into sleep data at all.
+ *
+ * [maxBpm] is simply the highest reading in the same window -- unlike [restingBpm] it is
+ * deliberately not smoothed by a percentile, because the two thresholds derived from it
+ * (see below) need to reach genuine peak effort, and this device's one known corruption
+ * mode (a 255 "no reading" sentinel) is already filtered out before a sample ever reaches
+ * this class -- see `ExportReader`'s `VALID_HEART_RATE` bound.
  */
-data class HeartRateBaseline(val restingBpm: Double, val spreadBpm: Double, val distinctDays: Int) {
+data class HeartRateBaseline(val restingBpm: Double, val maxBpm: Double, val distinctDays: Int) {
+    /** (observed max - resting), floored by [DetectionThresholds.minRangeBpm] -- see its kdoc. */
+    private fun range(thresholds: DetectionThresholds): Double = max(maxBpm - restingBpm, thresholds.minRangeBpm)
+
     /**
-     * The heart rate above which a minute counts as "elevated effort" for both detection
-     * passes -- see [DetectionThresholds.elevationSpreadMultiplier] and
-     * [DetectionThresholds.minElevationBpm] for why this is the larger of a relative and an
-     * absolute margin above [restingBpm], not either alone.
+     * The heart rate a minute must reach -- and, per [DetectionThresholds.minEntrySustainMinutes],
+     * hold -- to *enter* a session. The higher half of the hysteresis pair with
+     * [floorThresholdBpm]; see [DetectionThresholds.enterFraction] for the derivation.
      */
-    fun elevatedThresholdBpm(thresholds: DetectionThresholds): Double =
-        restingBpm + maxOf(thresholds.minElevationBpm, thresholds.elevationSpreadMultiplier * spreadBpm)
+    fun enterThresholdBpm(thresholds: DetectionThresholds): Double =
+        restingBpm + thresholds.enterFraction * range(thresholds)
+
+    /**
+     * The heart rate a minute must fall below -- for longer than
+     * [DetectionThresholds.dipToleranceMinutes] -- to *end* an already-started session, or
+     * (for pass 1) the boundary a slot occurrence is trimmed to. The lower half of the
+     * hysteresis pair with [enterThresholdBpm]; see [DetectionThresholds.floorFraction] for
+     * the derivation.
+     */
+    fun floorThresholdBpm(thresholds: DetectionThresholds): Double =
+        restingBpm + thresholds.floorFraction * range(thresholds)
 }
 
 /**
@@ -51,11 +70,9 @@ fun computeHeartRateBaseline(
 
     val sorted = withHeartRate.map { it.heartRate!!.toDouble() }.sorted()
     val resting = percentile(sorted, thresholds.restingPercentile)
-    val low = percentile(sorted, thresholds.spreadLowPercentile)
-    val high = percentile(sorted, thresholds.spreadHighPercentile)
-    val spread = maxOf(high - low, thresholds.minSpreadBpm)
+    val max = sorted.last()
 
-    return HeartRateBaseline(restingBpm = resting, spreadBpm = spread, distinctDays = distinctDays)
+    return HeartRateBaseline(restingBpm = resting, maxBpm = max, distinctDays = distinctDays)
 }
 
 /** Linear-interpolation percentile ([p] in `0.0..1.0`) of an already-sorted, non-empty list. Same approach as [ch.kevinjordil.helion.ui.sleep.SleepPhaseThresholds]'s own private percentile helper. */

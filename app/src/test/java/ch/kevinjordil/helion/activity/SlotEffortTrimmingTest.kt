@@ -9,8 +9,9 @@ class SlotEffortTrimmingTest {
 
     private val thresholds = DetectionThresholds()
 
-    // Resting 60, spread 5 -> elevated threshold is 60 + max(25, 2.5*5) = 85 bpm.
-    private val baseline = HeartRateBaseline(restingBpm = 60.0, spreadBpm = 5.0, distinctDays = 20)
+    // Resting 60, max 140 -> range 80 (above the 40 bpm floor) -> floor threshold is
+    // 60 + 0.32*80 = 85.6 bpm.
+    private val baseline = HeartRateBaseline(restingBpm = 60.0, maxBpm = 140.0, distinctDays = 20)
 
     private fun sample(timestamp: Long, heartRate: Int) =
         MinuteSample(timestamp = timestamp, steps = 0, intensity = 20, rawKind = null, heartRate = heartRate, sleepStage = null)

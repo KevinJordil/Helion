@@ -37,22 +37,24 @@ class HeartRateBaselineTest {
     @Test
     fun `resting rate is a low percentile of ordinary readings, not the bare minimum`() {
         // 20 days, 100 quiet minutes each, all at 60 bpm -- a uniform history so the
-        // resting estimate and spread are both exactly predictable.
+        // resting estimate and the observed max are both exactly predictable.
         val minutes = (0 until 20).flatMap { day ->
             (0 until 100).map { minute -> quietSample(day * 86_400L + minute * 60L, heartRate = 60) }
         }
         val baseline = computeHeartRateBaseline(minutes, zone, defaults)!!
         assertEquals(60.0, baseline.restingBpm, 0.01)
-        // A perfectly uniform history has zero measured spread; the floor takes over.
-        assertEquals(defaults.minSpreadBpm, baseline.spreadBpm, 0.01)
+        assertEquals(60.0, baseline.maxBpm, 0.01)
     }
 
     @Test
-    fun `a brief non-exercise spike does not blow out the resting rate or the spread`() {
+    fun `a brief high effort spike does not move the resting estimate but does become the new max`() {
         // Same 2000 quiet minutes as above, plus a handful of elevated minutes on the last
-        // day -- a stressful afternoon, not a workout. Both percentiles this baseline reads
-        // (15th and 85th) fall comfortably inside the 2000-strong quiet block, so the spike
-        // must not move either number.
+        // day -- a real short burst of effort, not a workout long enough to matter for
+        // resting. The 25th-percentile resting estimate sits comfortably inside the
+        // 2000-strong quiet block and must not move; the observed max, deliberately not a
+        // percentile (see HeartRateBaseline's own kdoc), must move to the spike's own peak
+        // -- that reactivity is exactly what lets a genuine short burst of real exertion
+        // raise the ceiling the two detection thresholds are scaled against.
         val quiet = (0 until 20).flatMap { day ->
             (0 until 100).map { minute -> quietSample(day * 86_400L + minute * 60L, heartRate = 60) }
         }
@@ -60,18 +62,22 @@ class HeartRateBaselineTest {
         val baseline = computeHeartRateBaseline(quiet + spike, zone, defaults)!!
 
         assertEquals(60.0, baseline.restingBpm, 0.01)
-        assertEquals(defaults.minSpreadBpm, baseline.spreadBpm, 0.01)
+        assertEquals(150.0, baseline.maxBpm, 0.01)
     }
 
     @Test
-    fun `elevated threshold is the larger of the relative and the absolute margin above resting`() {
-        val baseline = HeartRateBaseline(restingBpm = 60.0, spreadBpm = 5.0, distinctDays = 20)
-        // 2.5 * 5 = 12.5, dwarfed by the 25 bpm absolute floor.
-        assertEquals(85.0, baseline.elevatedThresholdBpm(defaults), 0.01)
+    fun `enter and floor thresholds split the observed range by their own fractions, floored by minRangeBpm`() {
+        // resting 51, max 177 -- the owner's own real-export figures this module was
+        // calibrated against. range = 126; enter = 51 + 0.55*126 = 120.3; floor = 51 + 0.32*126 = 91.32.
+        val baseline = HeartRateBaseline(restingBpm = 51.0, maxBpm = 177.0, distinctDays = 20)
+        assertEquals(120.3, baseline.enterThresholdBpm(defaults), 0.01)
+        assertEquals(91.32, baseline.floorThresholdBpm(defaults), 0.01)
 
-        val wideSpreadBaseline = HeartRateBaseline(restingBpm = 60.0, spreadBpm = 40.0, distinctDays = 20)
-        // 2.5 * 40 = 100, now dwarfing the 25 bpm floor.
-        assertEquals(160.0, wideSpreadBaseline.elevatedThresholdBpm(defaults), 0.01)
+        // A narrow observed range (no real effort on record yet) is floored at minRangeBpm
+        // (40) rather than collapsing both thresholds down near resting.
+        val flatBaseline = HeartRateBaseline(restingBpm = 60.0, maxBpm = 65.0, distinctDays = 20)
+        assertEquals(60.0 + 0.55 * 40.0, flatBaseline.enterThresholdBpm(defaults), 0.01)
+        assertEquals(60.0 + 0.32 * 40.0, flatBaseline.floorThresholdBpm(defaults), 0.01)
     }
 
     @Test

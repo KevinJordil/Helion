@@ -206,8 +206,10 @@ class ActivityDetectorTest {
     fun `a free session with a tolerated dip stays ONE activity`() = runTest {
         seedQuietBaseline()
         val start = now - 5 * day
+        // A 17-minute dip, matching the longest below-floor gap measured on the real
+        // tournament evening -- comfortably inside the 20-minute tolerance.
         val minutes = (start..start + 600 step 60).map { elevated(it) } +
-            (start + 840..start + 1_440 step 60).map { elevated(it) } // 240s dip
+            (start + 1_620..start + 2_220 step 60).map { elevated(it) }
 
         db.minuteSamples().upsertAll(minutes)
         val created = detector.detect(start - day, start + 2 * day)
@@ -215,17 +217,19 @@ class ActivityDetectorTest {
         assertEquals(1, created)
         val activity = db.activities().all().single()
         assertEquals(ActivityOrigin.DETECTED, activity.origin)
-        assertEquals(SportType.OTHER, activity.sport)
+        assertEquals(SportType.BADMINTON, activity.sport)
         assertEquals(start, activity.startTimestamp)
-        assertEquals(start + 1_440 + 60, activity.endTimestamp)
+        assertEquals(start + 2_220 + 60, activity.endTimestamp)
     }
 
     @Test
-    fun `a genuine gap between two elevated stretches splits into two activities`() = runTest {
+    fun `a genuine gap longer than the dip tolerance splits into two activities`() = runTest {
         seedQuietBaseline()
         val start = now - 5 * day
+        // A 22-minute gap -- past the 20-minute dip tolerance -- between two 25-minute
+        // elevated stretches: two separate outings, not one long one.
         val minutes = (start..start + 1_440 step 60).map { elevated(it) } + // 25 min
-            (start + 1_800..start + 3_240 step 60).map { elevated(it) } // 25 min, 6 min later
+            (start + 2_760..start + 4_200 step 60).map { elevated(it) } // 25 min, 22 min later
 
         db.minuteSamples().upsertAll(minutes)
         val created = detector.detect(start - day, start + 2 * day)
@@ -234,8 +238,8 @@ class ActivityDetectorTest {
         val activities = db.activities().all().sortedBy { it.startTimestamp }
         assertEquals(start, activities[0].startTimestamp)
         assertEquals(start + 1_500, activities[0].endTimestamp)
-        assertEquals(start + 1_800, activities[1].startTimestamp)
-        assertEquals(start + 3_300, activities[1].endTimestamp)
+        assertEquals(start + 2_760, activities[1].startTimestamp)
+        assertEquals(start + 4_260, activities[1].endTimestamp)
     }
 
     @Test
