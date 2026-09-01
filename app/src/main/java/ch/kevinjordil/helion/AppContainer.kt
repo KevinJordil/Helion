@@ -116,7 +116,7 @@ class AppContainer(context: Context) {
         noteFor = { min, max, resting -> context.getString(R.string.activity_candidate_note, min, max, resting) },
     )
 
-    /** Activités' "Réanalyser tout l'historique" action -- see [ArchiveReanalyzer]'s own kdoc. */
+    /** Réglages' "Réanalyser tout l'historique" action -- see [ArchiveReanalyzer]'s own kdoc. */
     val archiveReanalyzer = ArchiveReanalyzer(
         db = database,
         detector = activityDetector,

@@ -17,7 +17,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringArrayResource
@@ -25,7 +24,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
-import ch.kevinjordil.helion.activity.ReanalysisOutcome
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
@@ -33,14 +31,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 private val ROW_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val ROW_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM")
-private val LAST_REANALYSIS_FORMAT: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
 
 /**
  * Activités: every recorded [Activity], grouped by the calendar day it starts on (most
@@ -59,53 +52,10 @@ fun ActivityListScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = HelionThemeTokens.colors
-    val scope = rememberCoroutineScope()
     var activities by remember { mutableStateOf<List<Activity>?>(null) }
-    var lastFullReanalysis by remember { mutableStateOf<Long?>(null) }
-    var reanalysisJob by remember { mutableStateOf<Job?>(null) }
-    var reanalysisMessageRes by remember { mutableStateOf<Int?>(null) }
-    var reanalysisMessageArgs by remember { mutableStateOf(emptyList<Any>()) }
-
-    suspend fun loadActivities() {
-        activities = container.database.activities().all()
-    }
 
     LaunchedEffect(Unit) {
-        loadActivities()
-        lastFullReanalysis = container.database.syncState().get()?.lastFullDetectionRun
-    }
-
-    /**
-     * Cancelling here means abandoning [ArchiveReanalyzer.reanalyze] between two of its own
-     * bounded slices (see its kdoc) -- always safe, since every slice it already finished
-     * committed its own overlap-checked inserts, and a later re-run (this action tapped
-     * again) simply resumes covering the rest of the archive without duplicating anything
-     * that slice already produced.
-     */
-    fun startReanalysis() {
-        reanalysisMessageRes = null
-        reanalysisJob = scope.launch {
-            try {
-                when (val outcome = container.archiveReanalyzer.reanalyze()) {
-                    is ReanalysisOutcome.Completed -> {
-                        reanalysisMessageRes = if (outcome.candidatesCreated > 0) {
-                            reanalysisMessageArgs = listOf(outcome.candidatesCreated)
-                            R.string.activity_reanalyze_result_found
-                        } else {
-                            R.string.activity_reanalyze_result_none
-                        }
-                        lastFullReanalysis = container.database.syncState().get()?.lastFullDetectionRun
-                        loadActivities()
-                    }
-                    ReanalysisOutcome.AlreadyRunning -> reanalysisMessageRes = R.string.activity_reanalyze_already_running
-                    ReanalysisOutcome.NothingStored -> reanalysisMessageRes = R.string.activity_reanalyze_result_none
-                }
-            } catch (e: CancellationException) {
-                reanalysisMessageRes = R.string.activity_reanalyze_cancelled
-            } finally {
-                reanalysisJob = null
-            }
-        }
+        activities = container.database.activities().all()
     }
 
     val loaded = activities
@@ -128,31 +78,6 @@ fun ActivityListScreen(
 
         Button(onClick = onNewActivity) {
             Text(stringResource(R.string.activity_new_action))
-        }
-
-        val running = reanalysisJob != null
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { startReanalysis() }, enabled = !running) {
-                Text(stringResource(if (running) R.string.activity_reanalyzing else R.string.activity_reanalyze_action))
-            }
-            if (running) {
-                Text(
-                    stringResource(R.string.action_cancel),
-                    style = HelionType.label,
-                    color = colors.accentViolet,
-                    modifier = Modifier.clickable { reanalysisJob?.cancel() },
-                )
-            }
-        }
-        reanalysisMessageRes?.let { resId ->
-            Text(stringResource(resId, *reanalysisMessageArgs.toTypedArray()), style = HelionType.bodySmall, color = colors.textSecondary)
-        }
-        lastFullReanalysis?.let { timestamp ->
-            Text(
-                stringResource(R.string.activity_last_full_reanalysis, LAST_REANALYSIS_FORMAT.format(Instant.ofEpochSecond(timestamp))),
-                style = HelionType.bodySmall,
-                color = colors.textTertiary,
-            )
         }
 
         when {

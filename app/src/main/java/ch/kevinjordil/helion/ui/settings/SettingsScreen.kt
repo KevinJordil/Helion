@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,19 +44,27 @@ import ch.kevinjordil.helion.healthconnect.healthConnectAvailability
 import ch.kevinjordil.helion.healthconnect.realHealthConnectWriterOrNull
 import androidx.compose.runtime.LaunchedEffect
 import androidx.health.connect.client.PermissionController
+import ch.kevinjordil.helion.activity.ReanalysisOutcome
 import ch.kevinjordil.helion.healthconnect.HEALTH_CONNECT_PERMISSIONS
 import ch.kevinjordil.helion.store.HealthConnectExportState
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** `dd/MM/yyyy`, the same day-month-year order every other date field in the app uses (see [ch.kevinjordil.helion.ui.activity.ACTIVITY_DATETIME_FORMAT]), without a time-of-day component: a date of birth has none. */
 private val DATE_OF_BIRTH_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+private val LAST_REANALYSIS_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
 
 private fun parseDateOfBirth(text: String): LocalDate? = try {
     LocalDate.parse(text.trim(), DATE_OF_BIRTH_FORMAT)
@@ -190,6 +199,10 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
         HorizontalDivider(color = colors.divider)
 
+        ArchiveReanalysisSection(container)
+
+        HorizontalDivider(color = colors.divider)
+
         Text(stringResource(R.string.steps_goal_label), style = HelionType.body, color = colors.textPrimary)
         OutlinedTextField(
             value = stepsGoalText,
@@ -264,6 +277,84 @@ fun SettingsScreen(container: AppContainer, modifier: Modifier = Modifier) {
         }
 
         Text(stringResource(R.string.profile_note), style = HelionType.bodySmall, color = colors.textSecondary)
+    }
+}
+
+/**
+ * Re-runs activity detection over the entire archive Helion already holds, for whatever
+ * candidates a slot or a threshold change since the last full pass would now catch. Moved
+ * here from Activités -- it configures how much of the archive gets a fresh look, the same
+ * "configuration" category as the rest of Réglages, rather than something tied to browsing
+ * the activity list itself.
+ *
+ * Cancelling here means abandoning [ArchiveReanalyzer.reanalyze] between two of its own
+ * bounded slices (see its kdoc) -- always safe, since every slice it already finished
+ * committed its own overlap-checked inserts, and a later re-run (this action tapped again)
+ * simply resumes covering the rest of the archive without duplicating anything that slice
+ * already produced.
+ */
+@Composable
+private fun ArchiveReanalysisSection(container: AppContainer) {
+    val colors = HelionThemeTokens.colors
+    val scope = rememberCoroutineScope()
+
+    var lastFullReanalysis by remember { mutableStateOf<Long?>(null) }
+    var reanalysisJob by remember { mutableStateOf<Job?>(null) }
+    var reanalysisMessageRes by remember { mutableStateOf<Int?>(null) }
+    var reanalysisMessageArgs by remember { mutableStateOf(emptyList<Any>()) }
+
+    LaunchedEffect(Unit) {
+        lastFullReanalysis = container.database.syncState().get()?.lastFullDetectionRun
+    }
+
+    fun startReanalysis() {
+        reanalysisMessageRes = null
+        reanalysisJob = scope.launch {
+            try {
+                when (val outcome = container.archiveReanalyzer.reanalyze()) {
+                    is ReanalysisOutcome.Completed -> {
+                        reanalysisMessageRes = if (outcome.candidatesCreated > 0) {
+                            reanalysisMessageArgs = listOf(outcome.candidatesCreated)
+                            R.string.activity_reanalyze_result_found
+                        } else {
+                            R.string.activity_reanalyze_result_none
+                        }
+                        lastFullReanalysis = container.database.syncState().get()?.lastFullDetectionRun
+                    }
+                    ReanalysisOutcome.AlreadyRunning -> reanalysisMessageRes = R.string.activity_reanalyze_already_running
+                    ReanalysisOutcome.NothingStored -> reanalysisMessageRes = R.string.activity_reanalyze_result_none
+                }
+            } catch (e: CancellationException) {
+                reanalysisMessageRes = R.string.activity_reanalyze_cancelled
+            } finally {
+                reanalysisJob = null
+            }
+        }
+    }
+
+    val running = reanalysisJob != null
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = { startReanalysis() }, enabled = !running) {
+            Text(stringResource(if (running) R.string.activity_reanalyzing else R.string.activity_reanalyze_action))
+        }
+        if (running) {
+            Text(
+                stringResource(R.string.action_cancel),
+                style = HelionType.label,
+                color = colors.accentViolet,
+                modifier = Modifier.clickable { reanalysisJob?.cancel() },
+            )
+        }
+    }
+    reanalysisMessageRes?.let { resId ->
+        Text(stringResource(resId, *reanalysisMessageArgs.toTypedArray()), style = HelionType.bodySmall, color = colors.textSecondary)
+    }
+    lastFullReanalysis?.let { timestamp ->
+        Text(
+            stringResource(R.string.activity_last_full_reanalysis, LAST_REANALYSIS_FORMAT.format(Instant.ofEpochSecond(timestamp))),
+            style = HelionType.bodySmall,
+            color = colors.textTertiary,
+        )
     }
 }
 
