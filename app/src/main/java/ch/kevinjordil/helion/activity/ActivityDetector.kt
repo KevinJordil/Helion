@@ -4,7 +4,6 @@ import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityOrigin
 import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.HelionDatabase
-import ch.kevinjordil.helion.store.SportType
 import java.time.ZoneId
 import kotlin.math.roundToInt
 
@@ -97,12 +96,13 @@ class ActivityDetector(
                 Activity(
                     startTimestamp = session.start,
                     endTimestamp = session.end,
-                    // Heart rate alone never identifies which sport was played, so this is
-                    // still just a starting guess for the owner to correct on review, not a
-                    // claim -- but badminton is what he actually plays, and defaulting to
-                    // it here saves him the one tap it would otherwise cost on every single
-                    // candidate this pass ever proposes.
-                    sport = SportType.BADMINTON,
+                    // Heart rate alone never identifies which sport was played -- a
+                    // motorcycle ride and a river descent read exactly the same as a
+                    // badminton match here. A slot-origin candidate gets its sport from the
+                    // slot the owner himself named and configured (see the pass above); a
+                    // freely detected one has no such signal at all, so it gets none rather
+                    // than a guess. See Activity.sport's own kdoc.
+                    sport = null,
                     title = null,
                     notes = null,
                     detectionContext = noteFor(session.minHeartRate, session.maxHeartRate, baseline.restingBpm.roundToInt()),

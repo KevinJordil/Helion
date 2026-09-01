@@ -18,9 +18,15 @@ import java.io.File
  * exposes through the FileProvider -- nothing else in the app's storage is reachable this
  * way. `FLAG_GRANT_READ_URI_PERMISSION` is required on the intent because the receiving
  * app has no other route to a `content://` URI it does not own.
+ *
+ * Returns null when [activity] has no sport set (see [Activity.sport]'s own kdoc) --
+ * `ActivityDetailScreen` already disables the share action in that state and shows
+ * `export_requires_sport`, so this is a defensive backstop, not the owner's normal path to
+ * seeing that message.
  */
-fun buildShareIntent(context: Context, activity: Activity, samples: List<MinuteSample>, calories: Int? = null): Intent {
-    val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
+fun buildShareIntent(context: Context, activity: Activity, samples: List<MinuteSample>, calories: Int? = null): Intent? {
+    val sport = activity.sport ?: return null
+    val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
     val dir = File(context.cacheDir, "tcx").apply { mkdirs() }
     val file = File(dir, "helion-activity-${activity.id}.tcx")
     file.writeText(tcx, Charsets.UTF_8)

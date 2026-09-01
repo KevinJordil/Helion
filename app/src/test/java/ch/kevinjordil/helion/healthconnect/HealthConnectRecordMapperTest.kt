@@ -82,15 +82,24 @@ class HealthConnectRecordMapperTest {
     }
 
     @Test
-    fun `sport mapping -- badminton and climbing are exact, cycling and swimming fall back, motorcycling and other map to the generic workout type`() {
+    fun `sport mapping -- badminton and rock climbing are exact, cycling and swimming fall back, motorcycling and workout map to the generic workout type`() {
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_BADMINTON, healthConnectExerciseType(SportType.BADMINTON))
-        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_RUNNING, healthConnectExerciseType(SportType.RUNNING))
-        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_BIKING, healthConnectExerciseType(SportType.CYCLING))
-        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_WALKING, healthConnectExerciseType(SportType.WALKING))
-        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL, healthConnectExerciseType(SportType.SWIMMING))
-        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING, healthConnectExerciseType(SportType.CLIMBING))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_RUNNING, healthConnectExerciseType(SportType.RUN))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_BIKING, healthConnectExerciseType(SportType.RIDE))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_WALKING, healthConnectExerciseType(SportType.WALK))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL, healthConnectExerciseType(SportType.SWIM))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING, healthConnectExerciseType(SportType.ROCK_CLIMBING))
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, healthConnectExerciseType(SportType.MOTORCYCLING))
-        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, healthConnectExerciseType(SportType.OTHER))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, healthConnectExerciseType(SportType.WORKOUT))
+    }
+
+    @Test
+    fun `every sport type maps to a valid Health Connect exercise type`() {
+        SportType.entries.forEach { sport ->
+            // Simply must not throw -- healthConnectExerciseType is a total function over
+            // every SportType, see its own kdoc for which ones fall back and why.
+            healthConnectExerciseType(sport)
+        }
     }
 
     @Test

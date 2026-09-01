@@ -294,9 +294,18 @@ class HealthConnectExporter(
      * notes, after export) reach Health Connect too -- the same stable
      * [ch.kevinjordil.helion.export.externalIdFor] client record id just resolves to an
      * update instead of a fresh insert.
+     *
+     * Filtered to activities that actually have a sport set (see
+     * [ch.kevinjordil.helion.store.Activity.sport]'s own kdoc): a confirmed activity with no
+     * sport is a completely normal row the owner can keep and edit, but writing it to
+     * Health Connect would need an `exerciseType` this app has nothing honest to put there
+     * -- so it is simply left out of this pass, exactly as if it were not confirmed yet.
+     * Nothing else marks it as tried or failed; the very next pass (this whole scan runs
+     * again on every ingest, see this class' own kdoc) picks it straight up once the owner
+     * sets a sport, with no separate retry logic needed.
      */
     private suspend fun exportActivities(nowSeconds: Long): ActivityExportResult {
-        val eligible = db.activities().confirmedOrPublished()
+        val eligible = db.activities().confirmedOrPublished().filter { it.sport != null }
         val records = mutableListOf<Record>()
         eligible.forEach { activity ->
             records += exerciseSessionRecordFor(activity, nowSeconds)

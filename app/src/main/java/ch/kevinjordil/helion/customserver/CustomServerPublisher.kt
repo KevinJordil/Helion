@@ -42,6 +42,15 @@ object CustomServerFailureReason {
 
     /** The server answered with any other non-2xx status. [Publication.lastErrorDetail] carries its own body. */
     const val REMOTE_ERROR = "custom_server_remote_error"
+
+    /**
+     * [ch.kevinjordil.helion.store.Activity.sport] is null -- see that field's own kdoc.
+     * Checked before anything else, even [NOT_CONFIGURED]: sending an unset sport under a
+     * generic label would silently mislabel the activity on the receiving end forever, so
+     * this is refused the same way every other export path refuses it, never a guessed or
+     * generic value sent in its place.
+     */
+    const val NO_SPORT = "custom_server_no_sport"
 }
 
 private val START_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
@@ -131,6 +140,12 @@ class CustomServerPublisher(
         val activity = activities.get(activityId)
             ?: return Result.Failed(CustomServerFailureReason.REMOTE_ERROR)
 
+        val sport = activity.sport
+        if (sport == null) {
+            recordFailure(activityId, CustomServerFailureReason.NO_SPORT)
+            return Result.Failed(CustomServerFailureReason.NO_SPORT)
+        }
+
         val serverUrl = config.serverUrl
         val token = config.token
         if (!config.isConfigured || serverUrl == null || token == null) {
@@ -153,11 +168,11 @@ class CustomServerPublisher(
 
         val samples = minuteSamples.between(activity.startTimestamp, activity.endTimestamp)
         val calories = calorieEstimateFor(profile, activity, zone, samples)
-        val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
+        val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
         val request = CustomServerSendRequest(
             tcx = tcx,
-            fileName = tcxDownloadFileName(activity.sport, activity.startTimestamp, zone),
-            sport = customServerSportSlug(activity.sport),
+            fileName = tcxDownloadFileName(sport, activity.startTimestamp, zone),
+            sport = customServerSportSlug(sport),
             title = activityDisplayName(activity),
             // The owner's own words only -- never [Activity.detectionContext], which is
             // diagnostic text for reviewing a candidate, not something to publish.

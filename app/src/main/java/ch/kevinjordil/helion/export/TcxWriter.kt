@@ -12,14 +12,17 @@ import java.time.format.DateTimeFormatter
  * information -- the exact sport is still recorded elsewhere (the activity model, the
  * custom-server `sport` field) and, for a Strava import, is left for the owner to
  * correct by hand inside Strava after import (see `strava_sport_fix_note` in
- * `strings.xml`).
+ * `strings.xml`). Every pedal- or motor-free running variant maps to `Running`, every
+ * pedal-powered one (including the electric-assist and virtual/trainer variants) to
+ * `Biking`; everything else -- all fifty other sports, [SportType.MOTORCYCLING] included --
+ * is `Other`, the same bucket the TCX schema itself offers no finer answer for.
  */
 fun tcxSport(sport: SportType): String = when (sport) {
-    SportType.RUNNING -> "Running"
-    SportType.CYCLING -> "Biking"
-    SportType.BADMINTON, SportType.WALKING, SportType.SWIMMING,
-    SportType.MOTORCYCLING, SportType.CLIMBING, SportType.OTHER,
-    -> "Other"
+    SportType.RUN, SportType.TRAIL_RUN -> "Running"
+    SportType.RIDE, SportType.E_BIKE_RIDE, SportType.E_MOUNTAIN_BIKE_RIDE, SportType.GRAVEL_RIDE,
+    SportType.HANDCYCLE, SportType.MOUNTAIN_BIKE_RIDE, SportType.VELOMOBILE, SportType.VIRTUAL_RIDE,
+    -> "Biking"
+    else -> "Other"
 }
 
 private val ISO_INSTANT: DateTimeFormatter = DateTimeFormatter.ISO_INSTANT

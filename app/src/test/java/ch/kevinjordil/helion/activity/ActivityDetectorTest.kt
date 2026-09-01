@@ -138,6 +138,9 @@ class ActivityDetectorTest {
         assertEquals(reachedAt, activity.startTimestamp)
         assertEquals(leftAt + 60, activity.endTimestamp)
         assertEquals("Badminton du mardi", activity.title)
+        // A slot-origin candidate takes the sport declared on the slot itself -- the owner
+        // named and configured it, so it is the one reliable signal detection has.
+        assertEquals(SportType.BADMINTON, activity.sport)
         assertTrue(activity.detectionContext!!.isNotBlank())
         assertEquals(null, activity.notes)
     }
@@ -217,7 +220,9 @@ class ActivityDetectorTest {
         assertEquals(1, created)
         val activity = db.activities().all().single()
         assertEquals(ActivityOrigin.DETECTED, activity.origin)
-        assertEquals(SportType.BADMINTON, activity.sport)
+        // No slot backs a freely detected session, so it carries no sport guess at all --
+        // see Activity.sport's own kdoc.
+        assertEquals(null, activity.sport)
         assertEquals(start, activity.startTimestamp)
         assertEquals(start + 2_220 + 60, activity.endTimestamp)
     }

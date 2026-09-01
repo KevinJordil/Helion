@@ -126,7 +126,7 @@ class TcxWriterTest {
 
     @Test
     fun `sets Sport from the TCX mapping`() {
-        val xml = writeTcx(SportType.RUNNING, start, end, emptyList())
+        val xml = writeTcx(SportType.RUN, start, end, emptyList())
         val root = parse(xml)
         val activityEl = root.getElementsByTagName("Activity").item(0) as Element
         assertEquals("Running", activityEl.getAttribute("Sport"))

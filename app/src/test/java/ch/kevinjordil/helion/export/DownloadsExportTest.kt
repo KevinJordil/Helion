@@ -23,13 +23,17 @@ class DownloadsExportTest {
     @Test
     fun `the file name is built from the sport slug and the start time, down to the minute`() {
         assertEquals("badminton-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.BADMINTON, start, zone))
-        assertEquals("course-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.RUNNING, start, zone))
-        assertEquals("velo-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.CYCLING, start, zone))
-        assertEquals("marche-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.WALKING, start, zone))
-        assertEquals("natation-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.SWIMMING, start, zone))
-        assertEquals("moto-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.MOTORCYCLING, start, zone))
-        assertEquals("escalade-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.CLIMBING, start, zone))
-        assertEquals("activite-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.OTHER, start, zone))
+        assertEquals("run-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.RUN, start, zone))
+        assertEquals("ride-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.RIDE, start, zone))
+        assertEquals("walk-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.WALK, start, zone))
+        assertEquals("swim-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.SWIM, start, zone))
+        assertEquals("motorcycling-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.MOTORCYCLING, start, zone))
+        assertEquals("rock-climbing-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.ROCK_CLIMBING, start, zone))
+        assertEquals("workout-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.WORKOUT, start, zone))
+        assertEquals(
+            "high-intensity-interval-training-2026-08-26-2010.tcx",
+            tcxDownloadFileName(SportType.HIGH_INTENSITY_INTERVAL_TRAINING, start, zone),
+        )
     }
 
     @Test

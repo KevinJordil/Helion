@@ -113,42 +113,95 @@ fun healthConnectSkinTemperatureClientId(timestamp: Long): String = "helion-skin
 fun healthConnectRespiratoryRateClientId(timestamp: Long): String = "helion-respiratory-rate-$timestamp"
 
 /**
- * [SportType] to Health Connect's own `EXERCISE_TYPE_*` vocabulary.
+ * [SportType] to Health Connect's own `EXERCISE_TYPE_*` vocabulary (SDK 1.1.0). Most of
+ * Strava's fifty-six types land on a real or reasonably-equivalent Health Connect constant
+ * (the same "close enough to not be a loss" call this file already made for
+ * [ExerciseSessionRecord.EXERCISE_TYPE_BIKING] and [ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL]
+ * before this catalogue existed -- pool over open-water swimming stays the safer default of
+ * the two, since open water implies a GPS route this app never has).
  *
- * [SportType.BADMINTON] has an exact match ([ExerciseSessionRecord.EXERCISE_TYPE_BADMINTON])
- * -- the one sport this app was built around lands precisely, not in a fallback bucket.
- *
- * [SportType.CYCLING] maps to [ExerciseSessionRecord.EXERCISE_TYPE_BIKING]: Health Connect
- * has no plain "cycling" constant, only that and its stationary-bike counterpart, and this
- * device never distinguishes an indoor trainer session from a road ride.
- *
- * [SportType.SWIMMING] maps to [ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL]: Health
- * Connect splits swimming into open-water and pool, a distinction this device's own
- * `SportType` does not carry at all. Pool is the more common setting for recreational
- * swimming and the safer default of the two -- open water implies a GPS route this app
- * never has -- but this is a genuine loss of information, the same kind TCX export already
- * accepts for the same sport (see [ch.kevinjordil.helion.export.tcxSport]'s own kdoc).
- *
- * [SportType.CLIMBING] has an exact match too
- * ([ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING]) -- Health Connect does not split
- * indoor and outdoor climbing the way it splits swimming above, so one constant covers both.
- *
- * [SportType.MOTORCYCLING] has no match at all: Health Connect's whole `EXERCISE_TYPE_*`
- * vocabulary is exercise the wearer performs (there is a `BIKING` and a `BIKING_STATIONARY`,
- * both pedal-powered, and nothing for a motor vehicle), because riding a motorcycle is not
- * exercise -- which is exactly why detection only ever proposes it and never assumes it, see
- * [ch.kevinjordil.helion.activity.DetectionThresholds]'s own kdoc. It falls back to
- * [ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT] like [SportType.OTHER].
- *
- * [SportType.OTHER] -- and nothing else, since every other constant above has a real
- * match -- falls back to [ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT].
+ * Eight sports have no equivalent at all in Health Connect's vocabulary and fall back to the
+ * generic [ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT]: [SportType.KITESURF],
+ * [SportType.WINDSURF] (no kite- or wind-surfing constant, only plain [ExerciseSessionRecord.EXERCISE_TYPE_SURFING],
+ * which would misrepresent the equipment), [SportType.ROLLER_SKI] (no dryland/roller-ski
+ * constant, and the snow [ExerciseSessionRecord.EXERCISE_TYPE_SKIING] would misrepresent the
+ * surface), [SportType.PADEL] and [SportType.PICKLEBALL] (both distinct racket sports with no
+ * constant of their own -- reusing squash's or tennis's would misrepresent the sport, not
+ * just lose a nuance), [SportType.PHYSICAL_THERAPY] (no rehabilitation constant;
+ * [ExerciseSessionRecord.EXERCISE_TYPE_STRETCHING] is too specific a guess at what a
+ * session actually was), and [SportType.SKATEBOARD] (no skateboarding constant; the closest,
+ * [ExerciseSessionRecord.EXERCISE_TYPE_SKATING], is built for inline/roller skates).
+ * [SportType.MOTORCYCLING] falls back for a different reason -- see its own kdoc -- and
+ * [SportType.WORKOUT] simply *is* the generic bucket by definition, not a fallback from
+ * something more specific.
  */
 fun healthConnectExerciseType(sport: SportType): Int = when (sport) {
+    // -- cycling: only BIKING and BIKING_STATIONARY exist; every pedal- or motor-assisted
+    // outdoor variant lands on the former, virtual/trainer riding on the latter.
+    SportType.RIDE, SportType.E_BIKE_RIDE, SportType.E_MOUNTAIN_BIKE_RIDE, SportType.GRAVEL_RIDE,
+    SportType.HANDCYCLE, SportType.MOUNTAIN_BIKE_RIDE, SportType.VELOMOBILE,
+    -> ExerciseSessionRecord.EXERCISE_TYPE_BIKING
+    SportType.VIRTUAL_RIDE -> ExerciseSessionRecord.EXERCISE_TYPE_BIKING_STATIONARY
+
+    // -- running and walking --
+    SportType.HIKE -> ExerciseSessionRecord.EXERCISE_TYPE_HIKING
+    SportType.RUN, SportType.TRAIL_RUN -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING
+    SportType.VIRTUAL_RUN -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL
+    SportType.WALK -> ExerciseSessionRecord.EXERCISE_TYPE_WALKING
+
+    // -- water --
+    SportType.CANOEING, SportType.KAYAKING, SportType.STAND_UP_PADDLING -> ExerciseSessionRecord.EXERCISE_TYPE_PADDLING
+    SportType.ROWING -> ExerciseSessionRecord.EXERCISE_TYPE_ROWING
+    SportType.VIRTUAL_ROW -> ExerciseSessionRecord.EXERCISE_TYPE_ROWING_MACHINE
+    SportType.SAIL -> ExerciseSessionRecord.EXERCISE_TYPE_SAILING
+    SportType.SURFING -> ExerciseSessionRecord.EXERCISE_TYPE_SURFING
+    SportType.SWIM -> ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL
+    SportType.KITESURF, SportType.WINDSURF -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+
+    // -- snow and ice: no distinct alpine/backcountry/nordic constants, only plain SKIING. --
+    SportType.ALPINE_SKI, SportType.BACKCOUNTRY_SKI, SportType.NORDIC_SKI -> ExerciseSessionRecord.EXERCISE_TYPE_SKIING
+    SportType.ICE_SKATE -> ExerciseSessionRecord.EXERCISE_TYPE_ICE_SKATING
+    SportType.SNOWBOARD -> ExerciseSessionRecord.EXERCISE_TYPE_SNOWBOARDING
+    SportType.SNOWSHOE -> ExerciseSessionRecord.EXERCISE_TYPE_SNOWSHOEING
+    SportType.ROLLER_SKI -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+
+    // -- racket sports: BADMINTON is the one this app was built around, and lands
+    // precisely, not in a fallback bucket. --
     SportType.BADMINTON -> ExerciseSessionRecord.EXERCISE_TYPE_BADMINTON
-    SportType.RUNNING -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING
-    SportType.CYCLING -> ExerciseSessionRecord.EXERCISE_TYPE_BIKING
-    SportType.WALKING -> ExerciseSessionRecord.EXERCISE_TYPE_WALKING
-    SportType.SWIMMING -> ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL
-    SportType.CLIMBING -> ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING
-    SportType.MOTORCYCLING, SportType.OTHER -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+    SportType.RACQUETBALL -> ExerciseSessionRecord.EXERCISE_TYPE_RACQUETBALL
+    SportType.SQUASH -> ExerciseSessionRecord.EXERCISE_TYPE_SQUASH
+    SportType.TABLE_TENNIS -> ExerciseSessionRecord.EXERCISE_TYPE_TABLE_TENNIS
+    SportType.TENNIS -> ExerciseSessionRecord.EXERCISE_TYPE_TENNIS
+    SportType.PADEL, SportType.PICKLEBALL -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+
+    // -- indoor and fitness --
+    SportType.CROSSFIT, SportType.HIGH_INTENSITY_INTERVAL_TRAINING ->
+        ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING
+    SportType.DANCE -> ExerciseSessionRecord.EXERCISE_TYPE_DANCING
+    SportType.ELLIPTICAL -> ExerciseSessionRecord.EXERCISE_TYPE_ELLIPTICAL
+    SportType.PILATES -> ExerciseSessionRecord.EXERCISE_TYPE_PILATES
+    SportType.STAIR_STEPPER -> ExerciseSessionRecord.EXERCISE_TYPE_STAIR_CLIMBING_MACHINE
+    SportType.WEIGHT_TRAINING -> ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING
+    SportType.YOGA -> ExerciseSessionRecord.EXERCISE_TYPE_YOGA
+    SportType.PHYSICAL_THERAPY -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+    // The generic bucket itself -- not a fallback from anything more specific.
+    SportType.WORKOUT -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+
+    // -- team sports --
+    SportType.BASKETBALL -> ExerciseSessionRecord.EXERCISE_TYPE_BASKETBALL
+    SportType.CRICKET -> ExerciseSessionRecord.EXERCISE_TYPE_CRICKET
+    SportType.SOCCER -> ExerciseSessionRecord.EXERCISE_TYPE_SOCCER
+    SportType.VOLLEYBALL -> ExerciseSessionRecord.EXERCISE_TYPE_VOLLEYBALL
+
+    // -- other --
+    SportType.GOLF -> ExerciseSessionRecord.EXERCISE_TYPE_GOLF
+    SportType.INLINE_SKATE -> ExerciseSessionRecord.EXERCISE_TYPE_SKATING
+    SportType.ROCK_CLIMBING -> ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING
+    SportType.WHEELCHAIR -> ExerciseSessionRecord.EXERCISE_TYPE_WHEELCHAIR
+    SportType.SKATEBOARD -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+    // No motor-vehicle constant exists at all: Health Connect's whole EXERCISE_TYPE_*
+    // vocabulary is exercise the wearer performs, and riding a motorcycle is not exercise --
+    // exactly why detection only ever proposes it and never assumes it, see
+    // ch.kevinjordil.helion.activity.DetectionThresholds's own kdoc.
+    SportType.MOTORCYCLING -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
 }

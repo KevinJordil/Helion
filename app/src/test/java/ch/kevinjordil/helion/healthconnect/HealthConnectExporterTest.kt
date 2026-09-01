@@ -78,11 +78,17 @@ class HealthConnectExporterTest {
     @After
     fun tearDown() = db.close()
 
-    private fun activity(id: Long, status: ActivityStatus, start: Long = 1000, end: Long = 4600) = Activity(
+    private fun activity(
+        id: Long,
+        status: ActivityStatus,
+        start: Long = 1000,
+        end: Long = 4600,
+        sport: SportType? = SportType.BADMINTON,
+    ) = Activity(
         id = id,
         startTimestamp = start,
         endTimestamp = end,
-        sport = SportType.BADMINTON,
+        sport = sport,
         title = "Séance $id",
         notes = null,
         origin = ActivityOrigin.MANUAL,
@@ -139,6 +145,21 @@ class HealthConnectExporterTest {
         assertEquals(setOf(externalIdFor(3), externalIdFor(4)), clientIds.toSet())
         assertFalse(clientIds.contains(externalIdFor(1)))
         assertFalse(clientIds.contains(externalIdFor(2)))
+    }
+
+    @Test
+    fun `a confirmed activity with no sport set is left out of the pass entirely, never sent under a generic type`() = runTest {
+        db.activities().upsert(activity(1, ActivityStatus.CONFIRMED, sport = null))
+        db.activities().upsert(activity(2, ActivityStatus.CONFIRMED, sport = SportType.BADMINTON))
+
+        val config = HealthConnectConfig(context).apply { enabled = true }
+        val writer = FakeWriter()
+        val outcome = exporter(config, writer).export()
+
+        assertTrue(outcome is HealthConnectExportOutcome.Completed)
+        val clientIds = writer.inserted.filterIsInstance<ExerciseSessionRecord>().map { it.metadata.clientRecordId }
+        assertEquals(setOf(externalIdFor(2)), clientIds.toSet())
+        assertFalse(clientIds.contains(externalIdFor(1)))
     }
 
     @Test

@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.SportType
+import ch.kevinjordil.helion.store.sportSlug
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -23,27 +24,18 @@ private val DOWNLOAD_FILE_NAME_TIME_FORMAT: DateTimeFormatter = DateTimeFormatte
 /**
  * `<sport>-<start date>-<start time>.tcx`, e.g. `badminton-2026-08-26-2010.tcx` -- what the
  * save action names the file it drops in Downloads, so the owner can recognise which
- * activity it is at a glance without opening it. Built only from a fixed lower-case slug
- * table ([downloadSportSlug], never a translated display label) and digits/hyphens, so it
- * is always a safe filename regardless of device locale or the filesystem Downloads lives
- * on. Minute-resolution on purpose: that already matches this strap's own recording
- * resolution, so two activities only ever share a name when they genuinely started in the
- * same sport in the same minute -- the case [uniqueDownloadFileName] resolves.
+ * activity it is at a glance without opening it. Built only from [sportSlug] (never a
+ * translated display label) and digits/hyphens, so it is always a safe filename regardless
+ * of device locale or the filesystem Downloads lives on. Minute-resolution on purpose: that
+ * already matches this strap's own recording resolution, so two activities only ever share a
+ * name when they genuinely started in the same sport in the same minute -- the case
+ * [uniqueDownloadFileName] resolves. Only ever called once [sport] has already been
+ * confirmed non-null by the caller -- see `ActivityDetailScreen`'s own export guard, the
+ * same one [ch.kevinjordil.helion.customserver.CustomServerPublisher] applies.
  */
 fun tcxDownloadFileName(sport: SportType, startTimestamp: Long, zone: ZoneId = ZoneId.systemDefault()): String {
     val time = DOWNLOAD_FILE_NAME_TIME_FORMAT.format(Instant.ofEpochSecond(startTimestamp).atZone(zone))
-    return "${downloadSportSlug(sport)}-$time.tcx"
-}
-
-private fun downloadSportSlug(sport: SportType): String = when (sport) {
-    SportType.BADMINTON -> "badminton"
-    SportType.RUNNING -> "course"
-    SportType.CYCLING -> "velo"
-    SportType.WALKING -> "marche"
-    SportType.SWIMMING -> "natation"
-    SportType.MOTORCYCLING -> "moto"
-    SportType.CLIMBING -> "escalade"
-    SportType.OTHER -> "activite"
+    return "${sportSlug(sport)}-$time.tcx"
 }
 
 /**
@@ -76,6 +68,15 @@ sealed class DownloadsSaveResult {
     object PermissionRequired : DownloadsSaveResult()
 
     data class Failed(val message: String) : DownloadsSaveResult()
+
+    /**
+     * [activity.sport][Activity.sport] is null -- see that field's own kdoc. Refused here
+     * rather than exported under an invented sport: `ActivityDetailScreen` already disables
+     * the save/share actions in this state and shows `export_requires_sport`, so this case
+     * is a defensive backstop for any other caller of this function, not the owner's normal
+     * path to seeing that message.
+     */
+    object SportMissing : DownloadsSaveResult()
 }
 
 /**
@@ -93,8 +94,9 @@ fun saveTcxToDownloads(
     calories: Int?,
     zone: ZoneId = ZoneId.systemDefault(),
 ): DownloadsSaveResult {
-    val tcx = writeTcx(activity.sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
-    val baseName = tcxDownloadFileName(activity.sport, activity.startTimestamp, zone)
+    val sport = activity.sport ?: return DownloadsSaveResult.SportMissing
+    val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
+    val baseName = tcxDownloadFileName(sport, activity.startTimestamp, zone)
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         saveViaMediaStore(context, baseName, tcx)
     } else {

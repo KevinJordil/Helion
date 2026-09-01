@@ -103,6 +103,12 @@ fun healthConnectSleepStageType(phase: SleepPhase): Int = when (phase) {
  * dismissed one. [clientRecordId] is [ch.kevinjordil.helion.export.externalIdFor], the
  * exact same stable id the custom-server target already uses for this activity -- one
  * identity, reused everywhere this activity is ever sent.
+ *
+ * Requires [Activity.sport] to be non-null: [HealthConnectExporter.exportActivities] filters
+ * to sport-bearing activities before ever calling this, the same refusal every other export
+ * path applies to a sportless activity (see [Activity.sport]'s own kdoc) -- this function
+ * stays a total mapping over what it is actually handed rather than silently guessing an
+ * `exerciseType` for a row that should never have reached it.
  */
 fun exerciseSessionRecordFor(activity: Activity, now: Long): ExerciseSessionRecord =
     ExerciseSessionRecord(
@@ -111,7 +117,9 @@ fun exerciseSessionRecordFor(activity: Activity, now: Long): ExerciseSessionReco
         endTime = Instant.ofEpochSecond(activity.endTimestamp),
         endZoneOffset = null,
         metadata = healthConnectMetadata(externalIdFor(activity.id), now),
-        exerciseType = healthConnectExerciseType(activity.sport),
+        exerciseType = healthConnectExerciseType(
+            requireNotNull(activity.sport) { "activity ${activity.id} has no sport -- the caller must filter these out first" },
+        ),
         title = activityDisplayName(activity),
         // Never activity.detectionContext -- see ch.kevinjordil.helion.export.PublishingSupport's
         // own kdoc for why that diagnostic text must never leave this app.
