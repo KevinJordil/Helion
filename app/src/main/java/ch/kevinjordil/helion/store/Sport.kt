@@ -2,7 +2,7 @@ package ch.kevinjordil.helion.store
 
 /**
  * The eight groups [ch.kevinjordil.helion.ui.activity.SportPicker] shows [SportType] under,
- * chosen for a French speaker scanning fifty-seven names rather than for any taxonomy
+ * chosen for a French speaker scanning fifty-six names rather than for any taxonomy
  * Strava itself publishes -- Strava's own list is flat. Order here is also the picker's own
  * display order within a category-less (empty query) view.
  */
@@ -18,17 +18,13 @@ enum class SportCategory {
 }
 
 /**
- * The sport an [Activity] or a [Slot] is for. Every constant except [MOTORCYCLING] is one of
- * Strava's own activity types (https://developers.strava.com/docs/reference/#api-models-ActivityType,
- * the exact vocabulary the owner asked this list to match), spelled here as
- * `SCREAMING_SNAKE_CASE` of Strava's own `PascalCase` name -- see [slug] for the stable
- * string form derived from that name. [MOTORCYCLING] has no Strava equivalent at all and is
- * a Helion-only addition, kept because the owner rides and wants it tracked; every export
- * path that has to fall back for it (see [ch.kevinjordil.helion.healthconnect.healthConnectExerciseType])
- * does so for exactly the same reason a real Strava type sometimes must: the target
- * vocabulary simply has nothing closer.
+ * The sport an [Activity] or a [Slot] is for. Every constant is one of Strava's own activity
+ * types (https://developers.strava.com/docs/reference/#api-models-ActivityType, the exact
+ * vocabulary the owner asked this list to match), spelled here as `SCREAMING_SNAKE_CASE` of
+ * Strava's own `PascalCase` name -- see [slug] for the stable string form derived from that
+ * name.
  *
- * [category] groups these fifty-seven for [ch.kevinjordil.helion.ui.activity.SportPicker];
+ * [category] groups these fifty-six for [ch.kevinjordil.helion.ui.activity.SportPicker];
  * it carries no meaning beyond that UI grouping (nothing here reads it for TCX or Health
  * Connect mapping, both of which switch on the sport itself).
  */
@@ -104,7 +100,6 @@ enum class SportType(val category: SportCategory) {
     ROCK_CLIMBING(SportCategory.OTHER),
     SKATEBOARD(SportCategory.OTHER),
     WHEELCHAIR(SportCategory.OTHER),
-    MOTORCYCLING(SportCategory.OTHER),
 }
 
 /**

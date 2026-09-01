@@ -108,11 +108,9 @@ Once installed, in this order:
 ## Sport catalogue
 
 Every sport [`SportType`](app/src/main/java/ch/kevinjordil/helion/store/Sport.kt) offers is
-Strava's own activity type vocabulary, spelled the way Strava writes it, plus one addition:
-`Motorcycling`, which Strava has no equivalent for at all — kept because the owner rides and
-wants it tracked, and every export path that has to fall back for it (there being nothing
-closer in either TCX or Health Connect's own vocabulary) does so for the same reason a real
-Strava type sometimes must. The picker groups all fifty-seven under eight categories
+exactly Strava's own activity type vocabulary, spelled the way Strava writes it — no local
+additions, so every stored sport has a real Strava equivalent on export. The picker groups
+all fifty-six under eight categories
 (cycling; running and walking; water; snow and ice; racket sports; indoor and fitness; team
 sports; other) with a search field that matches against the French label shown on screen,
 never the underlying English identifier.
@@ -219,9 +217,9 @@ re-running the export updates the matching record instead of duplicating it, the
 same discipline `external_id` already gives the custom-server target. Most of the
 sport catalogue lands on a real or reasonably close Health Connect exercise type
 (badminton maps exactly; cycling variants map to its generic biking type; swimming
-maps to its pool type). Eight sports have no Health Connect equivalent at all
-(kitesurfing, windsurfing, roller skiing, padel, pickleball, physical therapy,
-skateboarding, and motorcycling) and fall back to its generic workout type instead
+maps to its pool type). Seven sports have no Health Connect equivalent at all
+(kitesurfing, windsurfing, roller skiing, padel, pickleball, physical therapy, and
+skateboarding) and fall back to its generic workout type instead
 of a misleading near match — see
 [`healthConnectExerciseType`](app/src/main/java/ch/kevinjordil/helion/healthconnect/HealthConnectSupport.kt)
 for the full mapping and the reasoning behind each fallback. A confirmed activity

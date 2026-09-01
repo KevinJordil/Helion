@@ -27,7 +27,6 @@ class DownloadsExportTest {
         assertEquals("ride-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.RIDE, start, zone))
         assertEquals("walk-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.WALK, start, zone))
         assertEquals("swim-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.SWIM, start, zone))
-        assertEquals("motorcycling-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.MOTORCYCLING, start, zone))
         assertEquals("rock-climbing-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.ROCK_CLIMBING, start, zone))
         assertEquals("workout-2026-08-26-2010.tcx", tcxDownloadFileName(SportType.WORKOUT, start, zone))
         assertEquals(

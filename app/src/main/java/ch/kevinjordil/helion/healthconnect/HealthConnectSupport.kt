@@ -120,7 +120,7 @@ fun healthConnectRespiratoryRateClientId(timestamp: Long): String = "helion-resp
  * before this catalogue existed -- pool over open-water swimming stays the safer default of
  * the two, since open water implies a GPS route this app never has).
  *
- * Eight sports have no equivalent at all in Health Connect's vocabulary and fall back to the
+ * Seven sports have no equivalent at all in Health Connect's vocabulary and fall back to the
  * generic [ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT]: [SportType.KITESURF],
  * [SportType.WINDSURF] (no kite- or wind-surfing constant, only plain [ExerciseSessionRecord.EXERCISE_TYPE_SURFING],
  * which would misrepresent the equipment), [SportType.ROLLER_SKI] (no dryland/roller-ski
@@ -131,7 +131,6 @@ fun healthConnectRespiratoryRateClientId(timestamp: Long): String = "helion-resp
  * [ExerciseSessionRecord.EXERCISE_TYPE_STRETCHING] is too specific a guess at what a
  * session actually was), and [SportType.SKATEBOARD] (no skateboarding constant; the closest,
  * [ExerciseSessionRecord.EXERCISE_TYPE_SKATING], is built for inline/roller skates).
- * [SportType.MOTORCYCLING] falls back for a different reason -- see its own kdoc -- and
  * [SportType.WORKOUT] simply *is* the generic bucket by definition, not a fallback from
  * something more specific.
  */
@@ -199,9 +198,4 @@ fun healthConnectExerciseType(sport: SportType): Int = when (sport) {
     SportType.ROCK_CLIMBING -> ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING
     SportType.WHEELCHAIR -> ExerciseSessionRecord.EXERCISE_TYPE_WHEELCHAIR
     SportType.SKATEBOARD -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
-    // No motor-vehicle constant exists at all: Health Connect's whole EXERCISE_TYPE_*
-    // vocabulary is exercise the wearer performs, and riding a motorcycle is not exercise --
-    // exactly why detection only ever proposes it and never assumes it, see
-    // ch.kevinjordil.helion.activity.DetectionThresholds's own kdoc.
-    SportType.MOTORCYCLING -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
 }

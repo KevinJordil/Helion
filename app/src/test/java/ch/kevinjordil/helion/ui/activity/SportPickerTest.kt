@@ -22,7 +22,6 @@ class SportPickerTest {
         SportType.RIDE to "Vélo",
         SportType.SWIM to "Natation",
         SportType.ROCK_CLIMBING to "Escalade",
-        SportType.MOTORCYCLING to "Moto",
         SportType.TRAIL_RUN to "Trail",
         SportType.TABLE_TENNIS to "Tennis de table",
         SportType.TENNIS to "Tennis",

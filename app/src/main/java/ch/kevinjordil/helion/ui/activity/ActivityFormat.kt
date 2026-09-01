@@ -79,7 +79,6 @@ fun sportLabelRes(sport: SportType): Int = when (sport) {
     SportType.ROCK_CLIMBING -> R.string.sport_rock_climbing
     SportType.SKATEBOARD -> R.string.sport_skateboard
     SportType.WHEELCHAIR -> R.string.sport_wheelchair
-    SportType.MOTORCYCLING -> R.string.sport_motorcycling
 }
 
 /** The French label for [category], shown as a heading in [SportPicker]. */

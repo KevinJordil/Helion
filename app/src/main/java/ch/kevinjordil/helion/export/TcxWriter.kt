@@ -14,8 +14,8 @@ import java.time.format.DateTimeFormatter
  * correct by hand inside Strava after import (see `strava_sport_fix_note` in
  * `strings.xml`). Every pedal- or motor-free running variant maps to `Running`, every
  * pedal-powered one (including the electric-assist and virtual/trainer variants) to
- * `Biking`; everything else -- all fifty other sports, [SportType.MOTORCYCLING] included --
- * is `Other`, the same bucket the TCX schema itself offers no finer answer for.
+ * `Biking`; everything else -- all forty-six other sports -- is `Other`, the same bucket
+ * the TCX schema itself offers no finer answer for.
  */
 fun tcxSport(sport: SportType): String = when (sport) {
     SportType.RUN, SportType.TRAIL_RUN -> "Running"

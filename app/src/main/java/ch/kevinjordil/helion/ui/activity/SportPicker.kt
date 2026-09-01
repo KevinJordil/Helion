@@ -50,7 +50,7 @@ fun filterSports(query: String, labelOf: (SportType) -> String): List<SportType>
  * unset -- see that field's own kdoc): with nothing selected this shows a neutral placeholder
  * rather than defaulting the label row to any one sport. Tapping the current selection (or
  * the placeholder) expands a search field plus the full catalogue grouped under
- * [sportCategoryLabelRes], so fifty-seven names stay navigable instead of a single
+ * [sportCategoryLabelRes], so fifty-six names stay navigable instead of a single
  * unscrollable list -- typing filters every category at once, and an empty category is
  * simply not shown.
  */

@@ -82,7 +82,7 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
             .allowMainThreadQueries()
             .build()
 
@@ -311,7 +311,7 @@ class MigrationTest {
         seedVersion7Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
             .allowMainThreadQueries()
             .build()
 
@@ -362,7 +362,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
             .allowMainThreadQueries()
             .build()
 
@@ -469,7 +469,11 @@ class MigrationTest {
         seedVersion12Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+            .addMigrations(
+                MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+            )
             .allowMainThreadQueries()
             .build()
 
@@ -480,7 +484,9 @@ class MigrationTest {
                 "CYCLING" to SportType.RIDE,
                 "WALKING" to SportType.WALK,
                 "SWIMMING" to SportType.SWIM,
-                "MOTORCYCLING" to SportType.MOTORCYCLING,
+                // MOTORCYCLING (still a valid value after MIGRATION_12_13) is remapped onto
+                // WORKOUT by MIGRATION_13_14, run as part of this same upgrade path.
+                "MOTORCYCLING" to SportType.WORKOUT,
                 "CLIMBING" to SportType.ROCK_CLIMBING,
                 "OTHER" to SportType.WORKOUT,
             )
@@ -497,6 +503,128 @@ class MigrationTest {
             expectedRemap.values.forEachIndexed { index, expectedSport ->
                 assertEquals(expectedSport, activities[index].sport)
             }
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * A version-13 database as the owner's own phone genuinely has one: a slot and an
+     * activity both still carrying `MOTORCYCLING`, the Helion-only sport later dropped from
+     * the catalogue. `activity` gets every other column filled in too (title, notes, origin,
+     * status, a real `slotId`, `detectionContext`, `notified`), so
+     * [MIGRATION_13_14 remaps MOTORCYCLING onto WORKOUT and touches nothing else about the
+     * row] below can prove the migration only ever rewrites `sport`.
+     */
+    private fun seedVersion13Database() {
+        context.deleteDatabase(dbName)
+        val db = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(dbName), null)
+        db.use {
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `minute_sample` (`timestamp` INTEGER NOT NULL, " +
+                    "`steps` INTEGER, `intensity` INTEGER, `rawKind` INTEGER, `heartRate` INTEGER, " +
+                    "`sleepStage` INTEGER, PRIMARY KEY(`timestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `point_sample` (`series` TEXT NOT NULL, " +
+                    "`timestamp` INTEGER NOT NULL, `value` REAL NOT NULL, PRIMARY KEY(`series`, `timestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sync_state` (`id` INTEGER NOT NULL, " +
+                    "`lastSyncAttempt` INTEGER NOT NULL, `lastError` TEXT, " +
+                    "`triggerFailureStreak` INTEGER NOT NULL, `lastTriggerAttempt` INTEGER NOT NULL, " +
+                    "`lastFullDetectionRun` INTEGER, PRIMARY KEY(`id`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sleep_stage_segment` (`sessionEnd` INTEGER NOT NULL, " +
+                    "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, " +
+                    "`stage` INTEGER NOT NULL, PRIMARY KEY(`sessionEnd`, `startTimestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `slot` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`label` TEXT NOT NULL, `dayOfWeek` TEXT NOT NULL, `startSecondOfDay` INTEGER NOT NULL, " +
+                    "`endSecondOfDay` INTEGER NOT NULL, `sport` TEXT NOT NULL, `active` INTEGER NOT NULL)",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `activity` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, `sport` TEXT, " +
+                    "`title` TEXT, `notes` TEXT, `origin` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                    "`slotId` INTEGER, `detectionContext` TEXT, `notified` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`slotId`) REFERENCES `slot`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+            )
+            it.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_activity_startTimestamp_endTimestamp` " +
+                    "ON `activity` (`startTimestamp`, `endTimestamp`)",
+            )
+            it.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_status` ON `activity` (`status`)")
+            it.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_slotId` ON `activity` (`slotId`)")
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `publication` (`activityId` INTEGER NOT NULL, " +
+                    "`target` TEXT NOT NULL, `remoteId` TEXT, `uploadId` TEXT, `state` TEXT NOT NULL, " +
+                    "`lastAttempt` INTEGER, `lastError` TEXT, `lastErrorDetail` TEXT, `lastMessage` TEXT, " +
+                    "PRIMARY KEY(`activityId`, `target`), FOREIGN KEY(`activityId`) REFERENCES " +
+                    "`activity`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `health_connect_export_state` (`id` INTEGER NOT NULL, " +
+                    "`heartRateWatermark` INTEGER NOT NULL, `hrvWatermark` INTEGER NOT NULL, " +
+                    "`spo2Watermark` INTEGER NOT NULL, `temperatureWatermark` INTEGER NOT NULL, " +
+                    "`respiratoryRateWatermark` INTEGER NOT NULL, `sleepSessionWatermark` INTEGER NOT NULL, " +
+                    "`lastRunAttempt` INTEGER, `lastError` TEXT, `sleepSessionsWritten` INTEGER NOT NULL, " +
+                    "`exerciseSessionsWritten` INTEGER NOT NULL, `heartRateRecordsWritten` INTEGER NOT NULL, " +
+                    "`stepsRecordsWritten` INTEGER NOT NULL, `hrvRecordsWritten` INTEGER NOT NULL, " +
+                    "`spo2RecordsWritten` INTEGER NOT NULL, `temperatureRecordsWritten` INTEGER NOT NULL, " +
+                    "`respiratoryRateRecordsWritten` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            it.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            it.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) " +
+                    "VALUES(42, 'bddd1f39d8eb8c6504d955dc8704eee7')",
+            )
+
+            it.execSQL(
+                "INSERT INTO slot (id, label, dayOfWeek, startSecondOfDay, endSecondOfDay, sport, active) " +
+                    "VALUES (1, 'Balade en moto', 'SATURDAY', 28800, 43200, 'MOTORCYCLING', 1)",
+            )
+            it.execSQL(
+                "INSERT INTO activity (id, startTimestamp, endTimestamp, sport, title, notes, origin, " +
+                    "status, slotId, detectionContext, notified) VALUES (1, 1787000000, 1787003600, " +
+                    "'MOTORCYCLING', 'Balade du 22 août', 'Route de montagne', 'SLOT', 'CONFIRMED', 1, " +
+                    "'contexte de détection', 1)",
+            )
+            it.setVersion(13)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_13_14 remaps MOTORCYCLING onto WORKOUT and touches nothing else about the row`() = runTest {
+        seedVersion13Database()
+
+        val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
+            .addMigrations(
+                MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+                MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+            )
+            .allowMainThreadQueries()
+            .build()
+
+        try {
+            val slot = db.slots().all().single()
+            assertEquals(SportType.WORKOUT, slot.sport)
+            assertEquals("Balade en moto", slot.label)
+
+            val activity = db.activities().all().single()
+            assertEquals(SportType.WORKOUT, activity.sport)
+            assertEquals(1787000000L, activity.startTimestamp)
+            assertEquals(1787003600L, activity.endTimestamp)
+            assertEquals("Balade du 22 août", activity.title)
+            assertEquals("Route de montagne", activity.notes)
+            assertEquals(ActivityOrigin.SLOT, activity.origin)
+            assertEquals(ActivityStatus.CONFIRMED, activity.status)
+            assertEquals(1L, activity.slotId)
+            assertEquals("contexte de détection", activity.detectionContext)
+            assertEquals(true, activity.notified)
         } finally {
             db.close()
         }

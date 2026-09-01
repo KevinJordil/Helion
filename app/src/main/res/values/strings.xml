@@ -93,7 +93,6 @@
     <string name="sport_rock_climbing">Escalade</string>
     <string name="sport_skateboard">Skateboard</string>
     <string name="sport_wheelchair">Fauteuil roulant</string>
-    <string name="sport_motorcycling">Moto</string>
 
     <string name="activity_status_candidate">À confirmer</string>
     <string name="activity_status_confirmed">Confirmée</string>

@@ -726,7 +726,7 @@ class ActivityLabelWidthTest {
     }
 
     /**
-     * Every one of [ch.kevinjordil.helion.store.SportType]'s fifty-seven French labels
+     * Every one of [ch.kevinjordil.helion.store.SportType]'s fifty-six French labels
      * (`strings.xml`'s `sport_*` entries) -- not a hand-picked handful -- since
      * `SportPicker` now shows the whole catalogue and the longest label
      * (`sport_high_intensity_interval_training`, "Entraînement fractionné de haute
@@ -742,7 +742,7 @@ class ActivityLabelWidthTest {
         "Kinésithérapie", "Stepper", "Vélo virtuel", "Aviron virtuel", "Course virtuelle", "Musculation",
         "Entraînement", "Yoga",
         "Basketball", "Cricket", "Football", "Volleyball",
-        "Golf", "Roller", "Escalade", "Skateboard", "Fauteuil roulant", "Moto",
+        "Golf", "Roller", "Escalade", "Skateboard", "Fauteuil roulant",
     )
     private fun activityStatusLabels() = listOf("À confirmer", "Confirmée", "Publiée", "Ignorée")
     private fun slotActiveLabels() = listOf("Active", "Suspendue")

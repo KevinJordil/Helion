@@ -223,7 +223,8 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
 
 /**
  * `SportType`'s old eight-value list is replaced by Strava's own fifty-six activity types
- * plus [SportType.MOTORCYCLING] (see [SportType]'s own kdoc) -- a rename of every existing
+ * plus `MOTORCYCLING`, a Helion-only addition later dropped by [MIGRATION_13_14] -- a rename
+ * of every existing
  * enum constant, not a new set of values layered on top, so every stored `activity.sport`
  * and `slot.sport` value has to be rewritten onto its new name or it would fail
  * [SportType.valueOf] outright the next time [Converters] reads that row. This is a straight
@@ -306,6 +307,26 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
 }
 
 /**
+ * Drops [SportType.MOTORCYCLING] from the catalogue: it never had a Strava equivalent, and
+ * the owner has decided against keeping a Helion-only value that nothing downstream (Strava
+ * itself, an export destination, this app's own picker) can ever match. Every remaining
+ * constant now maps one-to-one onto Strava's own list, so no schema change is needed --
+ * this is a value remap, not a shape change -- but every stored `activity.sport` and
+ * `slot.sport` row still carrying `'MOTORCYCLING'` has to be rewritten or it would fail
+ * [SportType.valueOf] the next time [Converters] reads that row, exactly the failure
+ * [MIGRATION_12_13] already had to guard against for the rest of the old catalogue.
+ * `MOTORCYCLING` becomes `WORKOUT` -- Strava's own generic type, which is what the owner
+ * will now record motorcycle rides as -- and every other value is left untouched. Plain
+ * `UPDATE`s: neither table's shape changes, so there is nothing to rebuild.
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("UPDATE `slot` SET `sport` = 'WORKOUT' WHERE `sport` = 'MOTORCYCLING'")
+        db.execSQL("UPDATE `activity` SET `sport` = 'WORKOUT' WHERE `sport` = 'MOTORCYCLING'")
+    }
+}
+
+/**
  * Every migration this app ships, in order, as one list rather than an argument list spelled
  * out at the call site. A migration was once defined and simply left out of that argument
  * list; Room then refused to open an upgraded database and the app died on launch with
@@ -315,5 +336,5 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
 val HELION_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-    MIGRATION_11_12, MIGRATION_12_13,
+    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
 )
