@@ -122,6 +122,30 @@ data class DetectionThresholds(
     val dipToleranceMinutes: Int = 20,
 
     /**
+     * How far, in either direction, [trimSlotOccurrence] (pass 1) is allowed to follow a
+     * session's real boundaries past the slot's *declared* start and end. A declared slot is
+     * now an anchor for the session's identity, not a cage for its times -- arriving early to
+     * warm up or playing on past the nominal end must not truncate the recorded session -- but
+     * that following has to stop somewhere, or the same dip-tolerant merge that correctly holds
+     * one session together across a between-rally lull would, given enough uninterrupted floor
+     * time, eventually reach a wholly unrelated later elevation (climbing the stairs home,
+     * showering) and stitch it onto the slot too -- exactly the "nine-hour block" failure mode
+     * a motorcycle ride and an evening out once produced when nothing bounded a merge at all.
+     *
+     * Deliberately not a round number: it is derived from two thresholds already calibrated
+     * elsewhere in this class rather than picked fresh. `2 * dipToleranceMinutes` (40 minutes)
+     * gives a session two full dip-tolerance windows' worth of room to extend beyond the
+     * declared edge before the margin itself becomes the limiting factor -- generous enough
+     * that a single legitimate overrun (finishing a match, an extra warm-up set) is never the
+     * thing that clips the boundary. The added `minEntrySustainMinutes` (5 minutes) is a small
+     * safety buffer on top, so a session whose entry-confirming climb starts right at the
+     * margin edge is not itself cut off by the margin before it has had the chance to confirm
+     * itself. The sum, 45 minutes, is still far short of the hour-plus gap that would need to
+     * separate two genuinely different outings for this margin to bridge them by accident.
+     */
+    val slotExtensionMarginMinutes: Int = 2 * dipToleranceMinutes + minEntrySustainMinutes,
+
+    /**
      * A slot occurrence's trimmed effort span (its first to its last floor-crossing minute,
      * see [trimSlotOccurrence]) shorter than this is treated the same as a flat window: not
      * a real session, just a brief elevated blip inside a declared but unattended slot. Ten

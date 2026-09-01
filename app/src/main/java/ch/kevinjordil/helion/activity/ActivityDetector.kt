@@ -60,7 +60,11 @@ class ActivityDetector(
                 // already handled. See the module's "when in doubt, propose nothing" rule.
                 if (db.activities().overlapping(occurrence.start, occurrence.end).isNotEmpty()) continue
 
-                val minutes = db.minuteSamples().between(occurrence.start, occurrence.end)
+                // Read wider than the declared range -- trimSlotOccurrence may follow the
+                // real session up to slotExtensionMarginMinutes past either edge, and needs
+                // the minutes there to do so.
+                val marginSeconds = thresholds.slotExtensionMarginMinutes * 60L
+                val minutes = db.minuteSamples().between(occurrence.start - marginSeconds, occurrence.end + marginSeconds)
                 val trimmed = trimSlotOccurrence(occurrence, minutes, baseline, thresholds) ?: continue
 
                 if (db.activities().overlapping(trimmed.start, trimmed.end).isNotEmpty()) continue
