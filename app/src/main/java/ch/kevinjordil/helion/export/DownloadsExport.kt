@@ -91,9 +91,10 @@ fun saveTcxToDownloads(
     samples: List<MinuteSample>,
     calories: Int?,
     zone: ZoneId = ZoneId.systemDefault(),
+    deviceName: String? = null,
 ): DownloadsSaveResult {
     val sport = activity.sport ?: return DownloadsSaveResult.SportMissing
-    val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
+    val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories, deviceName)
     val baseName = tcxDownloadFileName(sport, activity.startTimestamp, zone)
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         saveViaMediaStore(context, baseName, tcx)

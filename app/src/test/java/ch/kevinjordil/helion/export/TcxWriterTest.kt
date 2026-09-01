@@ -148,6 +148,39 @@ class TcxWriterTest {
         val xml = writeTcx(SportType.BADMINTON, start, end, emptyList())
         assertTrue(xml.contains("<Id>"))
     }
+
+    @Test
+    fun `a configured device name is written into the Creator element Strava reads`() {
+        val xml = writeTcx(SportType.BADMINTON, start, end, emptyList(), deviceName = "Amazfit Helio Strap")
+        val root = parse(xml)
+        val activityEl = root.getElementsByTagName("Activity").item(0) as Element
+        val creator = activityEl.getElementsByTagName("Creator").item(0) as Element
+        assertEquals("Device_t", creator.getAttribute("xsi:type"))
+        assertEquals("Amazfit Helio Strap", creator.getElementsByTagName("Name").item(0).textContent)
+    }
+
+    @Test
+    fun `a device name with an apostrophe and an ampersand is escaped rather than breaking the document`() {
+        val xml = writeTcx(SportType.BADMINTON, start, end, emptyList(), deviceName = "Kevin's Strap & Watch")
+        // Well-formed XML above all: this would throw if the raw apostrophe/ampersand had
+        // leaked into the document unescaped.
+        val root = parse(xml)
+        val activityEl = root.getElementsByTagName("Activity").item(0) as Element
+        val creator = activityEl.getElementsByTagName("Creator").item(0) as Element
+        assertEquals("Kevin's Strap & Watch", creator.getElementsByTagName("Name").item(0).textContent)
+    }
+
+    @Test
+    fun `no device name omits the Creator element entirely rather than writing an empty one`() {
+        val xmlNull = writeTcx(SportType.BADMINTON, start, end, emptyList(), deviceName = null)
+        val xmlBlank = writeTcx(SportType.BADMINTON, start, end, emptyList(), deviceName = "   ")
+        val xmlDefault = writeTcx(SportType.BADMINTON, start, end, emptyList())
+
+        listOf(xmlNull, xmlBlank, xmlDefault).forEach { xml ->
+            val root = parse(xml)
+            assertEquals(0, root.getElementsByTagName("Creator").length)
+        }
+    }
 }
 
 /** [tcxSport]: every [SportType] maps to one of TCX's three schema values. */

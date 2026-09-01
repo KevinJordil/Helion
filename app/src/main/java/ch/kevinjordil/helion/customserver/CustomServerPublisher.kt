@@ -13,6 +13,7 @@ import ch.kevinjordil.helion.export.tcxDownloadFileName
 import ch.kevinjordil.helion.export.writeTcx
 import ch.kevinjordil.helion.ui.settings.CustomServerConfig
 import ch.kevinjordil.helion.ui.settings.Profile
+import ch.kevinjordil.helion.ui.settings.RecordingDeviceName
 import java.net.HttpURLConnection
 import java.time.Instant
 import java.time.ZoneId
@@ -121,6 +122,9 @@ class CustomServerPublisher(
     // Optional so wiring/tests with no profile to give still work: no profile simply means
     // no calorie figure is sent, never a guessed one.
     private val profile: Profile? = null,
+    // Optional for the same reason: no device name configured simply means the TCX
+    // `<Creator>` element is omitted, never a guessed one -- see writeTcx's own kdoc.
+    private val deviceName: RecordingDeviceName? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val now: () -> Long = { System.currentTimeMillis() / 1000 },
 ) {
@@ -168,7 +172,7 @@ class CustomServerPublisher(
 
         val samples = minuteSamples.between(activity.startTimestamp, activity.endTimestamp)
         val calories = calorieEstimateFor(profile, activity, zone, samples)
-        val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
+        val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories, deviceName?.value)
         val request = CustomServerSendRequest(
             tcx = tcx,
             fileName = tcxDownloadFileName(sport, activity.startTimestamp, zone),

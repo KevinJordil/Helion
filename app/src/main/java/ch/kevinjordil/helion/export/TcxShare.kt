@@ -23,9 +23,15 @@ import java.io.File
  * refusal every other export path (Downloads, the custom server, Health Connect) already
  * follows.
  */
-fun buildShareIntent(context: Context, activity: Activity, samples: List<MinuteSample>, calories: Int? = null): Intent? {
+fun buildShareIntent(
+    context: Context,
+    activity: Activity,
+    samples: List<MinuteSample>,
+    calories: Int? = null,
+    deviceName: String? = null,
+): Intent? {
     val sport = activity.sport ?: return null
-    val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories)
+    val tcx = writeTcx(sport, activity.startTimestamp, activity.endTimestamp, samples, calories, deviceName)
     val dir = File(context.cacheDir, "tcx").apply { mkdirs() }
     val file = File(dir, "helion-activity-${activity.id}.tcx")
     file.writeText(tcx, Charsets.UTF_8)

@@ -24,6 +24,7 @@ import ch.kevinjordil.helion.ui.settings.CustomServerConfig
 import ch.kevinjordil.helion.ui.settings.HealthConnectConfig
 import ch.kevinjordil.helion.ui.settings.NotificationPreference
 import ch.kevinjordil.helion.ui.settings.Profile
+import ch.kevinjordil.helion.ui.settings.RecordingDeviceName
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 import java.time.ZoneId
 
@@ -43,6 +44,9 @@ class AppContainer(context: Context) {
     /** Where the owner's own server URL and shared token live -- see [CustomServerConfig]'s own kdoc. */
     val customServerConfig = CustomServerConfig(context)
 
+    /** The name written into the TCX `<Creator>` element -- see [RecordingDeviceName]'s own kdoc. */
+    val recordingDeviceName = RecordingDeviceName(context)
+
     /**
      * The one send entry point the UI calls for the owner's own server, wired to the real
      * network implementation. See [CustomServerPublisher]'s own kdoc for why this is safe
@@ -55,6 +59,7 @@ class AppContainer(context: Context) {
         config = customServerConfig,
         api = HttpCustomServerApi(),
         profile = profile,
+        deviceName = recordingDeviceName,
         zone = ZoneId.systemDefault(),
         now = { System.currentTimeMillis() / 1000 },
     )

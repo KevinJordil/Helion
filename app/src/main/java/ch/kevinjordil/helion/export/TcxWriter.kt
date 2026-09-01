@@ -53,6 +53,16 @@ private fun escapeXml(text: String): String = text
  * are the file format's own convention for a manually-bounded recording, the same one
  * indoor-trainer and strap-only recordings use everywhere else, not an invented reading.
  * No `<Position>` is written either, for the same GPS-absence reason.
+ *
+ * [deviceName], when non-blank, becomes `<Activity><Creator><Name>` -- what Strava displays
+ * as "recorded with" (it matches the text against its own device list and otherwise shows
+ * it verbatim). TCX v2's schema types `<Creator>` as an abstract source that needs a
+ * concrete `xsi:type`; `Device_t` is used here since this is a physical strap, not desktop
+ * software, and that type requires `UnitId`, `ProductID` and `Version` alongside `Name` --
+ * none of which this app or the strap expose a real value for, so fixed placeholders fill
+ * them, the same "the schema demands a value where nothing real exists" reasoning
+ * `Intensity`/`TriggerMethod` above already follow. A null or blank [deviceName] omits the
+ * whole `<Creator>` element rather than writing one with an empty name.
  */
 fun writeTcx(
     sport: SportType,
@@ -60,6 +70,7 @@ fun writeTcx(
     endTimestamp: Long,
     samples: List<MinuteSample>,
     calories: Int? = null,
+    deviceName: String? = null,
 ): String {
     val startIso = isoTime(startTimestamp)
     val durationSeconds = (endTimestamp - startTimestamp).coerceAtLeast(0)
@@ -81,6 +92,21 @@ fun writeTcx(
             }
         }
 
+    val trimmedDeviceName = deviceName?.trim()
+    val creatorBlock = if (trimmedDeviceName.isNullOrEmpty()) {
+        ""
+    } else {
+        "      <Creator xsi:type=\"Device_t\">\n" +
+            "        <Name>${escapeXml(trimmedDeviceName)}</Name>\n" +
+            "        <UnitId>0</UnitId>\n" +
+            "        <ProductID>0</ProductID>\n" +
+            "        <Version>\n" +
+            "          <VersionMajor>1</VersionMajor>\n" +
+            "          <VersionMinor>0</VersionMinor>\n" +
+            "        </Version>\n" +
+            "      </Creator>\n"
+    }
+
     return """<?xml version="1.0" encoding="UTF-8"?>
 <TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 https://www8.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">
   <Activities>
@@ -96,7 +122,7 @@ fun writeTcx(
 $trackpoints
         </Track>
       </Lap>
-    </Activity>
+$creatorBlock    </Activity>
   </Activities>
 </TrainingCenterDatabase>
 """
