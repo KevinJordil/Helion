@@ -3,6 +3,7 @@ package ch.kevinjordil.helion
 import android.content.Context
 import androidx.room.Room
 import ch.kevinjordil.helion.activity.ActivityDetector
+import ch.kevinjordil.helion.activity.ArchiveReanalyzer
 import ch.kevinjordil.helion.customserver.CustomServerPublisher
 import ch.kevinjordil.helion.customserver.HttpCustomServerApi
 import ch.kevinjordil.helion.healthconnect.HealthConnectExporter
@@ -101,19 +102,29 @@ class AppContainer(context: Context) {
     val openSyncGate = OpenSyncGate()
 
     /**
-     * Wired onto [ingestor] rather than passed to its constructor -- see [Ingestor.detector]'s
-     * own kdoc for why. `noteFor` renders `activity_candidate_note`, the one place a
-     * detection pass' evidence (the heart-rate range it saw, against the owner's own resting
-     * rate) becomes the French sentence stored on
-     * [ch.kevinjordil.helion.store.Activity.detectionContext].
+     * The same [ActivityDetector] instance [ingestor] is wired to below, held here as its
+     * own property too so [archiveReanalyzer] can drive it directly over the whole archive
+     * without going through [ingestor]'s own per-pass, day-deep-lookback window at all.
+     * `noteFor` renders `activity_candidate_note`, the one place a detection pass' evidence
+     * (the heart-rate range it saw, against the owner's own resting rate) becomes the
+     * French sentence stored on [ch.kevinjordil.helion.store.Activity.detectionContext].
      */
+    val activityDetector = ActivityDetector(
+        db = database,
+        zone = ZoneId.systemDefault(),
+        now = { System.currentTimeMillis() / 1000 },
+        noteFor = { min, max, resting -> context.getString(R.string.activity_candidate_note, min, max, resting) },
+    )
+
+    /** Activités' "Réanalyser tout l'historique" action -- see [ArchiveReanalyzer]'s own kdoc. */
+    val archiveReanalyzer = ArchiveReanalyzer(
+        db = database,
+        detector = activityDetector,
+        now = { System.currentTimeMillis() / 1000 },
+    )
+
     init {
-        ingestor.detector = ActivityDetector(
-            db = database,
-            zone = ZoneId.systemDefault(),
-            now = { System.currentTimeMillis() / 1000 },
-            noteFor = { min, max, resting -> context.getString(R.string.activity_candidate_note, min, max, resting) },
-        )
+        ingestor.detector = activityDetector
         ingestor.notifier = CandidateNotifier(context, notificationPreference)
         ingestor.healthConnectExportTrigger = { enqueueHealthConnectExport(context) }
     }

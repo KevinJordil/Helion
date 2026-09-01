@@ -15,7 +15,7 @@ import androidx.room.TypeConverters
         Publication::class,
         HealthConnectExportState::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

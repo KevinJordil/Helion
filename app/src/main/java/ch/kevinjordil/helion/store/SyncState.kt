@@ -23,6 +23,13 @@ import androidx.room.Query
  * pay a 30 s wake-lock every periodic pass forever. Kept in this row rather than a separate
  * store so the bookkeeping rides along with the write every pass already makes, and survives
  * the process being killed between periodic runs -- an in-memory counter would not.
+ *
+ * [lastFullDetectionRun] is set only by [ch.kevinjordil.helion.activity.ArchiveReanalyzer],
+ * never by [ch.kevinjordil.helion.source.Ingestor]'s own per-pass detection call: it answers
+ * one question -- "does the whole archive reflect the detection thresholds currently in
+ * force, or only whatever a normal ingest pass's day-deep lookback has touched since the
+ * thresholds last changed" -- which an ordinary pass's narrow window can never answer. Null
+ * until the owner runs a full re-analysis for the first time.
  */
 @Entity(tableName = "sync_state")
 data class SyncState(
@@ -31,6 +38,7 @@ data class SyncState(
     val lastError: String?,
     val triggerFailureStreak: Int = 0,
     val lastTriggerAttempt: Long = 0,
+    val lastFullDetectionRun: Long? = null,
 )
 
 @Dao

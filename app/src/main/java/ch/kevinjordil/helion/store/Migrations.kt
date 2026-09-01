@@ -209,6 +209,19 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
 }
 
 /**
+ * Adds `sync_state.lastFullDetectionRun` -- when [ch.kevinjordil.helion.activity.ArchiveReanalyzer]
+ * last ran detection over the whole archive rather than just a recent ingest window (see
+ * [SyncState]'s own kdoc). A plain ADD COLUMN, nullable with no default: every existing
+ * installation genuinely has never run a full re-analysis before this feature shipped, so
+ * null -- not some invented timestamp -- is the correct value for every row already there.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `sync_state` ADD COLUMN `lastFullDetectionRun` INTEGER")
+    }
+}
+
+/**
  * Every migration this app ships, in order, as one list rather than an argument list spelled
  * out at the call site. A migration was once defined and simply left out of that argument
  * list; Room then refused to open an upgraded database and the app died on launch with
@@ -218,4 +231,5 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
 val HELION_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+    MIGRATION_11_12,
 )

@@ -82,7 +82,7 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
             .allowMainThreadQueries()
             .build()
 
@@ -104,6 +104,9 @@ class MigrationTest {
             assertEquals("previous error", state.lastError)
             assertEquals(0, state.triggerFailureStreak)
             assertEquals(0, state.lastTriggerAttempt)
+            // MIGRATION_11_12 added this column from nothing; null is correct for a row
+            // that predates it -- no full re-analysis has actually ever run yet.
+            assertNull(state.lastFullDetectionRun)
 
             // MIGRATION_3_4 added this table from nothing; a fresh row must round-trip.
             db.sleepStageSegments().upsertAll(listOf(SleepStageSegment(1000, 900, 960, 4)))
@@ -308,7 +311,7 @@ class MigrationTest {
         seedVersion7Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
             .allowMainThreadQueries()
             .build()
 
@@ -359,7 +362,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
             .allowMainThreadQueries()
             .build()
 

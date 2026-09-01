@@ -25,6 +25,13 @@
 
     <string name="activity_new_action">Nouvelle activité</string>
     <string name="activity_manage_slots">Séances récurrentes</string>
+    <string name="activity_reanalyze_action">Réanalyser tout l\'historique</string>
+    <string name="activity_reanalyzing">Réanalyse en cours…</string>
+    <string name="activity_reanalyze_result_found">%1$d nouvelle(s) activité(s) repérée(s).</string>
+    <string name="activity_reanalyze_result_none">Aucune nouvelle activité repérée.</string>
+    <string name="activity_reanalyze_already_running">Une réanalyse est déjà en cours.</string>
+    <string name="activity_reanalyze_cancelled">Réanalyse annulée.</string>
+    <string name="activity_last_full_reanalysis">Dernière réanalyse complète : %1$s</string>
     <string name="activity_group_today">Aujourd\'hui</string>
     <string name="activity_group_yesterday">Hier</string>
     <string name="activity_list_empty_title">Aucune activité enregistrée</string>

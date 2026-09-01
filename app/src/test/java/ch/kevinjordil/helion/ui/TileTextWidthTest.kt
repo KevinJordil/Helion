@@ -889,6 +889,60 @@ class StravaLabelWidthTest {
     }
 }
 
+/**
+ * Activités' full-archive re-run action (`ActivityListScreen.kt`): the button label, the
+ * in-progress label it swaps to, and the status/last-run lines shown below it
+ * (`HelionType.bodySmall`, same [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall] prose
+ * style [StravaLabelWidthTest] already checks its own action labels against). Same 280dp
+ * content width as the rest of Activités -- see [ActivityLabelWidthTest]'s own kdoc.
+ *
+ * The result and last-run lines are measured at their genuinely widest plausible values: a
+ * generous four-digit candidate count for the "found" message, and the fixed-width
+ * `dd/MM/yyyy HH:mm` stamp ([ActivityFormat.ACTIVITY_DATETIME_FORMAT]) for the last-run
+ * line, which never varies in length regardless of the actual date.
+ */
+class ArchiveReanalysisWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun proseWidthDp(text: String): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 13f * fontScale
+    }
+
+    private fun actionLabels() = listOf("Réanalyser tout l'historique", "Réanalyse en cours…")
+
+    private fun statusMessages() = listOf(
+        "9999 nouvelle(s) activité(s) repérée(s).",
+        "Aucune nouvelle activité repérée.",
+        "Une réanalyse est déjà en cours.",
+        "Réanalyse annulée.",
+        "Dernière réanalyse complète : 31/12/2026 23:59",
+    )
+
+    @Test
+    fun `the reanalyze action label and its in-progress form fit a full-width row`() {
+        actionLabels().forEach { label ->
+            val width = proseWidthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `every reanalysis status and last-run line fits within two lines at the narrowest width`() {
+        statusMessages().forEach { message ->
+            val width = proseWidthDp(message)
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+}
 
 /**
  * The calorie section added to the activity detail screen (`ActivityDetailScreen.kt`): its

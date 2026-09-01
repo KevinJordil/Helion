@@ -34,4 +34,13 @@ interface MinuteSampleDao {
 
     @Query("SELECT MAX(timestamp) FROM minute_sample")
     suspend fun latestTimestamp(): Long?
+
+    /**
+     * Null only when the archive is completely empty -- what
+     * [ch.kevinjordil.helion.activity.ArchiveReanalyzer] anchors a full-history re-run's
+     * starting point to, since detection has nothing to look at before the first minute
+     * ever stored.
+     */
+    @Query("SELECT MIN(timestamp) FROM minute_sample")
+    suspend fun earliestTimestamp(): Long?
 }
