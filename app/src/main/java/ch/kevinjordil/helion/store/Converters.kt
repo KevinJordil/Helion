@@ -13,10 +13,10 @@ import java.time.DayOfWeek
 class Converters {
 
     @TypeConverter
-    fun sportTypeToString(value: SportType): String = value.name
+    fun sportTypeToString(value: SportType?): String? = value?.name
 
     @TypeConverter
-    fun stringToSportType(value: String): SportType = SportType.valueOf(value)
+    fun stringToSportType(value: String?): SportType? = value?.let { SportType.valueOf(it) }
 
     @TypeConverter
     fun activityOriginToString(value: ActivityOrigin): String = value.name

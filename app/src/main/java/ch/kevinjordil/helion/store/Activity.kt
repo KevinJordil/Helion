@@ -10,18 +10,6 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Update
 
-/** The sport an [Activity] or a [Slot] is for. */
-enum class SportType {
-    BADMINTON,
-    RUNNING,
-    CYCLING,
-    WALKING,
-    SWIMMING,
-    MOTORCYCLING,
-    CLIMBING,
-    OTHER,
-}
-
 /**
  * How an [Activity] came to exist. This is provenance, not permission: an activity created
  * from a [Slot] or by [DETECTED] automatic recognition still needs the owner to move its
@@ -93,7 +81,20 @@ data class Activity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val startTimestamp: Long,
     val endTimestamp: Long,
-    val sport: SportType,
+    /**
+     * Null when nothing has told this app what sport this was: a slot-origin candidate
+     * always carries the sport declared on its [Slot] (a name the owner himself gave that
+     * slot -- the one reliable signal detection has), but a freely detected candidate (no
+     * slot behind it) carries no guess at all -- heart rate alone cannot tell a motorcycle
+     * ride from a river descent from badminton, and inventing one would be exactly the kind
+     * of assumption this app exists to avoid. An activity with no sport is otherwise a
+     * completely normal row: it can be kept, reviewed and edited like any other, it is only
+     * every export path ([ch.kevinjordil.helion.export.writeTcx],
+     * [ch.kevinjordil.helion.customserver.CustomServerPublisher],
+     * [ch.kevinjordil.helion.healthconnect.HealthConnectExporter]) that refuses to send it
+     * on until the owner sets one -- see each of those for how.
+     */
+    val sport: SportType?,
     val title: String?,
     val notes: String?,
     val origin: ActivityOrigin,

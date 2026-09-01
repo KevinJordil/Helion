@@ -222,6 +222,90 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
 }
 
 /**
+ * `SportType`'s old eight-value list is replaced by Strava's own fifty-six activity types
+ * plus [SportType.MOTORCYCLING] (see [SportType]'s own kdoc) -- a rename of every existing
+ * enum constant, not a new set of values layered on top, so every stored `activity.sport`
+ * and `slot.sport` value has to be rewritten onto its new name or it would fail
+ * [SportType.valueOf] outright the next time [Converters] reads that row. This is a straight
+ * value-for-value carry-over -- old meaning maps to the closest-named new constant -- rather
+ * than a re-interpretation of what each row actually was, since that is not something a
+ * migration can know: `BADMINTON` stays `BADMINTON`, `RUNNING` becomes `RUN`, `CYCLING`
+ * becomes `RIDE`, `WALKING` becomes `WALK`, `SWIMMING` becomes `SWIM`, `MOTORCYCLING` stays
+ * `MOTORCYCLING`, `CLIMBING` becomes `ROCK_CLIMBING` (Strava's own name for the same activity
+ * this app already meant by "climbing"), and the old catch-all `OTHER` becomes `WORKOUT` --
+ * Strava's own generic "workout" type being the closest equivalent to a bucket that was
+ * never any one sport in particular.
+ *
+ * `slot.sport` stays `NOT NULL` (a slot always declares a sport -- see [Slot]'s own kdoc)
+ * and gets the identical remap. `activity.sport` gains the ability to hold `NULL` at the
+ * same time -- see [Activity.sport]'s own kdoc for why a freely detected candidate now
+ * carries no sport at all rather than a guessed one -- so every existing `activity` row
+ * (which, before this migration, always had a real value) is remapped exactly the same way
+ * `slot.sport` is, never set to `NULL` itself: nothing about what already happened becomes
+ * "unknown" just because future detections might leave a row that way.
+ *
+ * SQLite before 3.35 cannot add or drop a `NOT NULL` constraint on an existing column (only
+ * `ALTER TABLE ... ADD COLUMN`), and the app supports API 26, so both tables are rebuilt the
+ * same portable way [MIGRATION_1_2] already used: create the new shape, copy every row
+ * across with the value remap applied in the `CASE` expression, drop the old table, rename
+ * the new one into place. `slot` is rebuilt first and `activity` second, since `activity`
+ * carries the foreign key onto `slot` and re-created tables must exist in an order SQLite
+ * can resolve the reference against; the index and foreign-key clauses on the rebuilt
+ * `activity` table are copied verbatim from [MIGRATION_4_5].
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        val sportRemapCase = """
+            CASE sport
+                WHEN 'BADMINTON' THEN 'BADMINTON'
+                WHEN 'RUNNING' THEN 'RUN'
+                WHEN 'CYCLING' THEN 'RIDE'
+                WHEN 'WALKING' THEN 'WALK'
+                WHEN 'SWIMMING' THEN 'SWIM'
+                WHEN 'MOTORCYCLING' THEN 'MOTORCYCLING'
+                WHEN 'CLIMBING' THEN 'ROCK_CLIMBING'
+                WHEN 'OTHER' THEN 'WORKOUT'
+                ELSE sport
+            END
+        """.trimIndent()
+
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `slot_new` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`label` TEXT NOT NULL, `dayOfWeek` TEXT NOT NULL, `startSecondOfDay` INTEGER NOT NULL, " +
+                "`endSecondOfDay` INTEGER NOT NULL, `sport` TEXT NOT NULL, `active` INTEGER NOT NULL)",
+        )
+        db.execSQL(
+            "INSERT INTO `slot_new` (`id`, `label`, `dayOfWeek`, `startSecondOfDay`, `endSecondOfDay`, `sport`, `active`) " +
+                "SELECT `id`, `label`, `dayOfWeek`, `startSecondOfDay`, `endSecondOfDay`, $sportRemapCase, `active` FROM `slot`",
+        )
+        db.execSQL("DROP TABLE `slot`")
+        db.execSQL("ALTER TABLE `slot_new` RENAME TO `slot`")
+
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `activity_new` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, `sport` TEXT, " +
+                "`title` TEXT, `notes` TEXT, `origin` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                "`slotId` INTEGER, `detectionContext` TEXT, `notified` INTEGER NOT NULL, " +
+                "FOREIGN KEY(`slotId`) REFERENCES `slot`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        )
+        db.execSQL(
+            "INSERT INTO `activity_new` (`id`, `startTimestamp`, `endTimestamp`, `sport`, `title`, `notes`, " +
+                "`origin`, `status`, `slotId`, `detectionContext`, `notified`) " +
+                "SELECT `id`, `startTimestamp`, `endTimestamp`, $sportRemapCase, `title`, `notes`, " +
+                "`origin`, `status`, `slotId`, `detectionContext`, `notified` FROM `activity`",
+        )
+        db.execSQL("DROP TABLE `activity`")
+        db.execSQL("ALTER TABLE `activity_new` RENAME TO `activity`")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_activity_startTimestamp_endTimestamp` " +
+                "ON `activity` (`startTimestamp`, `endTimestamp`)",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_status` ON `activity` (`status`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_slotId` ON `activity` (`slotId`)")
+    }
+}
+
+/**
  * Every migration this app ships, in order, as one list rather than an argument list spelled
  * out at the call site. A migration was once defined and simply left out of that argument
  * list; Room then refused to open an upgraded database and the app died on launch with
@@ -231,5 +315,5 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
 val HELION_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-    MIGRATION_11_12,
+    MIGRATION_11_12, MIGRATION_12_13,
 )

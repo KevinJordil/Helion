@@ -35,7 +35,7 @@ class CandidateNotifierTest {
         id = id,
         startTimestamp = 1_000,
         endTimestamp = 2_000,
-        sport = SportType.OTHER,
+        sport = SportType.WORKOUT,
         title = null,
         notes = null,
         origin = ActivityOrigin.DETECTED,

@@ -82,7 +82,7 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
             .allowMainThreadQueries()
             .build()
 
@@ -311,7 +311,7 @@ class MigrationTest {
         seedVersion7Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
             .allowMainThreadQueries()
             .build()
 
@@ -362,7 +362,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
             .allowMainThreadQueries()
             .build()
 
@@ -376,6 +376,127 @@ class MigrationTest {
             assertNull(state.lastError)
             assertEquals(0, state.triggerFailureStreak)
             assertEquals(0, state.lastTriggerAttempt)
+        } finally {
+            db.close()
+        }
+    }
+
+    /**
+     * Builds a database on disk exactly matching what a v12 install would have --
+     * `createSql` straight from `schemas/.../12.json` for every table -- with one `slot`
+     * row and one `activity` row per pre-[MIGRATION_12_13] sport value, so the remap
+     * [MIGRATION_12_13] applies can be checked against every old value at once, not just a
+     * couple of them.
+     */
+    private fun seedVersion12Database() {
+        context.deleteDatabase(dbName)
+        val db = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(dbName), null)
+        db.use {
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `minute_sample` (`timestamp` INTEGER NOT NULL, " +
+                    "`steps` INTEGER, `intensity` INTEGER, `rawKind` INTEGER, `heartRate` INTEGER, " +
+                    "`sleepStage` INTEGER, PRIMARY KEY(`timestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `point_sample` (`series` TEXT NOT NULL, " +
+                    "`timestamp` INTEGER NOT NULL, `value` REAL NOT NULL, PRIMARY KEY(`series`, `timestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sync_state` (`id` INTEGER NOT NULL, " +
+                    "`lastSyncAttempt` INTEGER NOT NULL, `lastError` TEXT, " +
+                    "`triggerFailureStreak` INTEGER NOT NULL, `lastTriggerAttempt` INTEGER NOT NULL, " +
+                    "`lastFullDetectionRun` INTEGER, PRIMARY KEY(`id`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sleep_stage_segment` (`sessionEnd` INTEGER NOT NULL, " +
+                    "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, " +
+                    "`stage` INTEGER NOT NULL, PRIMARY KEY(`sessionEnd`, `startTimestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `slot` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`label` TEXT NOT NULL, `dayOfWeek` TEXT NOT NULL, `startSecondOfDay` INTEGER NOT NULL, " +
+                    "`endSecondOfDay` INTEGER NOT NULL, `sport` TEXT NOT NULL, `active` INTEGER NOT NULL)",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `activity` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, `sport` TEXT NOT NULL, " +
+                    "`title` TEXT, `notes` TEXT, `origin` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                    "`slotId` INTEGER, `detectionContext` TEXT, `notified` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`slotId`) REFERENCES `slot`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `publication` (`activityId` INTEGER NOT NULL, " +
+                    "`target` TEXT NOT NULL, `remoteId` TEXT, `uploadId` TEXT, `state` TEXT NOT NULL, " +
+                    "`lastAttempt` INTEGER, `lastError` TEXT, `lastErrorDetail` TEXT, `lastMessage` TEXT, " +
+                    "PRIMARY KEY(`activityId`, `target`), FOREIGN KEY(`activityId`) REFERENCES " +
+                    "`activity`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `health_connect_export_state` (`id` INTEGER NOT NULL, " +
+                    "`heartRateWatermark` INTEGER NOT NULL, `hrvWatermark` INTEGER NOT NULL, " +
+                    "`spo2Watermark` INTEGER NOT NULL, `temperatureWatermark` INTEGER NOT NULL, " +
+                    "`respiratoryRateWatermark` INTEGER NOT NULL, `sleepSessionWatermark` INTEGER NOT NULL, " +
+                    "`lastRunAttempt` INTEGER, `lastError` TEXT, `sleepSessionsWritten` INTEGER NOT NULL, " +
+                    "`exerciseSessionsWritten` INTEGER NOT NULL, `heartRateRecordsWritten` INTEGER NOT NULL, " +
+                    "`stepsRecordsWritten` INTEGER NOT NULL, `hrvRecordsWritten` INTEGER NOT NULL, " +
+                    "`spo2RecordsWritten` INTEGER NOT NULL, `temperatureRecordsWritten` INTEGER NOT NULL, " +
+                    "`respiratoryRateRecordsWritten` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            it.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            it.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) " +
+                    "VALUES(42, '241b23d61d062cef4c856120b4c02e48')",
+            )
+
+            // One slot per pre-migration sport value.
+            val oldSports = listOf("BADMINTON", "RUNNING", "CYCLING", "WALKING", "SWIMMING", "MOTORCYCLING", "CLIMBING", "OTHER")
+            oldSports.forEachIndexed { index, sport ->
+                it.execSQL(
+                    "INSERT INTO slot (id, label, dayOfWeek, startSecondOfDay, endSecondOfDay, sport, active) " +
+                        "VALUES (${index + 1}, 'Créneau $sport', 'MONDAY', 0, 3600, '$sport', 1)",
+                )
+                it.execSQL(
+                    "INSERT INTO activity (id, startTimestamp, endTimestamp, sport, title, notes, origin, status, slotId, notified) " +
+                        "VALUES (${index + 1}, ${index * 1000}, ${index * 1000 + 500}, '$sport', NULL, NULL, 'MANUAL', 'CONFIRMED', NULL, 0)",
+                )
+            }
+            it.setVersion(12)
+        }
+    }
+
+    @Test
+    fun `migrating from version 12 remaps every old sport value onto the new taxonomy, loses no row`() = runTest {
+        seedVersion12Database()
+
+        val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+            .allowMainThreadQueries()
+            .build()
+
+        try {
+            val expectedRemap = mapOf(
+                "BADMINTON" to SportType.BADMINTON,
+                "RUNNING" to SportType.RUN,
+                "CYCLING" to SportType.RIDE,
+                "WALKING" to SportType.WALK,
+                "SWIMMING" to SportType.SWIM,
+                "MOTORCYCLING" to SportType.MOTORCYCLING,
+                "CLIMBING" to SportType.ROCK_CLIMBING,
+                "OTHER" to SportType.WORKOUT,
+            )
+
+            val slots = db.slots().all()
+            assertEquals(8, slots.size)
+            slots.forEach { slot ->
+                val old = slot.label.removePrefix("Créneau ")
+                assertEquals("slot '${slot.label}' remapped wrong", expectedRemap.getValue(old), slot.sport)
+            }
+
+            val activities = db.activities().all().sortedBy { it.id }
+            assertEquals(8, activities.size)
+            expectedRemap.values.forEachIndexed { index, expectedSport ->
+                assertEquals(expectedSport, activities[index].sport)
+            }
         } finally {
             db.close()
         }

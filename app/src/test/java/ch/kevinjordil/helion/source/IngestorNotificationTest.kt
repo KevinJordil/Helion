@@ -50,7 +50,7 @@ class IngestorNotificationTest {
     private fun candidate(start: Long) = Activity(
         startTimestamp = start,
         endTimestamp = start + 3_600,
-        sport = SportType.OTHER,
+        sport = SportType.WORKOUT,
         title = null,
         notes = null,
         origin = ActivityOrigin.DETECTED,
