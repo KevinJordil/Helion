@@ -14,10 +14,9 @@ device.
 
 Everything is stored locally in the app's own database first. There is no account
 and no automatic publishing by default: an activity reaches Strava only when you
-explicitly choose to save a file and import it yourself — see
-[Getting an activity onto Strava](#getting-an-activity-onto-strava). You can also
-send an activity straight to a server of your own; see
-[Sending an activity to your own server](#sending-an-activity-to-your-own-server).
+explicitly send it through your own server — see
+[Getting an activity onto Strava](#getting-an-activity-onto-strava) and
+[Sending an activity to Strava through your own server](#sending-an-activity-to-strava-through-your-own-server).
 The one exception is Health Connect: once you turn it on in Réglages, Helion keeps
 that shared system store in sync on its own — see
 [Exporting to Health Connect](#exporting-to-health-connect). Off (the default),
@@ -128,28 +127,29 @@ label.
 ## Getting an activity onto Strava
 
 Helion has no direct Strava API integration — it never talks to Strava's servers on
-its own. Getting an activity onto Strava is a manual, explicit step from the
-activity detail screen:
+its own. Getting an activity onto Strava is a single, explicit step from the
+activity detail screen: configure a server URL and a shared token in Réglages,
+then tap **Envoyer vers Strava** at the bottom of the screen. That server is what
+actually talks to Strava's API — see
+[Sending an activity to Strava through your own server](#sending-an-activity-to-strava-through-your-own-server)
+below for the exact request it sends.
 
-- **Enregistrer le fichier** writes a TCX file straight into the phone's Downloads
-  folder, named from the sport and start time (no share sheet).
-- **Ouvrir Strava** opens Strava's web upload page in the browser — from there:
-  Fichier → choose the saved file. TCX only distinguishes running, cycling, and
-  "other", so the sport needs correcting inside Strava after import.
-
-A plain share action is also available, for sending the same file to a computer
-and importing it through Strava's web uploader instead.
+Two other ways of getting the same TCX file off the phone — saving it straight to
+the phone's Downloads folder, and the plain Android share sheet — still exist in
+the code (`TcxWriter`, `DownloadsExport`, `TcxShare`) and are covered by tests, but
+are no longer offered as buttons on this screen.
 
 (An earlier version of this app published directly through Strava's API. That
 integration was removed once Strava's Standard API tier started requiring a paid
 subscription the owner does not want; the code is preserved in git history, see
 `docs/archive/strava-api-integration.md` on the machine that removed it.)
 
-## Sending an activity to your own server
+## Sending an activity to Strava through your own server
 
-A second, independent export target: configure a server URL and a shared token in
-Réglages, then tap **Envoyer à mon serveur** on any activity's detail screen. Helion
-only sends — what the receiving end does with the activity is entirely up to you.
+Configure a server URL and a shared token in Réglages, then tap **Envoyer vers
+Strava** at the bottom of any activity's detail screen. Helion only sends — what
+the receiving end does with the activity, and how it talks to Strava's own API, is
+entirely up to your server.
 
 The request is a plain `POST` to the configured URL, `Content-Type:
 multipart/form-data`, with `Authorization: Bearer <token>`. The token is never
