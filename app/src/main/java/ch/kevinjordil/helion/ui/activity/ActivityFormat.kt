@@ -20,6 +20,8 @@ fun sportLabelRes(sport: SportType): Int = when (sport) {
     SportType.CYCLING -> R.string.sport_cycling
     SportType.WALKING -> R.string.sport_walking
     SportType.SWIMMING -> R.string.sport_swimming
+    SportType.MOTORCYCLING -> R.string.sport_motorcycling
+    SportType.CLIMBING -> R.string.sport_climbing
     SportType.OTHER -> R.string.sport_other
 }
 

@@ -17,7 +17,9 @@ import java.time.format.DateTimeFormatter
 fun tcxSport(sport: SportType): String = when (sport) {
     SportType.RUNNING -> "Running"
     SportType.CYCLING -> "Biking"
-    SportType.BADMINTON, SportType.WALKING, SportType.SWIMMING, SportType.OTHER -> "Other"
+    SportType.BADMINTON, SportType.WALKING, SportType.SWIMMING,
+    SportType.MOTORCYCLING, SportType.CLIMBING, SportType.OTHER,
+    -> "Other"
 }
 
 private val ISO_INSTANT: DateTimeFormatter = DateTimeFormatter.ISO_INSTANT

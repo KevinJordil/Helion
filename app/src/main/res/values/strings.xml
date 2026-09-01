@@ -14,6 +14,8 @@
     <string name="sport_cycling">Vélo</string>
     <string name="sport_walking">Marche</string>
     <string name="sport_swimming">Natation</string>
+    <string name="sport_motorcycling">Moto</string>
+    <string name="sport_climbing">Escalade</string>
     <string name="sport_other">Autre</string>
 
     <string name="activity_status_candidate">À confirmer</string>

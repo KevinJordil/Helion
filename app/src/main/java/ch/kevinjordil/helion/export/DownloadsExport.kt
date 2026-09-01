@@ -41,6 +41,8 @@ private fun downloadSportSlug(sport: SportType): String = when (sport) {
     SportType.CYCLING -> "velo"
     SportType.WALKING -> "marche"
     SportType.SWIMMING -> "natation"
+    SportType.MOTORCYCLING -> "moto"
+    SportType.CLIMBING -> "escalade"
     SportType.OTHER -> "activite"
 }
 

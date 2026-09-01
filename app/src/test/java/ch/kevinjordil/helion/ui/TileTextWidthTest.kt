@@ -725,7 +725,8 @@ class ActivityLabelWidthTest {
         return (glyphWidthSp + letterSpacingTotalSp) * fontScale
     }
 
-    private fun sportLabels() = listOf("Badminton", "Course à pied", "Vélo", "Marche", "Natation", "Autre")
+    private fun sportLabels() =
+        listOf("Badminton", "Course à pied", "Vélo", "Marche", "Natation", "Moto", "Escalade", "Autre")
     private fun activityStatusLabels() = listOf("À confirmer", "Confirmée", "Publiée", "Ignorée")
     private fun slotActiveLabels() = listOf("Active", "Suspendue")
 

@@ -17,6 +17,8 @@ enum class SportType {
     CYCLING,
     WALKING,
     SWIMMING,
+    MOTORCYCLING,
+    CLIMBING,
     OTHER,
 }
 

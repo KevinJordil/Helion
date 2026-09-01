@@ -82,12 +82,14 @@ class HealthConnectRecordMapperTest {
     }
 
     @Test
-    fun `sport mapping -- badminton is exact, cycling and swimming fall back, other maps to the generic workout type`() {
+    fun `sport mapping -- badminton and climbing are exact, cycling and swimming fall back, motorcycling and other map to the generic workout type`() {
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_BADMINTON, healthConnectExerciseType(SportType.BADMINTON))
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_RUNNING, healthConnectExerciseType(SportType.RUNNING))
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_BIKING, healthConnectExerciseType(SportType.CYCLING))
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_WALKING, healthConnectExerciseType(SportType.WALKING))
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL, healthConnectExerciseType(SportType.SWIMMING))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING, healthConnectExerciseType(SportType.CLIMBING))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, healthConnectExerciseType(SportType.MOTORCYCLING))
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, healthConnectExerciseType(SportType.OTHER))
     }
 

@@ -129,6 +129,17 @@ fun healthConnectRespiratoryRateClientId(timestamp: Long): String = "helion-resp
  * never has -- but this is a genuine loss of information, the same kind TCX export already
  * accepts for the same sport (see [ch.kevinjordil.helion.export.tcxSport]'s own kdoc).
  *
+ * [SportType.CLIMBING] has an exact match too
+ * ([ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING]) -- Health Connect does not split
+ * indoor and outdoor climbing the way it splits swimming above, so one constant covers both.
+ *
+ * [SportType.MOTORCYCLING] has no match at all: Health Connect's whole `EXERCISE_TYPE_*`
+ * vocabulary is exercise the wearer performs (there is a `BIKING` and a `BIKING_STATIONARY`,
+ * both pedal-powered, and nothing for a motor vehicle), because riding a motorcycle is not
+ * exercise -- which is exactly why detection only ever proposes it and never assumes it, see
+ * [ch.kevinjordil.helion.activity.DetectionThresholds]'s own kdoc. It falls back to
+ * [ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT] like [SportType.OTHER].
+ *
  * [SportType.OTHER] -- and nothing else, since every other constant above has a real
  * match -- falls back to [ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT].
  */
@@ -138,5 +149,6 @@ fun healthConnectExerciseType(sport: SportType): Int = when (sport) {
     SportType.CYCLING -> ExerciseSessionRecord.EXERCISE_TYPE_BIKING
     SportType.WALKING -> ExerciseSessionRecord.EXERCISE_TYPE_WALKING
     SportType.SWIMMING -> ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL
-    SportType.OTHER -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
+    SportType.CLIMBING -> ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING
+    SportType.MOTORCYCLING, SportType.OTHER -> ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT
 }
