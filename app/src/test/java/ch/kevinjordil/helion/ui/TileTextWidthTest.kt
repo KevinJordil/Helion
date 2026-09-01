@@ -845,114 +845,12 @@ class DayTimelineReadoutWidthTest {
 }
 
 /**
- * The manual Strava flow on the activity detail screen (`ActivityDetailScreen.kt`): the
- * uppercase "STRAVA" section label (`HelionType.label`, same style [ActivityLabelWidthTest]
- * already checks other short uppercase labels against) and the save/open/share action
- * labels and prose lines (`HelionType.bodySmall`, `strings.xml`'s `strava_*` entries) that
- * sit below it as full-width `Text`.
- *
- * Budget: the same 280dp content width as every other screen with 20dp-each-side padding
- * (see [SleepScreenWidthTest]'s own kdoc for the derivation). Real `Text` wraps rather than
- * clipping (see [NoTextClippingTest]), so this checks the single-line width every one of
- * these strings would need to *not* wrap at the narrowest supported screen and the 1.3x
- * accessibility font scale -- the same standard [ActivityLabelWidthTest] holds its own
- * short labels to, extended here per the reported pattern of clipped/wrapped strings.
- */
-class StravaLabelWidthTest {
-
-    private val rowWidthDp = 280f
-    private val fontScale = 1.3f
-
-    private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
-        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
-        TrueTypeFont.parse(file.readBytes())
-    }
-
-    private val proseFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
-        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
-        TrueTypeFont.parse(file.readBytes())
-    }
-
-    private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
-    }
-
-    private fun proseWidthDp(text: String): Float {
-        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
-        return emPerChar.sum() * 13f * fontScale
-    }
-
-    /**
-     * The manual-flow strings alongside the save/open-Strava/share actions: the one-off
-     * sport-format note, the three-tap import line, the storage-permission rationale and
-     * denial notes (API 26-28 only, see [ch.kevinjordil.helion.export.saveTcxToDownloads]),
-     * and the save confirmation/failure lines, the latter filled with the longest plausible
-     * file name ([ch.kevinjordil.helion.store.sportSlug]'s widest entry,
-     * `high-intensity-interval-training`) and a realistic error message.
-     */
-    private fun manualFlowActionLabels() = listOf("Enregistrer le fichier", "Ouvrir Strava", "Partager (TCX)")
-
-    private fun manualFlowProseMessages() = listOf(
-        "Sport à corriger dans Strava après l'import (course, vélo ou autre).",
-        "Dans Strava : Enregistrer → + → Importer un fichier.",
-        "Helion doit accéder au stockage pour enregistrer dans Téléchargements.",
-        "Sans cette autorisation, Helion ne peut pas enregistrer le fichier.",
-        "Enregistré dans Téléchargements : badminton-2026-08-26-2010.tcx",
-        "Échec de l'enregistrement : MediaStore refused the insert",
-        "Définissez d'abord un sport pour cette activité.",
-    )
-
-    @Test
-    fun `the Strava section label fits a full-width row at a 1_3x font scale`() {
-        val width = labelWidthDp("Strava")
-        assertTrue("\"Strava\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
-    }
-
-    @Test
-    fun `the save, open-Strava and share action labels fit a full-width row`() {
-        manualFlowActionLabels().forEach { label ->
-            val width = proseWidthDp(label)
-            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
-        }
-    }
-
-    @Test
-    fun `every manual-flow prose message fits within two lines at the narrowest width`() {
-        manualFlowProseMessages().forEach { message ->
-            val width = proseWidthDp(message)
-            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
-        }
-    }
-
-    /**
-     * The save confirmation carries whatever sport slug the activity actually had, and
-     * [ch.kevinjordil.helion.store.sportSlug]'s widest entry -- `high-intensity-interval-training`
-     * -- makes for a genuinely long confirmation line. Checked on its own, against a more
-     * generous three-line budget, rather than folded into [manualFlowProseMessages]'s
-     * shared two-line budget: real `Text` wraps rather than clips regardless (see
-     * [NoTextClippingTest]), so this is still a real bound, just not the same one every
-     * shorter message in that list is held to.
-     */
-    @Test
-    fun `the save confirmation still wraps within a sane number of lines for the longest sport slug`() {
-        val message = "Enregistré dans Téléchargements : high-intensity-interval-training-2026-08-26-2010.tcx"
-        val width = proseWidthDp(message)
-        assertTrue("\"$message\" measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
-    }
-}
-
-/**
- * Activités' full-archive re-run action (`ActivityListScreen.kt`): the button label, the
- * in-progress label it swaps to, and the status/last-run lines shown below it
- * (`HelionType.bodySmall`, same [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall] prose
- * style [StravaLabelWidthTest] already checks its own action labels against). Same 280dp
- * content width as the rest of Activités -- see [ActivityLabelWidthTest]'s own kdoc.
+ * Réglages' full-archive re-run action (`SettingsScreen.kt`'s `ArchiveReanalysisSection`,
+ * moved there from `ActivityListScreen.kt`): the button label, the in-progress label it
+ * swaps to, and the status/last-run lines shown below it (`HelionType.bodySmall`, same
+ * [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall] prose style the rest of this file's
+ * Réglages sections check their own action labels against). Same 280dp content width as
+ * every other 20dp-padded screen -- see [ActivityLabelWidthTest]'s own kdoc.
  *
  * The result and last-run lines are measured at their genuinely widest plausible values: a
  * generous four-digit candidate count for the "found" message, and the fixed-width
@@ -1085,9 +983,10 @@ class CalorieLabelWidthTest {
 }
 
 /**
- * The custom-server export added to the activity detail screen (`ActivityDetailScreen.kt`,
- * section label and state/failure prose, same styles [ActivityLabelWidthTest] already
- * checks its own equivalents against) and its Réglages configuration section
+ * The send-to-Strava section at the very bottom of the activity detail screen
+ * (`ActivityDetailScreen.kt`, section label, the short mechanism note, and state/failure
+ * prose, same styles [ActivityLabelWidthTest] already checks its own equivalents against),
+ * sent through the owner's own server, and its Réglages configuration section
  * (`SettingsScreen.kt`'s `CustomServerSection`). Same 280dp budget as every other screen in
  * this file -- both screens share the identical 20dp-each-side padding.
  */
@@ -1168,7 +1067,7 @@ class CustomServerLabelWidthTest {
 
     @Test
     fun `the custom-server section label and settings title fit a full-width row at a 1_3x font scale`() {
-        listOf("Mon serveur", "Serveur personnel").forEach { label ->
+        listOf("Envoi vers Strava", "Serveur personnel").forEach { label ->
             val width = labelWidthDp(label)
             assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
         }
@@ -1176,8 +1075,15 @@ class CustomServerLabelWidthTest {
 
     @Test
     fun `the send action label fits a full-width row`() {
-        val width = proseWidthDp("Envoyer à mon serveur")
-        assertTrue("\"Envoyer à mon serveur\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        val width = proseWidthDp("Envoyer vers Strava")
+        assertTrue("\"Envoyer vers Strava\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `the send-to-Strava mechanism note fits within two lines at the narrowest width`() {
+        val message = "Passe par votre propre serveur, qui relaie l'activité vers Strava."
+        val width = proseWidthDp(message)
+        assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
     }
 
     @Test

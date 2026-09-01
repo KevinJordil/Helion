@@ -71,10 +71,8 @@ sealed class DownloadsSaveResult {
 
     /**
      * [activity.sport][Activity.sport] is null -- see that field's own kdoc. Refused here
-     * rather than exported under an invented sport: `ActivityDetailScreen` already disables
-     * the save/share actions in this state and shows `export_requires_sport`, so this case
-     * is a defensive backstop for any other caller of this function, not the owner's normal
-     * path to seeing that message.
+     * rather than exported under an invented sport, the same rule every other export path
+     * (share, the custom server, Health Connect) already follows.
      */
     object SportMissing : DownloadsSaveResult()
 }

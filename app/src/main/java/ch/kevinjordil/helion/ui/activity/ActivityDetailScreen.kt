@@ -1,9 +1,5 @@
 package ch.kevinjordil.helion.ui.activity
 
-import android.Manifest
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -28,20 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.calorie.ActivityCalorieEstimate
 import ch.kevinjordil.helion.calorie.estimateActivityCalories
-import ch.kevinjordil.helion.export.DownloadsSaveResult
-import ch.kevinjordil.helion.export.buildOpenStravaIntent
-import ch.kevinjordil.helion.export.buildShareIntent
-import ch.kevinjordil.helion.export.saveTcxToDownloads
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityStatus
-import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
@@ -74,7 +64,6 @@ fun ActivityDetailScreen(
 ) {
     val colors = HelionThemeTokens.colors
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
     val zone = remember { ZoneId.systemDefault() }
 
     var activity by remember(activityId) { mutableStateOf<Activity?>(null) }
@@ -82,7 +71,6 @@ fun ActivityDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var customServerPublication by remember(activityId) { mutableStateOf<Publication?>(null) }
     var sendingToCustomServer by remember(activityId) { mutableStateOf(false) }
-    var minuteSamples by remember(activityId) { mutableStateOf<List<MinuteSample>>(emptyList()) }
     var calorieEstimate by remember(activityId) { mutableStateOf<ActivityCalorieEstimate?>(null) }
 
     suspend fun reloadCustomServerPublication() {
@@ -93,15 +81,10 @@ fun ActivityDetailScreen(
         val loaded = container.database.activities().get(activityId)
         activity = loaded
         reloadCustomServerPublication()
-        // Loaded alongside the activity itself, not lazily inside shareTcx: the calorie
-        // estimate needs the same per-minute samples that action sends along, and computing
-        // it once here means the detail screen and the share action agree on the exact same
-        // figure.
         if (loaded != null) {
             val samples = withContext(Dispatchers.IO) {
                 container.database.minuteSamples().between(loaded.startTimestamp, loaded.endTimestamp)
             }
-            minuteSamples = samples
             calorieEstimate = estimateActivityCalories(container.profile, loaded.startTimestamp, zone, samples)
         }
         loadedOnce = true
@@ -115,82 +98,6 @@ fun ActivityDetailScreen(
             reloadCustomServerPublication()
             sendingToCustomServer = false
         }
-    }
-
-    fun shareTcx(current: Activity) {
-        val estimated = (calorieEstimate as? ActivityCalorieEstimate.Estimated)?.kcal
-        // Null only when current.sport is null (see buildShareIntent's own kdoc); the
-        // share button is disabled in that state below, so this is a defensive no-op, not
-        // the owner's normal path.
-        buildShareIntent(context, current, minuteSamples, estimated)?.let { context.startActivity(it) }
-    }
-
-    // Holds the activity a save was requested for while a permission request is in
-    // flight (API 26-28 only, see [saveTcxToDownloads]'s own kdoc) -- read back once
-    // granted to retry the exact same save, rather than the owner having to tap
-    // "Enregistrer le fichier" a second time.
-    var pendingSave by remember(activityId) { mutableStateOf<Activity?>(null) }
-
-    // A closure captured by reference: [storagePermissionLauncher]'s callback below needs
-    // to call [saveTcx] once permission is granted, but [saveTcx] itself needs
-    // [storagePermissionLauncher] to request that permission in the first place -- this
-    // mutable indirection is what lets the two refer to each other despite the launcher
-    // having to be created first (`rememberLauncherForActivityResult` cannot itself be
-    // called lazily inside a plain function).
-    var retrySave: (Activity) -> Unit = {}
-
-    val storagePermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        val target = pendingSave
-        pendingSave = null
-        if (granted && target != null) {
-            retrySave(target)
-        } else if (!granted) {
-            Toast.makeText(context, R.string.strava_storage_permission_denied, Toast.LENGTH_LONG).show()
-        }
-    }
-
-    fun saveTcx(target: Activity) {
-        val estimated = (calorieEstimate as? ActivityCalorieEstimate.Estimated)?.kcal
-        scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                saveTcxToDownloads(context, target, minuteSamples, estimated)
-            }
-            when (result) {
-                is DownloadsSaveResult.Saved -> {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.strava_save_confirmation, result.fileName),
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-                is DownloadsSaveResult.Failed -> {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.strava_save_failed, result.message),
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-                DownloadsSaveResult.PermissionRequired -> {
-                    // Only reachable on API 26-28 -- see [saveTcxToDownloads]'s own kdoc.
-                    pendingSave = target
-                    Toast.makeText(context, R.string.strava_storage_permission_rationale, Toast.LENGTH_LONG).show()
-                    storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                }
-                DownloadsSaveResult.SportMissing -> {
-                    // The save action is disabled whenever target.sport is null (see the
-                    // exportBlocked guard above), so this is a defensive backstop, not the
-                    // owner's normal path -- reuses the same message that guard shows.
-                    Toast.makeText(context, R.string.export_requires_sport, Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-    retrySave = ::saveTcx
-
-    fun openStrava() {
-        context.startActivity(buildOpenStravaIntent())
     }
 
     fun save(updated: Activity) {
@@ -250,89 +157,6 @@ fun ActivityDetailScreen(
                 color = if (needsAttention(current.status)) colors.accentAmber else colors.textTertiary,
             )
         }
-
-        // The manual flow -- save the file, open Strava, import it -- is the owner's real
-        // route (see the module's own brief): reachable right under the header, before any
-        // editable field, the status row or the calorie estimate.
-        Text(stringResource(R.string.strava_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
-
-        // Stated once, here, before the two actions below -- never repeated on every
-        // failed publish or every share -- because it is a TCX format limitation the owner
-        // has already hit, not something that changes per attempt.
-        Text(stringResource(R.string.strava_sport_fix_note), style = HelionType.bodySmall, color = colors.textSecondary)
-
-        // No export path -- Downloads, share, the custom server or Health Connect -- ever
-        // sends an activity with no sport set: see Activity.sport's own kdoc for why a
-        // refusal, not a guessed or generic fallback, is the one consistent behaviour
-        // across all four. Shown once, here, ahead of every button this affects.
-        val exportBlocked = current.sport == null
-        if (exportBlocked) {
-            Text(stringResource(R.string.export_requires_sport), style = HelionType.bodySmall, color = colors.accentAmber)
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { saveTcx(current) }, enabled = !exportBlocked) {
-                Text(stringResource(R.string.strava_save_action))
-            }
-            Button(onClick = { openStrava() }) {
-                Text(stringResource(R.string.strava_open_action))
-            }
-        }
-        Text(stringResource(R.string.strava_import_steps), style = HelionType.bodySmall, color = colors.textSecondary)
-
-        // The plain share action -- the same insurance the manual flow above already
-        // relies on, just handed to another app's share target instead of Downloads.
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(onClick = { shareTcx(current) }, enabled = !exportBlocked) {
-                Text(stringResource(R.string.strava_share_action))
-            }
-        }
-
-        HorizontalDivider(color = colors.divider)
-
-        // A second, independent send target: the owner's own server. Kept as its own
-        // section with its own state -- it tracks a separate PublicationTarget row (see
-        // CustomServerPublisher's own kdoc), and it can fail or succeed on a completely
-        // different schedule than the manual-flow save above.
-        Text(stringResource(R.string.custom_server_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
-
-        val currentCustomServerPublication = customServerPublication
-        if (currentCustomServerPublication != null) {
-            Text(
-                stringResource(customServerStateLabelRes(currentCustomServerPublication.state)),
-                style = HelionType.bodySmall,
-                color = if (currentCustomServerPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
-            )
-            if (currentCustomServerPublication.state == PublicationState.FAILED) {
-                Text(
-                    stringResource(
-                        customServerFailureReasonRes(currentCustomServerPublication.lastError),
-                        *customServerFailureReasonArgs(
-                            currentCustomServerPublication.lastError,
-                            currentCustomServerPublication.lastErrorDetail,
-                        ).toTypedArray(),
-                    ),
-                    style = HelionType.bodySmall,
-                    color = colors.accentAmber,
-                )
-            } else if (currentCustomServerPublication.lastMessage != null) {
-                // The server's own text, verbatim (status included) -- see
-                // CustomServerPublisher's own kdoc for why this replaces nothing when
-                // there was no real message to show (an empty body, or one unreadable as
-                // text): the state label above already stands on its own in that case.
-                Text(
-                    stringResource(R.string.custom_server_response_detail, currentCustomServerPublication.lastMessage),
-                    style = HelionType.bodySmall,
-                    color = colors.textSecondary,
-                )
-            }
-        }
-
-        OutlinedButton(onClick = { sendToCustomServer() }, enabled = !sendingToCustomServer && current.sport != null) {
-            Text(stringResource(R.string.custom_server_send_action))
-        }
-
-        HorizontalDivider(color = colors.divider)
 
         Text(stringResource(R.string.activity_title_label), style = HelionType.bodySmall, color = colors.textSecondary)
         OutlinedTextField(
@@ -417,6 +241,15 @@ fun ActivityDetailScreen(
 
         HorizontalDivider(color = colors.divider)
 
+        // Kept away from the send action at the very bottom of this screen (see below) so
+        // scrolling down to send never lands a thumb on delete instead -- the confirmation
+        // dialog is still there either way, but distance is the first line of defense.
+        OutlinedButton(onClick = { showDeleteConfirm = true }) {
+            Text(stringResource(R.string.activity_action_delete))
+        }
+
+        HorizontalDivider(color = colors.divider)
+
         Text(stringResource(R.string.calorie_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
         when (val estimate = calorieEstimate) {
             null -> Unit // still loading -- nothing to say yet, rather than a flash of "no data"
@@ -430,8 +263,49 @@ fun ActivityDetailScreen(
             }
         }
 
-        OutlinedButton(onClick = { showDeleteConfirm = true }) {
-            Text(stringResource(R.string.activity_action_delete))
+        HorizontalDivider(color = colors.divider)
+
+        // The one send action on this screen, deliberately last: it goes through the
+        // owner's own server (see CustomServerPublisher's own kdoc), which relays the
+        // activity on to Strava -- the mechanism `custom_server_send_note` states plainly
+        // rather than hiding behind the button alone.
+        Text(stringResource(R.string.custom_server_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(stringResource(R.string.custom_server_send_note), style = HelionType.bodySmall, color = colors.textSecondary)
+
+        val currentCustomServerPublication = customServerPublication
+        if (currentCustomServerPublication != null) {
+            Text(
+                stringResource(customServerStateLabelRes(currentCustomServerPublication.state)),
+                style = HelionType.bodySmall,
+                color = if (currentCustomServerPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
+            )
+            if (currentCustomServerPublication.state == PublicationState.FAILED) {
+                Text(
+                    stringResource(
+                        customServerFailureReasonRes(currentCustomServerPublication.lastError),
+                        *customServerFailureReasonArgs(
+                            currentCustomServerPublication.lastError,
+                            currentCustomServerPublication.lastErrorDetail,
+                        ).toTypedArray(),
+                    ),
+                    style = HelionType.bodySmall,
+                    color = colors.accentAmber,
+                )
+            } else if (currentCustomServerPublication.lastMessage != null) {
+                // The server's own text, verbatim (status included) -- see
+                // CustomServerPublisher's own kdoc for why this replaces nothing when
+                // there was no real message to show (an empty body, or one unreadable as
+                // text): the state label above already stands on its own in that case.
+                Text(
+                    stringResource(R.string.custom_server_response_detail, currentCustomServerPublication.lastMessage),
+                    style = HelionType.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+
+        OutlinedButton(onClick = { sendToCustomServer() }, enabled = !sendingToCustomServer && current.sport != null) {
+            Text(stringResource(R.string.custom_server_send_action))
         }
     }
 

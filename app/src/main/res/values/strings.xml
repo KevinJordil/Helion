@@ -11,7 +11,6 @@
     <string name="sport_picker_label">Sport</string>
     <string name="sport_none">Sport non défini</string>
     <string name="sport_search_placeholder">Rechercher un sport…</string>
-    <string name="export_requires_sport">Définissez d\'abord un sport pour cette activité.</string>
 
     <string name="sport_category_cycling">Cyclisme</string>
     <string name="sport_category_running_walking">Course et marche</string>
@@ -133,19 +132,9 @@
     <string name="activity_delete_confirm_body">Cette action est définitive.</string>
     <string name="activity_candidate_note">Fréquence cardiaque %1$d–%2$d bpm (repos habituel ≈ %3$d bpm).</string>
 
-    <string name="strava_section_title">Strava</string>
-    <string name="strava_share_action">Partager (TCX)</string>
-    <string name="strava_sport_fix_note">Sport à corriger dans Strava après l\'import (course, vélo ou autre).</string>
-    <string name="strava_save_action">Enregistrer le fichier</string>
-    <string name="strava_save_confirmation">Enregistré dans Téléchargements : %1$s</string>
-    <string name="strava_save_failed">Échec de l\'enregistrement : %1$s</string>
-    <string name="strava_storage_permission_rationale">Helion doit accéder au stockage pour enregistrer dans Téléchargements.</string>
-    <string name="strava_storage_permission_denied">Sans cette autorisation, Helion ne peut pas enregistrer le fichier.</string>
-    <string name="strava_open_action">Ouvrir l\'import Strava</string>
-    <string name="strava_import_steps">Dans la page qui s\'ouvre : onglet Fichier, puis choisis le fichier enregistré. Le sport sera à corriger.</string>
-
-    <string name="custom_server_section_title">Mon serveur</string>
-    <string name="custom_server_send_action">Envoyer à mon serveur</string>
+    <string name="custom_server_section_title">Envoi vers Strava</string>
+    <string name="custom_server_send_note">Passe par votre propre serveur, qui relaie l\'activité vers Strava.</string>
+    <string name="custom_server_send_action">Envoyer vers Strava</string>
     <string name="custom_server_state_pending">En attente</string>
     <string name="custom_server_state_sent">Envoyée à mon serveur</string>
     <string name="custom_server_state_already_known">Déjà reçue par mon serveur</string>

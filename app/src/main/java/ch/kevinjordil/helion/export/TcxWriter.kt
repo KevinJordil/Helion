@@ -10,10 +10,9 @@ import java.time.format.DateTimeFormatter
  * defines three sport values -- `Running`, `Biking`, `Other` -- so most of Helion's sport
  * types fall back to `Other`; that is a limitation of the file format, not a loss of
  * information -- the exact sport is still recorded elsewhere (the activity model, the
- * custom-server `sport` field) and, for a Strava import, is left for the owner to
- * correct by hand inside Strava after import (see `strava_sport_fix_note` in
- * `strings.xml`). Every pedal- or motor-free running variant maps to `Running`, every
- * pedal-powered one (including the electric-assist and virtual/trainer variants) to
+ * custom-server `sport` field) and, once the file reaches Strava, is left for the owner to
+ * correct by hand inside Strava after import. Every pedal- or motor-free running variant
+ * maps to `Running`, every pedal-powered one (including the electric-assist and virtual/trainer variants) to
  * `Biking`; everything else -- all forty-six other sports -- is `Other`, the same bucket
  * the TCX schema itself offers no finer answer for.
  */

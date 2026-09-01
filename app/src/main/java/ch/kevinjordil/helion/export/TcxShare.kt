@@ -19,10 +19,9 @@ import java.io.File
  * way. `FLAG_GRANT_READ_URI_PERMISSION` is required on the intent because the receiving
  * app has no other route to a `content://` URI it does not own.
  *
- * Returns null when [activity] has no sport set (see [Activity.sport]'s own kdoc) --
- * `ActivityDetailScreen` already disables the share action in that state and shows
- * `export_requires_sport`, so this is a defensive backstop, not the owner's normal path to
- * seeing that message.
+ * Returns null when [activity] has no sport set (see [Activity.sport]'s own kdoc), the same
+ * refusal every other export path (Downloads, the custom server, Health Connect) already
+ * follows.
  */
 fun buildShareIntent(context: Context, activity: Activity, samples: List<MinuteSample>, calories: Int? = null): Intent? {
     val sport = activity.sport ?: return null
