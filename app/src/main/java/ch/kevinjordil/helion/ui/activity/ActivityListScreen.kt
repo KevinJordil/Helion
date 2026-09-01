@@ -215,7 +215,7 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
             // maxLines/ellipsis on the title itself: it wraps rather than clips. See
             // ActivityStatusWidthTest for the fixed-width status label's own coverage.
             Text(
-                activity.title ?: stringResource(sportLabelRes(activity.sport)),
+                activity.title ?: sportOrNoneLabel(activity.sport),
                 style = HelionType.body,
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f),
@@ -234,7 +234,7 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
         val range = "${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.startTimestamp))}" +
             "–${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.endTimestamp))}"
         Text(
-            "${stringResource(sportLabelRes(activity.sport))} · $range · " +
+            "${sportOrNoneLabel(activity.sport)} · $range · " +
                 activityDurationText(activity.endTimestamp - activity.startTimestamp),
             style = HelionType.bodySmall,
             color = colors.textSecondary,

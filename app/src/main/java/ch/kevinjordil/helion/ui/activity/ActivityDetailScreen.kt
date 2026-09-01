@@ -119,7 +119,10 @@ fun ActivityDetailScreen(
 
     fun shareTcx(current: Activity) {
         val estimated = (calorieEstimate as? ActivityCalorieEstimate.Estimated)?.kcal
-        context.startActivity(buildShareIntent(context, current, minuteSamples, estimated))
+        // Null only when current.sport is null (see buildShareIntent's own kdoc); the
+        // share button is disabled in that state below, so this is a defensive no-op, not
+        // the owner's normal path.
+        buildShareIntent(context, current, minuteSamples, estimated)?.let { context.startActivity(it) }
     }
 
     // Holds the activity a save was requested for while a permission request is in
@@ -174,6 +177,12 @@ fun ActivityDetailScreen(
                     pendingSave = target
                     Toast.makeText(context, R.string.strava_storage_permission_rationale, Toast.LENGTH_LONG).show()
                     storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+                DownloadsSaveResult.SportMissing -> {
+                    // The save action is disabled whenever target.sport is null (see the
+                    // exportBlocked guard above), so this is a defensive backstop, not the
+                    // owner's normal path -- reuses the same message that guard shows.
+                    Toast.makeText(context, R.string.export_requires_sport, Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -252,8 +261,17 @@ fun ActivityDetailScreen(
         // has already hit, not something that changes per attempt.
         Text(stringResource(R.string.strava_sport_fix_note), style = HelionType.bodySmall, color = colors.textSecondary)
 
+        // No export path -- Downloads, share, the custom server or Health Connect -- ever
+        // sends an activity with no sport set: see Activity.sport's own kdoc for why a
+        // refusal, not a guessed or generic fallback, is the one consistent behaviour
+        // across all four. Shown once, here, ahead of every button this affects.
+        val exportBlocked = current.sport == null
+        if (exportBlocked) {
+            Text(stringResource(R.string.export_requires_sport), style = HelionType.bodySmall, color = colors.accentAmber)
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { saveTcx(current) }) {
+            Button(onClick = { saveTcx(current) }, enabled = !exportBlocked) {
                 Text(stringResource(R.string.strava_save_action))
             }
             Button(onClick = { openStrava() }) {
@@ -265,7 +283,7 @@ fun ActivityDetailScreen(
         // The plain share action -- the same insurance the manual flow above already
         // relies on, just handed to another app's share target instead of Downloads.
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(onClick = { shareTcx(current) }) {
+            TextButton(onClick = { shareTcx(current) }, enabled = !exportBlocked) {
                 Text(stringResource(R.string.strava_share_action))
             }
         }
@@ -310,7 +328,7 @@ fun ActivityDetailScreen(
             }
         }
 
-        OutlinedButton(onClick = { sendToCustomServer() }, enabled = !sendingToCustomServer) {
+        OutlinedButton(onClick = { sendToCustomServer() }, enabled = !sendingToCustomServer && current.sport != null) {
             Text(stringResource(R.string.custom_server_send_action))
         }
 

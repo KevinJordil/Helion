@@ -85,7 +85,10 @@ fun DayTimelineScreen(
     var date by rememberSaveable { mutableStateOf(LocalDate.now(zone)) }
     var dayState by remember(date) { mutableStateOf<DayTimelineState?>(null) }
     var selection by remember(date) { mutableStateOf<TimelineSelection?>(null) }
-    var sport by rememberSaveable { mutableStateOf(SportType.BADMINTON) }
+    // Starts unset -- see Activity.sport's own kdoc: even a manually-bounded activity the
+    // owner creates himself should never default to a guessed sport; the create action
+    // below stays disabled until he picks one explicitly.
+    var sport by rememberSaveable { mutableStateOf<SportType?>(null) }
     var titleText by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(date) {
@@ -161,7 +164,7 @@ fun DayTimelineScreen(
 
         val currentSelection = selection
         Button(
-            enabled = currentSelection != null && currentSelection.durationSeconds > 0,
+            enabled = currentSelection != null && currentSelection.durationSeconds > 0 && sport != null,
             onClick = {
                 val range = currentSelection ?: return@Button
                 scope.launch {

@@ -105,6 +105,28 @@ Once installed, in this order:
 3. Reboot the phone, reopen Helion, sync again. This is the only way to confirm the
    file permission survived — a failure here never shows up on the first run.
 
+## Sport catalogue
+
+Every sport [`SportType`](app/src/main/java/ch/kevinjordil/helion/store/Sport.kt) offers is
+Strava's own activity type vocabulary, spelled the way Strava writes it, plus one addition:
+`Motorcycling`, which Strava has no equivalent for at all — kept because the owner rides and
+wants it tracked, and every export path that has to fall back for it (there being nothing
+closer in either TCX or Health Connect's own vocabulary) does so for the same reason a real
+Strava type sometimes must. The picker groups all fifty-seven under eight categories
+(cycling; running and walking; water; snow and ice; racket sports; indoor and fitness; team
+sports; other) with a search field that matches against the French label shown on screen,
+never the underlying English identifier.
+
+An activity coming from a declared [slot](app/src/main/java/ch/kevinjordil/helion/store/Slot.kt)
+always takes that slot's own sport — the owner named and configured it, so it is the one
+reliable signal detection has. An activity detection finds with no slot behind it carries no
+sport at all: heart rate alone cannot tell a motorcycle ride from a river descent from
+badminton, and guessing one would be exactly the kind of assumption this app exists to avoid.
+An activity with no sport is otherwise perfectly normal — it can be kept, reviewed and edited
+like any other — but every export path (Downloads, share, the custom server, Health Connect)
+refuses to send it until the owner sets one, rather than guessing or falling back to a generic
+label.
+
 ## Getting an activity onto Strava
 
 Helion has no direct Strava API integration — it never talks to Strava's servers on
@@ -140,7 +162,7 @@ Fields:
 | Field              | Type          | Notes                                                                 |
 |--------------------|---------------|------------------------------------------------------------------------|
 | `file`             | file          | The activity's TCX. Filename matches the Downloads export, e.g. `badminton-2026-08-26-2010.tcx`. |
-| `sport`            | text          | A stable, lower-case slug (`badminton`, `running`, `cycling`, `walking`, `swimming`, `other`) — never a translated label, so it never changes with the app's display language. |
+| `sport`            | text          | A stable, lower-case, hyphenated slug derived from the sport's own identifier (e.g. `badminton`, `rock-climbing`, `high-intensity-interval-training`) — never a translated label, so it never changes with the app's display language. Absent (the request is refused before it is ever sent) when the activity has no sport set. |
 | `title`            | text          | The activity's title, or `Helion` if it has none.                    |
 | `description`      | text          | The owner's own notes on the activity. May be empty. Never the detection explanation shown while reviewing a candidate -- that is diagnostic text for the app, not something sent anywhere. |
 | `start`            | text          | ISO 8601 with a UTC offset, e.g. `2026-08-26T20:10:00+02:00`.         |
@@ -194,11 +216,17 @@ guess into a store another app treats as measured data would misrepresent it.
 Every record carries a stable client record id derived from Helion's own identity
 (an activity's id, a sleep session's own wake time, a reading's own timestamp) —
 re-running the export updates the matching record instead of duplicating it, the
-same discipline `external_id` already gives the custom-server target. Badminton
-maps exactly (`EXERCISE_TYPE_BADMINTON`); cycling maps to Health Connect's generic
-biking type (it has no plain "cycling"); swimming maps to its pool type, the more
-common recreational setting, since this app's own sport list never distinguishes
-open water from a pool the way Health Connect does.
+same discipline `external_id` already gives the custom-server target. Most of the
+sport catalogue lands on a real or reasonably close Health Connect exercise type
+(badminton maps exactly; cycling variants map to its generic biking type; swimming
+maps to its pool type). Eight sports have no Health Connect equivalent at all
+(kitesurfing, windsurfing, roller skiing, padel, pickleball, physical therapy,
+skateboarding, and motorcycling) and fall back to its generic workout type instead
+of a misleading near match — see
+[`healthConnectExerciseType`](app/src/main/java/ch/kevinjordil/helion/healthconnect/HealthConnectSupport.kt)
+for the full mapping and the reasoning behind each fallback. A confirmed activity
+with no sport set is left out of the export pass entirely until the owner sets
+one — see "Sport catalogue" above.
 
 The export runs automatically after every ingest pass that stored something new,
 and on demand via **Exporter maintenant** in Réglages — as a background job, never

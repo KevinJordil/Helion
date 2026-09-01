@@ -725,17 +725,58 @@ class ActivityLabelWidthTest {
         return (glyphWidthSp + letterSpacingTotalSp) * fontScale
     }
 
-    private fun sportLabels() =
-        listOf("Badminton", "Course à pied", "Vélo", "Marche", "Natation", "Moto", "Escalade", "Autre")
+    /**
+     * Every one of [ch.kevinjordil.helion.store.SportType]'s fifty-seven French labels
+     * (`strings.xml`'s `sport_*` entries) -- not a hand-picked handful -- since
+     * `SportPicker` now shows the whole catalogue and the longest label
+     * (`sport_high_intensity_interval_training`, "Entraînement fractionné de haute
+     * intensité") is exactly the case a small sample would have missed.
+     */
+    private fun sportLabels() = listOf(
+        "Vélo", "Vélo électrique", "VTT électrique", "Gravel", "Handbike", "VTT", "Vélomobile",
+        "Randonnée", "Course à pied", "Trail", "Marche",
+        "Canoë", "Kayak", "Kitesurf", "Aviron", "Voile", "Paddle", "Surf", "Natation", "Planche à voile",
+        "Ski alpin", "Ski de randonnée", "Patinage sur glace", "Ski de fond", "Ski à roulettes", "Snowboard", "Raquette à neige",
+        "Badminton", "Padel", "Pickleball", "Racquetball", "Squash", "Tennis de table", "Tennis",
+        "Crossfit", "Danse", "Vélo elliptique", "Entraînement fractionné de haute intensité", "Pilates",
+        "Kinésithérapie", "Stepper", "Vélo virtuel", "Aviron virtuel", "Course virtuelle", "Musculation",
+        "Entraînement", "Yoga",
+        "Basketball", "Cricket", "Football", "Volleyball",
+        "Golf", "Roller", "Escalade", "Skateboard", "Fauteuil roulant", "Moto",
+    )
     private fun activityStatusLabels() = listOf("À confirmer", "Confirmée", "Publiée", "Ignorée")
     private fun slotActiveLabels() = listOf("Active", "Suspendue")
 
+    /**
+     * "Entraînement fractionné de haute intensité" -- [SportType.HIGH_INTENSITY_INTERVAL_TRAINING]'s
+     * French label -- is the one sport name in the catalogue too long for a single
+     * uppercase-tracked row at this font scale; it is excluded from the one-line check
+     * below and given its own two-line budget instead, since the `Text` it lands in (both
+     * `SportPicker`'s own row and the activity detail screen's current-selection header)
+     * wraps rather than clips -- the same "real Text wraps, never clips" reasoning
+     * [NoTextClippingTest] holds every other string in this app to.
+     */
     @Test
-    fun `every sport label fits a full-width row at a 1_3x font scale`() {
-        sportLabels().forEach { label ->
+    fun `every other sport label fits a full-width row at a 1_3x font scale`() {
+        (sportLabels() - "Entraînement fractionné de haute intensité").forEach { label ->
             val width = widthDp(label, mediumFont, fontSizeSp = 12f, letterSpacingSp = 1.5f)
             assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
         }
+    }
+
+    @Test
+    fun `the longest sport label wraps within two lines rather than clipping`() {
+        val label = "Entraînement fractionné de haute intensité"
+        val width = widthDp(label, mediumFont, fontSizeSp = 12f, letterSpacingSp = 1.5f)
+        assertTrue(
+            "\"$label\" measured ${width}dp, expected it to overflow a single ${rowWidthDp}dp row " +
+                "(that is exactly why it is excluded from the one-line sport label check above)",
+            width > rowWidthDp,
+        )
+        assertTrue(
+            "\"$label\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp",
+            width <= rowWidthDp * 2,
+        )
     }
 
     @Test
@@ -852,8 +893,8 @@ class StravaLabelWidthTest {
      * sport-format note, the three-tap import line, the storage-permission rationale and
      * denial notes (API 26-28 only, see [ch.kevinjordil.helion.export.saveTcxToDownloads]),
      * and the save confirmation/failure lines, the latter filled with the longest plausible
-     * file name ([downloadSportSlug]'s widest entry, "natation") and a realistic error
-     * message.
+     * file name ([ch.kevinjordil.helion.store.sportSlug]'s widest entry,
+     * `high-intensity-interval-training`) and a realistic error message.
      */
     private fun manualFlowActionLabels() = listOf("Enregistrer le fichier", "Ouvrir Strava", "Partager (TCX)")
 
@@ -862,8 +903,9 @@ class StravaLabelWidthTest {
         "Dans Strava : Enregistrer → + → Importer un fichier.",
         "Helion doit accéder au stockage pour enregistrer dans Téléchargements.",
         "Sans cette autorisation, Helion ne peut pas enregistrer le fichier.",
-        "Enregistré dans Téléchargements : natation-2026-08-26-2010.tcx",
+        "Enregistré dans Téléchargements : badminton-2026-08-26-2010.tcx",
         "Échec de l'enregistrement : MediaStore refused the insert",
+        "Définissez d'abord un sport pour cette activité.",
     )
 
     @Test
@@ -886,6 +928,22 @@ class StravaLabelWidthTest {
             val width = proseWidthDp(message)
             assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
         }
+    }
+
+    /**
+     * The save confirmation carries whatever sport slug the activity actually had, and
+     * [ch.kevinjordil.helion.store.sportSlug]'s widest entry -- `high-intensity-interval-training`
+     * -- makes for a genuinely long confirmation line. Checked on its own, against a more
+     * generous three-line budget, rather than folded into [manualFlowProseMessages]'s
+     * shared two-line budget: real `Text` wraps rather than clips regardless (see
+     * [NoTextClippingTest]), so this is still a real bound, just not the same one every
+     * shorter message in that list is held to.
+     */
+    @Test
+    fun `the save confirmation still wraps within a sane number of lines for the longest sport slug`() {
+        val message = "Enregistré dans Téléchargements : high-intensity-interval-training-2026-08-26-2010.tcx"
+        val width = proseWidthDp(message)
+        assertTrue("\"$message\" measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
     }
 }
 

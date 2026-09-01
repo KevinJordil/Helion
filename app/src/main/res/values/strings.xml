@@ -9,14 +9,91 @@
     <string name="action_cancel">Annuler</string>
 
     <string name="sport_picker_label">Sport</string>
+    <string name="sport_none">Sport non défini</string>
+    <string name="sport_search_placeholder">Rechercher un sport…</string>
+    <string name="export_requires_sport">Définissez d\'abord un sport pour cette activité.</string>
+
+    <string name="sport_category_cycling">Cyclisme</string>
+    <string name="sport_category_running_walking">Course et marche</string>
+    <string name="sport_category_water">Sports nautiques</string>
+    <string name="sport_category_snow_ice">Neige et glace</string>
+    <string name="sport_category_racket">Sports de raquette</string>
+    <string name="sport_category_indoor_fitness">Intérieur et fitness</string>
+    <string name="sport_category_team">Sports collectifs</string>
+    <string name="sport_category_other">Autres</string>
+
+    <!-- Cyclisme -->
+    <string name="sport_ride">Vélo</string>
+    <string name="sport_e_bike_ride">Vélo électrique</string>
+    <string name="sport_e_mountain_bike_ride">VTT électrique</string>
+    <string name="sport_gravel_ride">Gravel</string>
+    <string name="sport_handcycle">Handbike</string>
+    <string name="sport_mountain_bike_ride">VTT</string>
+    <string name="sport_velomobile">Vélomobile</string>
+
+    <!-- Course et marche -->
+    <string name="sport_hike">Randonnée</string>
+    <string name="sport_run">Course à pied</string>
+    <string name="sport_trail_run">Trail</string>
+    <string name="sport_walk">Marche</string>
+
+    <!-- Sports nautiques -->
+    <string name="sport_canoeing">Canoë</string>
+    <string name="sport_kayaking">Kayak</string>
+    <string name="sport_kitesurf">Kitesurf</string>
+    <string name="sport_rowing">Aviron</string>
+    <string name="sport_sail">Voile</string>
+    <string name="sport_stand_up_paddling">Paddle</string>
+    <string name="sport_surfing">Surf</string>
+    <string name="sport_swim">Natation</string>
+    <string name="sport_windsurf">Planche à voile</string>
+
+    <!-- Neige et glace -->
+    <string name="sport_alpine_ski">Ski alpin</string>
+    <string name="sport_backcountry_ski">Ski de randonnée</string>
+    <string name="sport_ice_skate">Patinage sur glace</string>
+    <string name="sport_nordic_ski">Ski de fond</string>
+    <string name="sport_roller_ski">Ski à roulettes</string>
+    <string name="sport_snowboard">Snowboard</string>
+    <string name="sport_snowshoe">Raquette à neige</string>
+
+    <!-- Sports de raquette -->
     <string name="sport_badminton">Badminton</string>
-    <string name="sport_running">Course à pied</string>
-    <string name="sport_cycling">Vélo</string>
-    <string name="sport_walking">Marche</string>
-    <string name="sport_swimming">Natation</string>
+    <string name="sport_padel">Padel</string>
+    <string name="sport_pickleball">Pickleball</string>
+    <string name="sport_racquetball">Racquetball</string>
+    <string name="sport_squash">Squash</string>
+    <string name="sport_table_tennis">Tennis de table</string>
+    <string name="sport_tennis">Tennis</string>
+
+    <!-- Intérieur et fitness -->
+    <string name="sport_crossfit">Crossfit</string>
+    <string name="sport_dance">Danse</string>
+    <string name="sport_elliptical">Vélo elliptique</string>
+    <string name="sport_high_intensity_interval_training">Entraînement fractionné de haute intensité</string>
+    <string name="sport_pilates">Pilates</string>
+    <string name="sport_physical_therapy">Kinésithérapie</string>
+    <string name="sport_stair_stepper">Stepper</string>
+    <string name="sport_virtual_ride">Vélo virtuel</string>
+    <string name="sport_virtual_row">Aviron virtuel</string>
+    <string name="sport_virtual_run">Course virtuelle</string>
+    <string name="sport_weight_training">Musculation</string>
+    <string name="sport_workout">Entraînement</string>
+    <string name="sport_yoga">Yoga</string>
+
+    <!-- Sports collectifs -->
+    <string name="sport_basketball">Basketball</string>
+    <string name="sport_cricket">Cricket</string>
+    <string name="sport_soccer">Football</string>
+    <string name="sport_volleyball">Volleyball</string>
+
+    <!-- Autres -->
+    <string name="sport_golf">Golf</string>
+    <string name="sport_inline_skate">Roller</string>
+    <string name="sport_rock_climbing">Escalade</string>
+    <string name="sport_skateboard">Skateboard</string>
+    <string name="sport_wheelchair">Fauteuil roulant</string>
     <string name="sport_motorcycling">Moto</string>
-    <string name="sport_climbing">Escalade</string>
-    <string name="sport_other">Autre</string>
 
     <string name="activity_status_candidate">À confirmer</string>
     <string name="activity_status_confirmed">Confirmée</string>
@@ -80,6 +157,7 @@
     <string name="custom_server_reason_network_error">Connexion au serveur impossible : %1$s</string>
     <string name="custom_server_reason_unauthorized">Jeton refusé par le serveur : %1$s</string>
     <string name="custom_server_reason_remote_error">Le serveur a refusé l\'envoi : %1$s</string>
+    <string name="custom_server_reason_no_sport">Définissez d\'abord un sport pour cette activité.</string>
     <string name="custom_server_response_detail">Réponse du serveur : %1$s</string>
 
     <string name="custom_server_settings_section_title">Serveur personnel</string>
