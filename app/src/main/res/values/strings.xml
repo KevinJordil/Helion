@@ -148,7 +148,6 @@
     <string name="custom_server_reason_no_sport">Définissez d\'abord un sport pour cette activité.</string>
     <string name="custom_server_response_detail">Réponse du serveur : %1$s</string>
 
-    <string name="custom_server_settings_section_title">Serveur personnel</string>
     <string name="custom_server_url_label">Adresse du serveur</string>
     <string name="custom_server_url_invalid">Adresse invalide : indiquez une URL http:// ou https:// complète.</string>
     <string name="custom_server_token_label">Jeton partagé</string>
@@ -363,4 +362,21 @@
     <string name="notification_settings_toggle_label">Me notifier des activités détectées</string>
     <string name="notification_settings_explanation">Une notification par activité candidate détectée, jamais de rappel : vous choisissez ensuite de la confirmer, la modifier ou l\'ignorer.</string>
     <string name="notification_settings_permission_denied">Autorisation refusée : les activités candidates restent visibles dans Activités, sans notification.</string>
+
+    <string name="settings_entry_source_title">Source des données</string>
+    <string name="settings_entry_source_configured">Fichier configuré</string>
+    <string name="settings_entry_profile_complete">Complet</string>
+    <string name="settings_entry_profile_incomplete">Incomplet</string>
+    <string name="settings_entry_goals_title">Objectifs</string>
+    <string name="settings_entry_goals_value">%1$d pas</string>
+    <string name="settings_entry_maintenance_title">Maintenance</string>
+    <string name="settings_entry_maintenance_value">Réanalyser l\'historique</string>
+    <string name="settings_entry_about_title">À propos</string>
+    <string name="settings_status_configured">Configuré</string>
+    <string name="settings_status_not_configured">Non configuré</string>
+    <string name="settings_status_enabled">Activé</string>
+    <string name="settings_status_disabled">Désactivé</string>
+
+    <string name="recording_device_name_label">Nom de l\'appareil (Strava)</string>
+    <string name="recording_device_name_note">Nom affiché par Strava comme appareil d\'enregistrement.</string>
 </resources>

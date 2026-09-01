@@ -845,7 +845,7 @@ class DayTimelineReadoutWidthTest {
 }
 
 /**
- * Réglages' full-archive re-run action (`SettingsScreen.kt`'s `ArchiveReanalysisSection`,
+ * Réglages' full-archive re-run action (`MaintenanceSettingsSection.kt`'s `ArchiveReanalysisSection`,
  * moved there from `ActivityListScreen.kt`): the button label, the in-progress label it
  * swaps to, and the status/last-run lines shown below it (`HelionType.bodySmall`, same
  * [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall] prose style the rest of this file's
@@ -987,7 +987,7 @@ class CalorieLabelWidthTest {
  * (`ActivityDetailScreen.kt`, section label, the short mechanism note, and state/failure
  * prose, same styles [ActivityLabelWidthTest] already checks its own equivalents against),
  * sent through the owner's own server, and its Réglages configuration section
- * (`SettingsScreen.kt`'s `CustomServerSection`). Same 280dp budget as every other screen in
+ * (`CustomServerSettingsSection.kt`'s `CustomServerSettingsSection`). Same 280dp budget as every other screen in
  * this file -- both screens share the identical 20dp-each-side padding.
  */
 class CustomServerLabelWidthTest {
@@ -1066,11 +1066,10 @@ class CustomServerLabelWidthTest {
     )
 
     @Test
-    fun `the custom-server section label and settings title fit a full-width row at a 1_3x font scale`() {
-        listOf("Envoi vers Strava", "Serveur personnel").forEach { label ->
-            val width = labelWidthDp(label)
-            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
-        }
+    fun `the custom-server section label fits a full-width row at a 1_3x font scale`() {
+        val label = "Envoi vers Strava"
+        val width = labelWidthDp(label)
+        assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
     }
 
     @Test
@@ -1116,6 +1115,8 @@ class CustomServerLabelWidthTest {
             "Adresse du serveur",
             "Jeton partagé",
             "Adresse invalide : indiquez une URL http:// ou https:// complète.",
+            "Nom de l'appareil (Strava)",
+            "Nom affiché par Strava comme appareil d'enregistrement.",
         )
         messages.forEach { message ->
             val width = proseWidthDp(message)
@@ -1125,7 +1126,7 @@ class CustomServerLabelWidthTest {
 
     @Test
     fun `the plain-HTTP confirmation label fits within three lines, next to the checkbox it labels`() {
-        // Sits in a Row next to a Checkbox (see SettingsScreen.kt's CustomServerSection),
+        // Sits in a Row next to a Checkbox (see CustomServerSettingsSection.kt's CustomServerSettingsSection),
         // not a full-width Text -- its real available width is already less than
         // rowWidthDp, so a three-line budget here is the realistic one, same reasoning
         // CalorieLabelWidthTest's own accuracy-note test uses for its longer sentence.
@@ -1136,7 +1137,7 @@ class CustomServerLabelWidthTest {
 }
 
 /**
- * The Health Connect section added to Réglages (`SettingsScreen.kt`'s `HealthConnectSection`).
+ * The Health Connect section added to Réglages (`HealthConnectSettingsSection.kt`'s `HealthConnectSettingsSection`).
  * Same 280dp budget and 1.3x font scale as [CustomServerLabelWidthTest] -- the identical
  * 20dp-padded root `Column`.
  */
@@ -1227,7 +1228,7 @@ class HealthConnectLabelWidthTest {
 }
 
 /**
- * The profile fields added to Réglages (`SettingsScreen.kt`): the section title and each
+ * The profile fields added to Réglages (`ProfileSettingsSection.kt`): the section title and each
  * field's label at [ch.kevinjordil.helion.ui.theme.HelionType.bodySmall]/`label`, the sex
  * options ("Homme"/"Femme") and the short privacy note underneath. Same 280dp budget as
  * [CalorieLabelWidthTest] -- `SettingsScreen`'s root `Column` uses the same 20dp padding.
@@ -1290,7 +1291,7 @@ class ProfileFieldWidthTest {
 }
 
 /**
- * The notifications section added to Réglages (`SettingsScreen.kt`'s `NotificationsSection`)
+ * The notifications section added to Réglages (`NotificationsSettingsSection.kt`'s `NotificationsSettingsSection`)
  * and the strings the actual system notification carries
  * (`ch.kevinjordil.helion.notification.CandidateNotifier`). Same 280dp budget as
  * [ProfileFieldWidthTest] for the Réglages section -- identical 20dp-padded root `Column` --
@@ -1394,5 +1395,80 @@ class NotificationLabelWidthTest {
         val description = "Propose une activité candidate à vérifier ; ne signale jamais rien d'autre."
         val descriptionWidth = proseWidthDp(description, fontSizeSp = 13f)
         assertTrue("\"$description\" measured ${descriptionWidth}dp, two-line budget is ${rowWidthDp * 2}dp", descriptionWidth <= rowWidthDp * 2)
+    }
+}
+
+/**
+ * Réglages' own top level (`SettingsScreen.kt`'s `SettingsScreen`/`SettingsEntryRow`): the
+ * eight [ch.kevinjordil.helion.ui.settings.SettingsSection] entry labels and their one-line
+ * status previews. Both sit in the same row as a trailing ">" glyph, which is why the budget
+ * here is narrower than the 280dp full-width rows the rest of this file checks -- a generous
+ * fixed allowance for that glyph plus its spacing (24dp) is subtracted up front, the same
+ * "measure the real container, not the whole screen" reasoning [TileTextWidthTest]'s own
+ * kdoc gives for its tile budget.
+ *
+ * The build stamp shown as the "À propos" entry's own preview is not a `strings.xml` value
+ * -- it is `BuildConfig.BUILD_STAMP`, always `dd/MM HH:mm` (see `app/build.gradle.kts`), a
+ * fixed-width format regardless of the actual date, so its widest digit-only instance is
+ * measured directly rather than picked from a resource list.
+ */
+class SettingsMenuWidthTest {
+
+    private val entryRowWidthDp = 280f - 24f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun bodySmallWidthDp(text: String): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 13f * fontScale
+    }
+
+    private fun entryTitles() = listOf(
+        "Source des données", "Profil", "Objectifs", "Envoi vers Strava",
+        "Health Connect", "Notifications", "Maintenance", "À propos",
+    )
+
+    @Test
+    fun `every entry title fits the entry row's content width at a 1_3x font scale`() {
+        entryTitles().forEach { title ->
+            val width = labelWidthDp(title)
+            assertTrue("\"$title\" measured ${width}dp, budget is ${entryRowWidthDp}dp", width <= entryRowWidthDp)
+        }
+    }
+
+    @Test
+    fun `every entry's status preview fits the entry row's content width at the widest plausible value`() {
+        val previews = listOf(
+            "Aucun fichier configuré", "Fichier configuré",
+            "Complet", "Incomplet",
+            "99999 pas",
+            "Configuré", "Non configuré",
+            "Activé", "Désactivé",
+            "Réanalyser l'historique",
+            "31/12 23:59",
+        )
+        previews.forEach { preview ->
+            val width = bodySmallWidthDp(preview)
+            assertTrue("\"$preview\" measured ${width}dp, budget is ${entryRowWidthDp}dp", width <= entryRowWidthDp)
+        }
     }
 }

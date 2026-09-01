@@ -36,6 +36,7 @@ import ch.kevinjordil.helion.ui.home.HomeScreen
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
 import ch.kevinjordil.helion.ui.metric.MetricScreen
 import ch.kevinjordil.helion.ui.settings.SettingsScreen
+import ch.kevinjordil.helion.ui.settings.SettingsSectionScreen
 import ch.kevinjordil.helion.ui.sleep.SleepScreen
 
 private const val METRIC_ROUTE_PREFIX = "metric:"
@@ -43,6 +44,7 @@ private const val ACTIVITY_ROUTE_PREFIX = "activity:"
 private const val DAY_TIMELINE_ROUTE = "day_timeline"
 private const val SLOTS_ROUTE = "slots"
 private const val SLOT_ROUTE_PREFIX = "slot:"
+private const val SETTINGS_SECTION_ROUTE_PREFIX = "settings:"
 
 /** The [SlotEditScreen] route id for a brand-new slot, as opposed to `"slot:<id>"` for an existing one. */
 private const val NEW_SLOT_ID = "new"
@@ -221,6 +223,10 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
         backStack = backStack + "$SLOT_ROUTE_PREFIX$id"
     }
 
+    fun openSettingsSection(sectionId: String) {
+        backStack = backStack + "$SETTINGS_SECTION_ROUTE_PREFIX$sectionId"
+    }
+
     /**
      * Called when [DayTimelineScreen] turns a selection into a new activity: the timeline
      * entry is replaced by the new activity's detail rather than pushed under it, so the
@@ -246,7 +252,8 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                         current == SLOTS_ROUTE ||
                                         current.startsWith(SLOT_ROUTE_PREFIX)
                                 )
-                            )
+                            ) ||
+                        (entry == RootDestination.SETTINGS && current.startsWith(SETTINGS_SECTION_ROUTE_PREFIX))
                     NavigationBarItem(
                         selected = selected,
                         onClick = { selectRoot(entry.route) },
@@ -259,7 +266,13 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     ) { contentPadding ->
         Box(Modifier.padding(contentPadding)) {
             when {
-                current == RootDestination.SETTINGS.route -> SettingsScreen(container)
+                current == RootDestination.SETTINGS.route -> SettingsScreen(container, onOpenSection = ::openSettingsSection)
+
+                current.startsWith(SETTINGS_SECTION_ROUTE_PREFIX) -> SettingsSectionScreen(
+                    container = container,
+                    sectionId = current.removePrefix(SETTINGS_SECTION_ROUTE_PREFIX),
+                    onBack = ::popBack,
+                )
 
                 current == RootDestination.SLEEP.route -> SleepScreen(container)
 
