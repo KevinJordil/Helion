@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,8 +19,22 @@ import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.BuildConfig
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+
+/**
+ * The root Column's own horizontal inset on both [SettingsScreen] and [SettingsSectionScreen],
+ * now that the entry list and each sub-screen's own fields sit on a raised [HelionSurface]
+ * rather than directly against the screen. [SCREEN_EDGE_MARGIN] plus [CARD_PADDING] still add
+ * up to the historical 20dp inset every Réglages width test in `TileTextWidthTest.kt` (e.g.
+ * `SettingsMenuWidthTest`, `CustomServerLabelWidthTest`, `ProfileFieldWidthTest`) measures
+ * against, so none of their budgets change even though every sub-screen is now presented on a
+ * card instead of a bare column -- and since every one of the eight sections is rendered
+ * through this one [SettingsSectionScreen], fixing the frame here fixes all eight at once.
+ */
+private val SCREEN_EDGE_MARGIN = 4.dp
+private val CARD_PADDING = 16.dp
 
 /**
  * Réglages' eight top-level entries -- what used to be one long, unevenly-presented scroll
@@ -65,18 +78,28 @@ fun SettingsScreen(container: AppContainer, onOpenSection: (String) -> Unit, mod
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.tab_settings).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(
+            stringResource(R.string.tab_settings),
+            style = HelionType.headline,
+            color = colors.textPrimary,
+            modifier = Modifier.padding(horizontal = CARD_PADDING),
+        )
 
-        SettingsSection.entries.forEach { section ->
-            SettingsEntryRow(
-                label = stringResource(section.titleRes),
-                value = settingsEntryPreview(section, container),
-                onClick = { onOpenSection(section.id) },
-            )
-            HorizontalDivider(color = colors.divider)
+        HelionSurface(
+            modifier = Modifier.fillMaxWidth(),
+            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            SettingsSection.entries.forEach { section ->
+                SettingsEntryRow(
+                    label = stringResource(section.titleRes),
+                    value = settingsEntryPreview(section, container),
+                    onClick = { onOpenSection(section.id) },
+                )
+            }
         }
     }
 }
@@ -100,7 +123,7 @@ private fun SettingsEntryRow(label: String, value: String, onClick: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label.uppercase(), style = HelionType.label, color = colors.textPrimary)
+            Text(label, style = HelionType.label, color = colors.textPrimary)
             Text(value, style = HelionType.bodySmall, color = colors.textSecondary)
         }
         Text(">", style = HelionType.label, color = colors.textTertiary)
@@ -166,39 +189,50 @@ fun SettingsSectionScreen(container: AppContainer, sectionId: String, onBack: ()
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        SettingsBackLink(onBack)
+        SettingsBackLink(onBack, modifier = Modifier.padding(horizontal = CARD_PADDING))
 
         if (section == null) {
             LaunchedEffect(sectionId) { onBack() }
             return@Column
         }
 
-        Text(stringResource(section.titleRes).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(
+            stringResource(section.titleRes),
+            style = HelionType.headline,
+            color = colors.textPrimary,
+            modifier = Modifier.padding(horizontal = CARD_PADDING),
+        )
 
-        when (section) {
-            SettingsSection.SOURCE -> SourceSettingsSection(container)
-            SettingsSection.PROFILE -> ProfileSettingsSection(container)
-            SettingsSection.GOALS -> GoalsSettingsSection(container)
-            SettingsSection.STRAVA -> CustomServerSettingsSection(container)
-            SettingsSection.HEALTH_CONNECT -> HealthConnectSettingsSection(container)
-            SettingsSection.NOTIFICATIONS -> NotificationsSettingsSection(container)
-            SettingsSection.MAINTENANCE -> ArchiveReanalysisSection(container)
-            SettingsSection.ABOUT -> AboutSettingsSection()
+        HelionSurface(
+            modifier = Modifier.fillMaxWidth(),
+            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when (section) {
+                SettingsSection.SOURCE -> SourceSettingsSection(container)
+                SettingsSection.PROFILE -> ProfileSettingsSection(container)
+                SettingsSection.GOALS -> GoalsSettingsSection(container)
+                SettingsSection.STRAVA -> CustomServerSettingsSection(container)
+                SettingsSection.HEALTH_CONNECT -> HealthConnectSettingsSection(container)
+                SettingsSection.NOTIFICATIONS -> NotificationsSettingsSection(container)
+                SettingsSection.MAINTENANCE -> ArchiveReanalysisSection(container)
+                SettingsSection.ABOUT -> AboutSettingsSection()
+            }
         }
     }
 }
 
 /** The one back-to-the-list link every [SettingsSectionScreen] opens with. */
 @Composable
-private fun SettingsBackLink(onBack: () -> Unit) {
+private fun SettingsBackLink(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Text(
         stringResource(R.string.action_back),
         style = HelionType.label,
         color = colors.accentViolet,
-        modifier = Modifier.clickable(onClick = onBack),
+        modifier = modifier.clickable(onClick = onBack),
     )
 }

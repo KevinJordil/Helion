@@ -88,7 +88,7 @@ fun ProfileSettingsSection(container: AppContainer) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         listOf(Sex.MALE to R.string.profile_sex_male, Sex.FEMALE to R.string.profile_sex_female).forEach { (sex, labelRes) ->
             Text(
-                stringResource(labelRes).uppercase(),
+                stringResource(labelRes),
                 style = HelionType.label,
                 color = if (sex == selectedSex) colors.accentViolet else colors.textTertiary,
                 modifier = Modifier.clickable {
