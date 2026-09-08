@@ -124,6 +124,32 @@ data class Activity(
      * [ActivityOrigin.MANUAL] -- nothing ever notifies about a row the owner drew himself.
      */
     val notified: Boolean = false,
+    /**
+     * True exactly when this candidate's [startTimestamp] or [endTimestamp] sits at the
+     * very edge of the minute-sample data that existed when [ch.kevinjordil.helion.activity.ActivityDetector]
+     * created or last grew it -- meaning that edge is not a real, observed boundary (a
+     * genuine floor-crossing drop, or [ch.kevinjordil.helion.activity.DetectionThresholds.slotExtensionMarginMinutes]'s
+     * own safety cap) but simply "no more data existed yet to say what happens next".
+     * Detection can run mid-session -- the owner opening the app, or a periodic sync,
+     * catches a training that is still going -- and without this flag the resulting
+     * candidate froze at whatever minute happened to be newest at that moment forever,
+     * since [ActivityDao.overlapping] would then treat that range as already decided on
+     * every later pass. A `true` value is instead this class' own signal to itself: on a
+     * later [ch.kevinjordil.helion.activity.ActivityDetector.detect] call, re-run the same
+     * pass that created this row and, if fresh data now supports a wider (or, cannot
+     * happen in practice, narrower) span, update [startTimestamp]/[endTimestamp] in place
+     * rather than treating the range as settled.
+     *
+     * Sits alongside [status], not instead of it: only an [ActivityStatus.CANDIDATE] row is
+     * ever eligible for this regrowth in the first place, and only while this flag is still
+     * true here. The instant the owner does anything to the row -- confirms it, dismisses
+     * it, or edits its own start/end/title/notes by hand -- every save path sets this back
+     * to `false`, permanently: "the owner looked at this" is exactly as final a decision as
+     * a genuine detected boundary, and must never be second-guessed by a later pass either.
+     * Always `false` for [ActivityOrigin.MANUAL] -- nothing detection created is ever
+     * revisited for a row the owner drew himself.
+     */
+    val provisional: Boolean = false,
 )
 
 @Dao

@@ -306,4 +306,110 @@ class ActivityDetectorTest {
         assertEquals(0, created)
         assertTrue(db.activities().all().isEmpty())
     }
+
+    // -- Provisional candidates: detection running mid-session --------------------------
+    //
+    // Mirrors the real report: the owner opened the app while a training was still going,
+    // an ingest pass ran detection over whatever minutes existed at that instant, and the
+    // resulting candidate was only as long as the data available then -- not the real
+    // session. These scenarios put the elevated block's own last minute exactly at `now`,
+    // the newest timestamp [seedQuietBaseline] ever writes, so nothing in the archive yet
+    // says what happens after it -- exactly the condition Activity.provisional exists to
+    // recognise.
+
+    @Test
+    fun `a candidate born while data was still arriving is marked provisional`() = runTest {
+        seedQuietBaseline()
+        val start = now - 1_200 // 21 elevated minutes ending exactly at `now`.
+        db.minuteSamples().upsertAll((start..now step 60).map { elevated(it) })
+
+        val created = detector.detect(now - 2 * day, now + 60)
+
+        assertEquals(1, created)
+        val activity = db.activities().all().single()
+        assertEquals(ActivityOrigin.DETECTED, activity.origin)
+        assertEquals(start, activity.startTimestamp)
+        assertEquals(now + 60, activity.endTimestamp)
+        assertTrue("a candidate ending at the data's own edge must be provisional", activity.provisional)
+    }
+
+    @Test
+    fun `a provisional candidate grows in place once the real session's end is on record`() = runTest {
+        seedQuietBaseline()
+        val start = now - 1_200
+        db.minuteSamples().upsertAll((start..now step 60).map { elevated(it) })
+        val firstPass = detector.detect(now - 2 * day, now + 60)
+        val born = db.activities().all().single()
+        assertEquals(1, firstPass)
+        assertTrue(born.provisional)
+
+        // More data arrives on a later ingest pass: effort continues 15 more minutes, then
+        // a genuine drop back to resting -- the real session actually ending.
+        val realEnd = now + 900
+        db.minuteSamples().upsertAll((now + 60..realEnd step 60).map { elevated(it) })
+        db.minuteSamples().upsertAll((realEnd + 60..realEnd + 1_440 step 60).map { quiet(it) })
+
+        val secondPass = detector.detect(now - 2 * day, realEnd + 1_440)
+
+        // Growing an already-existing candidate is not creating a new one.
+        assertEquals(0, secondPass)
+        val grown = db.activities().all().single()
+        assertEquals(born.id, grown.id)
+        assertEquals(start, grown.startTimestamp)
+        assertEquals(realEnd + 60, grown.endTimestamp)
+        assertTrue("a real floor-crossing drop is now on record after it", !grown.provisional)
+    }
+
+    @Test
+    fun `opening the app repeatedly mid-session converges on one activity, not several`() = runTest {
+        seedQuietBaseline()
+        val start = now - 1_200
+        db.minuteSamples().upsertAll((start..now step 60).map { elevated(it) })
+        detector.detect(now - 2 * day, now + 60)
+        assertEquals(1, db.activities().all().size)
+
+        // A second, still-mid-session open: more elevated minutes, still no real end yet.
+        db.minuteSamples().upsertAll((now + 60..now + 300 step 60).map { elevated(it) })
+        detector.detect(now - 2 * day, now + 360)
+        val afterSecondOpen = db.activities().all()
+        assertEquals(1, afterSecondOpen.size)
+        assertEquals(now + 360, afterSecondOpen.single().endTimestamp)
+        assertTrue(afterSecondOpen.single().provisional)
+
+        // A third open, now with the real end on record.
+        val realEnd = now + 900
+        db.minuteSamples().upsertAll((now + 300..realEnd step 60).map { elevated(it) })
+        db.minuteSamples().upsertAll((realEnd + 60..realEnd + 1_440 step 60).map { quiet(it) })
+        detector.detect(now - 2 * day, realEnd + 1_440)
+
+        val final = db.activities().all()
+        assertEquals(1, final.size)
+        assertEquals(start, final.single().startTimestamp)
+        assertEquals(realEnd + 60, final.single().endTimestamp)
+        assertTrue(!final.single().provisional)
+    }
+
+    @Test
+    fun `confirming a provisional candidate freezes it, even though it is still at the data's edge`() = runTest {
+        seedQuietBaseline()
+        val start = now - 1_200
+        db.minuteSamples().upsertAll((start..now step 60).map { elevated(it) })
+        detector.detect(now - 2 * day, now + 60)
+        val born = db.activities().all().single()
+        assertTrue(born.provisional)
+
+        // The owner reviews and confirms it before it has had any chance to grow -- exactly
+        // as ActivityDetailScreen's own save() does, clearing provisional on any touch.
+        db.activities().update(born.copy(status = ActivityStatus.CONFIRMED, provisional = false))
+
+        // More effort keeps going, exactly as if the session were still growable.
+        db.minuteSamples().upsertAll((now + 60..now + 900 step 60).map { elevated(it) })
+        val createdAfterConfirm = detector.detect(now - 2 * day, now + 960)
+
+        assertEquals(0, createdAfterConfirm)
+        val activities = db.activities().all()
+        assertEquals(1, activities.size)
+        assertEquals(now + 60, activities.single().endTimestamp) // untouched -- the owner's word is final
+        assertEquals(ActivityStatus.CONFIRMED, activities.single().status)
+    }
 }

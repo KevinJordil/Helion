@@ -142,6 +142,13 @@ data class DetectionThresholds(
      * margin edge is not itself cut off by the margin before it has had the chance to confirm
      * itself. The sum, 45 minutes, is still far short of the hour-plus gap that would need to
      * separate two genuinely different outings for this margin to bridge them by accident.
+     *
+     * A short-lived session that looked clipped exactly at this margin turned out, on closer
+     * inspection of the real export, to have a different cause entirely: detection had simply
+     * run before the session finished, not because this margin was too tight -- see
+     * [ch.kevinjordil.helion.store.Activity.provisional] for the actual fix. This margin is
+     * still what it always was: a hard stop against a genuine runaway merge, not the mechanism
+     * that ends an ordinary session.
      */
     val slotExtensionMarginMinutes: Int = 2 * dipToleranceMinutes + minEntrySustainMinutes,
 

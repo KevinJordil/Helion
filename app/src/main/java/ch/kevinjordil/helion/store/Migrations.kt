@@ -340,6 +340,21 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
 }
 
 /**
+ * Adds `activity.provisional` -- see [Activity.provisional]'s own kdoc for why a candidate
+ * whose boundary was set by data running out, not by a real session ending, needs to be
+ * told apart from every other row. A plain ADD COLUMN with a `NOT NULL DEFAULT 0`: every
+ * existing row -- of any origin or status -- is treated as already settled, which is
+ * correct for everything created before this column existed (nothing could re-grow it
+ * before now anyway) and is the safe direction regardless: a row wrongly left non-growable
+ * just keeps whatever boundary it already has, never worse than before this migration.
+ */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `activity` ADD COLUMN `provisional` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
  * Every migration this app ships, in order, as one list rather than an argument list spelled
  * out at the call site. A migration was once defined and simply left out of that argument
  * list; Room then refused to open an upgraded database and the app died on launch with
@@ -349,5 +364,5 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
 val HELION_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
+    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
 )

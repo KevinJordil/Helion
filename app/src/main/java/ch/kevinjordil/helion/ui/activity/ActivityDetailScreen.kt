@@ -101,8 +101,13 @@ fun ActivityDetailScreen(
     }
 
     fun save(updated: Activity) {
-        activity = updated
-        scope.launch { container.database.activities().update(updated) }
+        // Any owner-initiated change -- confirming, dismissing, or hand-editing a field --
+        // is exactly as final a decision as a genuinely observed boundary: clear
+        // Activity.provisional here so a later detection pass never grows this row again,
+        // even over a field this screen never touches (title, notes, sport).
+        val settled = updated.copy(provisional = false)
+        activity = settled
+        scope.launch { container.database.activities().update(settled) }
     }
 
     val current = activity
