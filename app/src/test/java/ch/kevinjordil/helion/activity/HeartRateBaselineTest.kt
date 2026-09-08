@@ -72,6 +72,7 @@ class HeartRateBaselineTest {
         val baseline = HeartRateBaseline(restingBpm = 51.0, maxBpm = 177.0, distinctDays = 20)
         assertEquals(120.3, baseline.enterThresholdBpm(defaults), 0.01)
         assertEquals(91.32, baseline.floorThresholdBpm(defaults), 0.01)
+        assertEquals(114.0, baseline.endThresholdBpm(defaults), 0.01) // 51 + 0.50*126
 
         // A narrow observed range (no real effort on record yet) is floored at minRangeBpm
         // (40) rather than collapsing both thresholds down near resting.

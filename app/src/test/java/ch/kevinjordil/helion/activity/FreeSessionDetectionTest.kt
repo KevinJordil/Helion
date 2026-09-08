@@ -51,6 +51,46 @@ class FreeSessionDetectionTest {
         val session = sessions.single()
         assertEquals(0L, session.start)
         assertEquals(4_080L, session.end) // last elevated minute (4_020) + one minute
+        // The mid-session dip (95 bpm, below the 114 end threshold) sits in the MIDDLE of the
+        // block, not at its tail -- it must never be mistaken for a trailing tail to trim.
+        assertEquals(95, session.minHeartRate)
+        assertEquals(150, session.maxHeartRate)
+    }
+
+    @Test
+    fun `heart rate lingering above the floor after effort ends is trimmed to the last effort minute, like the shower after a Monday training`() {
+        // 25 minutes of real effort (150 bpm, well past the enter threshold), then straight
+        // into 15 minutes at 95 bpm -- above the floor (91.32) but below the end threshold
+        // (114) -- standing in for the changing room and shower that keep heart rate
+        // elevated long after the session itself is over. Merges into one block (well within
+        // the 20-minute dip tolerance), but the reported end must stop at the last minute of
+        // real effort, not the last minute merely above the floor.
+        val effort = burst(0, 1_440, heartRate = 150) // 25 minutes
+        val tail = burst(1_500, 2_400, heartRate = 95) // 15 minutes, above floor, below end threshold
+
+        val sessions = detectFreeSessions(effort + tail, excludedRanges = emptyList(), baseline, thresholds)
+
+        assertEquals(1, sessions.size)
+        val session = sessions.single()
+        assertEquals(0L, session.start)
+        assertEquals(1_500L, session.end) // last effort minute (1_440) + one minute -- the tail is trimmed away
+        assertEquals(150, session.minHeartRate)
+        assertEquals(150, session.maxHeartRate)
+    }
+
+    @Test
+    fun `a session that ends abruptly at real effort intensity is not trimmed at all`() {
+        // 30 minutes at 150 bpm with no trailing tail whatsoever -- heart rate simply stops
+        // being recorded above the floor the instant effort ends. The last minute already
+        // clears the end threshold (114), so there is nothing to trim: end stays exactly
+        // where it always was.
+        val minutes = burst(0, 1_740, heartRate = 150) // 30 minutes
+
+        val sessions = detectFreeSessions(minutes, excludedRanges = emptyList(), baseline, thresholds)
+
+        assertEquals(1, sessions.size)
+        val session = sessions.single()
+        assertEquals(1_800L, session.end) // unchanged: last elevated minute (1_740) + one minute
     }
 
     @Test

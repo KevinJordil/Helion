@@ -34,15 +34,21 @@ data class DetectedSession(val start: Long, val end: Long, val minHeartRate: Int
  *    elevated evening -- a hot night, a stressful stretch -- that never actually reaches
  *    genuine exertion from qualifying just because it stayed above the (lower, deliberately
  *    forgiving) floor for a long time.
- * 3. A surviving block's boundaries are its first and last floor-crossing minute
- *    (inclusive) -- this keeps the warm-up and cool-down either side of the confirmed
- *    effort inside the session, exactly as observed in the training block real data was
- *    checked against, rather than cutting the session down to only the highest-intensity
- *    minutes.
+ * 3. A surviving block's start is its first floor-crossing minute (inclusive) -- this keeps
+ *    the warm-up ahead of the confirmed effort inside the session, exactly as observed in
+ *    the training block real data was checked against, rather than cutting the session down
+ *    to only the highest-intensity minutes. Its end, however, is trimmed back from the
+ *    block's last floor-crossing minute to its last minute at or above the separate, higher
+ *    *end* threshold ([HeartRateBaseline.endThresholdBpm]) -- see
+ *    [DetectionThresholds.endTrimFraction] for why the trailing edge does not get the same
+ *    treatment as the leading one: a floor-tolerant tail after real effort stops (changing
+ *    room, shower) must not read as part of the session, even though a floor-tolerant lead-in
+ *    before it starts (warm-up) should.
  *
- * A session's boundaries are its first and last elevated minute (inclusive), not the
- * dip-widened span: a dip inside a session is tolerated for merging, but never counted as
- * part of the effort itself.
+ * A session's boundaries are its first elevated minute and its last minute of confirmed
+ * effort (inclusive), not the dip-widened span: a dip inside a session is tolerated for
+ * merging, but never counted as part of the effort itself, and neither is a lingering tail
+ * past the point effort actually stopped.
  *
  * Sessions shorter than [DetectionThresholds.minFreeSessionMinutes] are dropped entirely --
  * pass 2 has no declared commitment backing it up the way pass 1 does, so it asks for a
@@ -57,6 +63,7 @@ fun detectFreeSessions(
 ): List<DetectedSession> {
     val enterThreshold = baseline.enterThresholdBpm(thresholds)
     val floorThreshold = baseline.floorThresholdBpm(thresholds)
+    val endThreshold = baseline.endThresholdBpm(thresholds)
     val free = minutes
         .filter { sample -> excludedRanges.none { sample.timestamp in it } }
         .sortedBy { it.timestamp }
@@ -98,8 +105,16 @@ fun detectFreeSessions(
         if (durationMinutes < thresholds.minFreeSessionMinutes) return@mapNotNull null
         if (!hasSustainedEntry(building.samples, enterThreshold, thresholds.minEntrySustainMinutes)) return@mapNotNull null
 
-        val heartRates = building.samples.map { it.heartRate!! }
-        DetectedSession(building.firstTs, end, heartRates.min(), heartRates.max())
+        // Trim the trailing tail back to the last minute of genuine effort -- see
+        // DetectionThresholds.endTrimFraction. The entry-sustain check just above already
+        // guarantees at least one minute in this block reaches enterThreshold, which sits
+        // above endThreshold, so `lastOrNull` here always finds a match; the fallback to the
+        // untrimmed `building.lastTs` only matters in principle, never in practice for this pass.
+        val trimmedLastTs = building.samples.lastOrNull { (it.heartRate ?: 0) >= endThreshold }?.timestamp ?: building.lastTs
+        val trimmedEnd = trimmedLastTs + CADENCE_SECONDS
+        val effortSamples = building.samples.filter { it.timestamp <= trimmedLastTs }
+        val heartRates = effortSamples.map { it.heartRate!! }
+        DetectedSession(building.firstTs, trimmedEnd, heartRates.min(), heartRates.max())
     }
 }
 

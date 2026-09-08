@@ -32,11 +32,20 @@ data class TrimmedEffort(val start: Long, val end: Long, val minHeartRate: Int, 
  * [minutes] is expected to already cover (at least) that widened window; anything outside it
  * is ignored, so a caller may pass in a wider read without needing to pre-trim it itself.
  *
- * Boundaries are the first and last floor-crossing minute (see
- * [HeartRateBaseline.floorThresholdBpm]) of whichever merged block overlaps the *declared*
- * occurrence -- a slot occurrence is already a declared commitment (the owner said he would
- * be there), so, exactly as before, this pass does not need pass 2's additional "did real
- * effort ever start" entry confirmation before trusting an elevated stretch at all.
+ * The start is the first floor-crossing minute (see [HeartRateBaseline.floorThresholdBpm])
+ * of whichever merged block overlaps the *declared* occurrence -- a slot occurrence is
+ * already a declared commitment (the owner said he would be there), so, exactly as before,
+ * this pass does not need pass 2's additional "did real effort ever start" entry
+ * confirmation before trusting an elevated stretch at all.
+ *
+ * The end, like pass 2's, is trimmed back from that same block's last floor-crossing minute
+ * to its last minute at or above the separate, higher *end* threshold
+ * ([HeartRateBaseline.endThresholdBpm]) -- see [DetectionThresholds.endTrimFraction] for why
+ * only the trailing edge gets this treatment, never the leading one. If no minute in the
+ * block ever reaches the end threshold at all (a real but gentle declared commitment whose
+ * heart rate never climbs that high), the end is left at the block's own last floor-crossing
+ * minute, unchanged: there is no later, more-genuine effort minute to trim back to, and pass
+ * 1 trusts a declared commitment enough not to invent one.
  *
  * Returns null -- create nothing -- in two cases:
  * - No block overlapping the declared occurrence clears the floor threshold anywhere: the
@@ -64,7 +73,7 @@ fun trimSlotOccurrence(
         .sortedBy { it.timestamp }
     if (aboveFloor.isEmpty()) return null
 
-    data class Building(var firstTs: Long, var lastTs: Long, val heartRates: MutableList<Int> = mutableListOf())
+    data class Building(var firstTs: Long, var lastTs: Long, val samples: MutableList<MinuteSample> = mutableListOf())
 
     // Merge into blocks, tolerating a gap (a genuine dip below floor, or missing minutes) of
     // at most dipToleranceMinutes -- the same rule pass 2 uses to hold one session together
@@ -72,15 +81,14 @@ fun trimSlotOccurrence(
     val blocks = mutableListOf<Building>()
     var current: Building? = null
     for (sample in aboveFloor) {
-        val heartRate = sample.heartRate!!
         val building = current
         if (building == null || sample.timestamp - building.lastTs > dipToleranceSeconds) {
-            val fresh = Building(sample.timestamp, sample.timestamp).also { it.heartRates.add(heartRate) }
+            val fresh = Building(sample.timestamp, sample.timestamp).also { it.samples.add(sample) }
             current = fresh
             blocks.add(fresh)
         } else {
             building.lastTs = sample.timestamp
-            building.heartRates.add(heartRate)
+            building.samples.add(sample)
         }
     }
 
@@ -91,9 +99,18 @@ fun trimSlotOccurrence(
         ?: return null
 
     val start = block.firstTs
-    val end = block.lastTs + CADENCE_SECONDS
-    val durationMinutes = (end - start) / CADENCE_SECONDS
+    val rawEnd = block.lastTs + CADENCE_SECONDS
+    val durationMinutes = (rawEnd - start) / CADENCE_SECONDS
     if (durationMinutes < thresholds.minSlotEffortMinutes) return null
 
-    return TrimmedEffort(start = start, end = end, minHeartRate = block.heartRates.min(), maxHeartRate = block.heartRates.max())
+    // Trim the trailing tail back to the last minute of genuine effort -- see
+    // DetectionThresholds.endTrimFraction. Falls back to the untrimmed block end when no
+    // minute ever reached the end threshold (see this function's own kdoc).
+    val endThreshold = baseline.endThresholdBpm(thresholds)
+    val trimmedLastTs = block.samples.lastOrNull { (it.heartRate ?: 0) >= endThreshold }?.timestamp ?: block.lastTs
+    val end = trimmedLastTs + CADENCE_SECONDS
+    val effortSamples = block.samples.filter { it.timestamp <= trimmedLastTs }
+    val heartRates = effortSamples.map { it.heartRate!! }
+
+    return TrimmedEffort(start = start, end = end, minHeartRate = heartRates.min(), maxHeartRate = heartRates.max())
 }

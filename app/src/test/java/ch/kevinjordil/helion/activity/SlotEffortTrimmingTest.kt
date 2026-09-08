@@ -108,4 +108,42 @@ class SlotEffortTrimmingTest {
 
         assertNull(trimSlotOccurrence(occurrence, minutes, baseline, thresholds))
     }
+
+    @Test
+    fun `heart rate lingering above the floor after effort ends is trimmed to the last effort minute`() {
+        // Declared 20:00-22:00 (72_000..79_200); real effort (140 bpm, above the 100 bpm end
+        // threshold) from 20:10 to 20:35, then straight into a floor-clearing but sub-effort
+        // tail (90 bpm, above the 85.6 floor but below the 100 end threshold) until 20:50 --
+        // the changing-room-and-shower shape, merged into one block by the dip tolerance.
+        val occurrence = SlotOccurrence(start = 72_000, end = 79_200)
+        val minutes = minuteRange(72_000, 72_540, heartRate = 60) +
+            minuteRange(72_600, 74_100, heartRate = 140) + // 20:10-20:35, 25 minutes
+            minuteRange(74_160, 75_000, heartRate = 90) + // 20:36-20:50, above floor, below end threshold
+            minuteRange(75_060, 79_140, heartRate = 60)
+
+        val trimmed = trimSlotOccurrence(occurrence, minutes, baseline, thresholds)!!
+
+        assertEquals(72_600L, trimmed.start)
+        assertEquals(74_160L, trimmed.end) // last effort minute (74_100) + one minute -- the tail is trimmed away
+        assertEquals(140, trimmed.minHeartRate)
+        assertEquals(140, trimmed.maxHeartRate)
+    }
+
+    @Test
+    fun `a declared commitment that never reaches the end threshold is left at its own last floor-crossing minute`() {
+        // A real but gentle occurrence -- heart rate clears the floor (85.6) throughout but
+        // never once reaches the end threshold (100). There is no more-genuine-effort minute
+        // to trim back to, so pass 1 trusts the declared commitment and leaves the end alone.
+        val occurrence = SlotOccurrence(start = 72_000, end = 79_200)
+        val minutes = minuteRange(72_000, 72_540, heartRate = 60) +
+            minuteRange(72_600, 78_300, heartRate = 90) +
+            minuteRange(78_360, 79_140, heartRate = 60)
+
+        val trimmed = trimSlotOccurrence(occurrence, minutes, baseline, thresholds)!!
+
+        assertEquals(72_600L, trimmed.start)
+        assertEquals(78_360L, trimmed.end) // unchanged: last floor-crossing minute (78_300) + one minute
+        assertEquals(90, trimmed.minHeartRate)
+        assertEquals(90, trimmed.maxHeartRate)
+    }
 }

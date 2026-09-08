@@ -44,6 +44,16 @@ data class HeartRateBaseline(val restingBpm: Double, val maxBpm: Double, val dis
      */
     fun floorThresholdBpm(thresholds: DetectionThresholds): Double =
         restingBpm + thresholds.floorFraction * range(thresholds)
+
+    /**
+     * The heart rate a session's own last minute must have reached to still count as
+     * genuine effort's end, rather than a lingering tail above the floor after the effort
+     * is actually over (changing room, shower). See [DetectionThresholds.endTrimFraction]
+     * for the derivation. Between [floorThresholdBpm] and [enterThresholdBpm] by
+     * construction (0.32 < 0.50 < 0.55).
+     */
+    fun endThresholdBpm(thresholds: DetectionThresholds): Double =
+        restingBpm + thresholds.endTrimFraction * range(thresholds)
 }
 
 /**

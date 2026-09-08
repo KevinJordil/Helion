@@ -98,6 +98,56 @@ data class DetectionThresholds(
     val floorFraction: Double = 0.32,
 
     /**
+     * How far above resting, as a fraction of the same range, heart rate must have reached
+     * for a minute to still count as genuine effort's own end -- distinct from
+     * [floorFraction]'s job, which is only to decide whether two elevated stretches belong
+     * to the *same* session, never where that session's trailing edge actually stops. A
+     * session can sit above the deliberately forgiving floor for a long stretch after real
+     * effort is over -- changing room, shower, the walk home -- none of it below the floor,
+     * none of it the session either.
+     *
+     * Measured directly against the owner's Monday 7 September training: heart rate held
+     * above the floor (92 bpm) until 22:30, while he says the effort itself -- and his own
+     * recollection of when it ended -- was "around 21:15", over an hour earlier. The last
+     * minute at or above each candidate threshold that evening:
+     *
+     * | threshold | last minute |
+     * |---|---|
+     * | 92 bpm, the floor (0.32) | 22:30 |
+     * | 100 bpm (0.38) | 21:43 |
+     * | 107 bpm (0.43) | 21:20 |
+     * | 115 bpm (0.50) | 21:17 |
+     * | 122 bpm, the entry threshold (0.55) | 21:17 |
+     *
+     * 0.50 -- the 115 bpm row -- lands the trimmed end at 21:17, two minutes from his own
+     * "around 21:15": comfortably inside what "around" means for a memory of a shower break,
+     * not a detection error. It is deliberately kept below [enterFraction] (0.55) rather than
+     * reusing it outright: reusing the entry threshold would tie a session's last confirmed
+     * moment of effort to the same five-minute sustain the entry gate itself requires,
+     * clipping a genuine short final burst for a reason that has nothing to do with when it
+     * actually ended.
+     *
+     * Deliberately not applied to a session's *start*: the leading edge is not late the way
+     * the trailing edge is -- the owner has never complained about an early start, and a
+     * warm-up genuinely belongs to the session it leads into. Applying this fraction
+     * symmetrically was checked against the same Monday evening: the free detector places
+     * this session's start at 18:49 (heart rate first crosses the floor there), while hard
+     * effort itself only begins around 19:00 -- trimming the leading edge the same way would
+     * remove eleven minutes of genuine warm-up nobody has asked to have removed. Ending is
+     * the problem being fixed here; starting is not, so only the trailing boundary in
+     * [SlotEffortTrimming] and [FreeSessionDetection] uses this fraction, never the leading
+     * one.
+     *
+     * Leaves [floorFraction] and [dipToleranceMinutes] untouched, and both keep doing
+     * exactly what they did before: the real five-match tournament this module was
+     * calibrated against (see this class' own top-level kdoc) stays one unbroken session
+     * under this change, because a trailing-edge trim only ever moves a session's own last
+     * reported minute earlier -- it never re-opens the question of which elevated stretches
+     * the floor and dip tolerance already merged into one.
+     */
+    val endTrimFraction: Double = 0.50,
+
+    /**
      * Consecutive minutes heart rate must hold at or above the *enter* threshold
      * ([HeartRateBaseline.enterThresholdBpm]) before a session is confirmed to have started
      * at all, rather than a single spike. Five minutes is short enough that the very first
