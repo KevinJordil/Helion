@@ -22,7 +22,21 @@ class NotificationPreference(context: Context) {
         get() = prefs.getBoolean(KEY_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
 
+    /**
+     * Whether `POST_NOTIFICATIONS` has ever actually been requested from this install --
+     * the one bit Android itself does not expose. `ActivityCompat.shouldShowRequestPermissionRationale`
+     * answers `false` both before the permission has ever been asked for and after it has
+     * been permanently denied ("don't ask again"); those two are told apart only by
+     * remembering, ourselves, whether a request was ever launched. See
+     * [ch.kevinjordil.helion.ui.settings.NotificationsSettingsSection]'s own kdoc for where
+     * this is used to route the owner to the runtime prompt versus the app's own settings.
+     */
+    var permissionRequested: Boolean
+        get() = prefs.getBoolean(KEY_PERMISSION_REQUESTED, false)
+        set(value) = prefs.edit().putBoolean(KEY_PERMISSION_REQUESTED, value).apply()
+
     companion object {
         private const val KEY_ENABLED = "notifications_enabled"
+        private const val KEY_PERMISSION_REQUESTED = "notifications_permission_requested"
     }
 }

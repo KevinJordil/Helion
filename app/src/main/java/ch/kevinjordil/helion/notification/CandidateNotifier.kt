@@ -20,8 +20,8 @@ const val EXTRA_OPEN_ACTIVITY_ID = "ch.kevinjordil.helion.notification.OPEN_ACTI
 /** Set on a batch notification's tap -- [MainActivity] opens the Activités list, not one activity. */
 const val EXTRA_OPEN_ACTIVITIES_LIST = "ch.kevinjordil.helion.notification.OPEN_ACTIVITIES_LIST"
 
-private const val CHANNEL_ID = "candidate_detection"
 private const val NOTIFICATION_ID = 1
+private const val TEST_NOTIFICATION_ID = 2
 
 /**
  * The one place a detection pass' new candidates turn into an actual system notification --
@@ -55,6 +55,29 @@ class CandidateNotifier(
         ensureChannel()
         val notification = if (candidates.size == 1) singleNotification(candidates.single()) else batchNotification(candidates.size)
         context.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
+        return true
+    }
+
+    /**
+     * Réglages' own "send a test notification" action (see
+     * [ch.kevinjordil.helion.ui.settings.NotificationsSettingsSection]) -- posted through
+     * [CHANNEL_ID], the exact channel a real candidate notification uses, so a successful
+     * test actually proves the real path rather than a synthetic stand-in. Deliberately
+     * ignores [NotificationPreference.enabled]: the owner tapping this button is an explicit
+     * request to test regardless of what that toggle is currently set to. Still returns
+     * `false` -- posting nothing -- when the runtime permission is missing, the one guard
+     * a test cannot honestly skip, since Android would silently drop the notification
+     * itself in that case.
+     */
+    fun sendTestNotification(): Boolean {
+        if (context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
+
+        ensureChannel()
+        val notification = baseBuilder()
+            .setContentTitle(context.getString(R.string.notification_test_title))
+            .setContentText(context.getString(R.string.notification_test_text))
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(TEST_NOTIFICATION_ID, notification)
         return true
     }
 
@@ -105,4 +128,15 @@ class CandidateNotifier(
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+
+    companion object {
+        /**
+         * Public -- unlike [NOTIFICATION_ID]/[TEST_NOTIFICATION_ID] -- because Réglages'
+         * own diagnostics need it too: to read this channel's actual importance back from
+         * [NotificationManager], and to send the owner straight to this one channel's own
+         * settings (`Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS`) rather than the app's
+         * general notification settings, when the channel itself is what is blocking him.
+         */
+        const val CHANNEL_ID = "candidate_detection"
+    }
 }

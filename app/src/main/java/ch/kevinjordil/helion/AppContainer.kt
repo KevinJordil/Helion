@@ -85,6 +85,15 @@ class AppContainer(context: Context) {
     /** The Réglages on/off switch for candidate-detection notifications -- see its own kdoc. */
     val notificationPreference = NotificationPreference(context)
 
+    /**
+     * The one [CandidateNotifier] instance both [ingestor] (a real detection pass) and
+     * Réglages' own "send a test notification" action (see
+     * [ch.kevinjordil.helion.ui.settings.NotificationsSettingsSection]) post through --
+     * so a successful test proves the exact channel and permission path a real candidate
+     * notification would use, not a second, separately-wired one.
+     */
+    val candidateNotifier = CandidateNotifier(context, notificationPreference)
+
     val commands = GadgetbridgeCommands(BroadcastCommandSender(context))
 
     /**
@@ -130,7 +139,7 @@ class AppContainer(context: Context) {
 
     init {
         ingestor.detector = activityDetector
-        ingestor.notifier = CandidateNotifier(context, notificationPreference)
+        ingestor.notifier = candidateNotifier
         ingestor.healthConnectExportTrigger = { enqueueHealthConnectExport(context) }
     }
 }

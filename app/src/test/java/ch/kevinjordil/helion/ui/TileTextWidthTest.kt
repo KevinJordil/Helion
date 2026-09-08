@@ -1456,6 +1456,57 @@ class NotificationLabelWidthTest {
         val descriptionWidth = proseWidthDp(description, fontSizeSp = 13f)
         assertTrue("\"$description\" measured ${descriptionWidth}dp, two-line budget is ${rowWidthDp * 2}dp", descriptionWidth <= rowWidthDp * 2)
     }
+
+    @Test
+    fun `each notification diagnostics message fits within four lines`() {
+        val messages = listOf(
+            "Autorisation refusée définitivement : ouvrez les réglages de notification de Helion pour l'accorder à la main.",
+            "Les notifications sont désactivées pour Helion dans les réglages du téléphone : ouvrez-les pour les réactiver.",
+            "Le canal de notification est désactivé ou masqué : ouvrez ses réglages pour le réactiver.",
+            "Tout est en ordre : une notification peut vous être envoyée dès qu'une activité candidate est détectée.",
+        )
+        messages.forEach { message ->
+            val width = proseWidthDp(message, fontSizeSp = 13f)
+            assertTrue("\"$message\" measured ${width}dp, four-line budget is ${rowWidthDp * 4}dp", width <= rowWidthDp * 4)
+        }
+    }
+
+    @Test
+    fun `every diagnostics fix-action button label and the test-notification action fit a full-width row`() {
+        val labels = listOf(
+            "Ouvrir les réglages Helion",
+            "Ouvrir les réglages du canal",
+            "Envoyer une notification de test",
+        )
+        labels.forEach { label ->
+            val width = proseWidthDp(label, fontSizeSp = 14f)
+            assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `the intent-unavailable and test-result messages fit within two lines`() {
+        val messages = listOf(
+            "Impossible d'ouvrir ces réglages sur cet appareil.",
+            "Notification de test envoyée : vérifiez qu'elle est bien arrivée.",
+            "Échec de l'envoi : l'autorisation de notification n'est pas accordée.",
+        )
+        messages.forEach { message ->
+            val width = proseWidthDp(message, fontSizeSp = 13f)
+            assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the test notification's own title and text fit the same budget as a real candidate notification`() {
+        val title = "Notification de test"
+        val titleWidth = proseWidthDp(title, fontSizeSp = 14f)
+        assertTrue("\"$title\" measured ${titleWidth}dp, budget is ${rowWidthDp}dp", titleWidth <= rowWidthDp)
+
+        val text = "Si vous voyez ceci, Helion peut vous notifier normalement."
+        val textWidth = proseWidthDp(text, fontSizeSp = 14f)
+        assertTrue("\"$text\" measured ${textWidth}dp, three-line budget is ${rowWidthDp * 3}dp", textWidth <= rowWidthDp * 3)
+    }
 }
 
 /**

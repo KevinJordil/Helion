@@ -367,7 +367,19 @@
     <string name="notification_settings_toggle_label">Me notifier des activités détectées</string>
     <string name="notification_settings_explanation">Une notification par activité candidate détectée, jamais de rappel : vous choisissez ensuite de la confirmer, la modifier ou l\'ignorer.</string>
     <string name="notification_settings_permission_missing">Autorisation manquante : les activités candidates restent visibles dans Activités, sans notification tant qu\'elle n\'est pas accordée.</string>
+    <string name="notification_settings_permission_denied">Autorisation refusée définitivement : ouvrez les réglages de notification de Helion pour l\'accorder à la main.</string>
+    <string name="notification_settings_app_disabled">Les notifications sont désactivées pour Helion dans les réglages du téléphone : ouvrez-les pour les réactiver.</string>
+    <string name="notification_settings_channel_disabled">Le canal de notification est désactivé ou masqué : ouvrez ses réglages pour le réactiver.</string>
+    <string name="notification_settings_all_clear">Tout est en ordre : une notification peut vous être envoyée dès qu\'une activité candidate est détectée.</string>
     <string name="notification_settings_grant_button">Autoriser les notifications</string>
+    <string name="notification_settings_open_app_settings_button">Ouvrir les réglages Helion</string>
+    <string name="notification_settings_open_channel_settings_button">Ouvrir les réglages du canal</string>
+    <string name="notification_settings_intent_unavailable">Impossible d\'ouvrir ces réglages sur cet appareil.</string>
+    <string name="notification_settings_test_button">Envoyer une notification de test</string>
+    <string name="notification_settings_test_sent">Notification de test envoyée : vérifiez qu\'elle est bien arrivée.</string>
+    <string name="notification_settings_test_failed">Échec de l\'envoi : l\'autorisation de notification n\'est pas accordée.</string>
+    <string name="notification_test_title">Notification de test</string>
+    <string name="notification_test_text">Si vous voyez ceci, Helion peut vous notifier normalement.</string>
 
     <string name="settings_entry_source_title">Source des données</string>
     <string name="settings_entry_source_configured">Fichier configuré</string>
