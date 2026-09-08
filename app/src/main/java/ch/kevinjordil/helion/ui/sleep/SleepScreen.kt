@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.sleep
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 private val CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM")
@@ -97,6 +99,12 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
     var nights by remember { mutableStateOf<List<SleepEpisode>?>(null) }
     var baseline by remember { mutableStateOf<Baseline?>(null) }
+    // Every night the archive has ever recorded, loaded once and independently of [nights]
+    // (which stays capped at SleepReader's own ~30-day lookback): the averages panel's own
+    // SleepAverageWindow.ALL option must be able to answer "everything", not just the last
+    // month the history list and browsing already cover.
+    var allNights by remember { mutableStateOf<List<SleepEpisode>?>(null) }
+    var averageWindow by rememberSaveable { mutableStateOf(SleepAverageWindow.LAST_7) }
     // Index into `nights`, ascending by [SleepEpisode.wokeAt] (oldest first, exactly as
     // [SleepReader.loadNights] returns it) -- so index 0 is the oldest night on screen and
     // the last index is the most recent, which is also this state's initial value.
@@ -121,6 +129,7 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
             .filterNot { it.isInProgress || it.hasDataGap }
             .map { Reading(it.wokeAt, it.durationAsleepMinutes / 60.0) }
         baseline = computeBaseline(history)
+        allNights = reader.loadNights(now, lookbackDays = null)
     }
 
     val loaded = nights ?: return
@@ -161,6 +170,15 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
                     showMovementOverlay = showMovementOverlay,
                     onShowMovementOverlayChange = { showMovementOverlay = it },
                 )
+            }
+            allNights?.let { all ->
+                item {
+                    SleepAveragesSection(
+                        nights = all,
+                        window = averageWindow,
+                        onWindowChange = { averageWindow = it },
+                    )
+                }
             }
             if (history.isNotEmpty()) {
                 item {
@@ -371,6 +389,120 @@ private fun StatItem(label: String, value: String, modifier: Modifier = Modifier
         Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
         Text(value, style = HelionType.valueMedium, color = colors.textPrimary)
     }
+}
+
+/**
+ * Sommeil's averages panel: a window selector -- the same visual pattern
+ * [ch.kevinjordil.helion.ui.metric.MetricScreen]'s own `RangeSelector` uses for Jour/Semaine/Mois,
+ * reused here rather than inventing a second control -- and the figures [computeSleepAverages]
+ * hands back for that window.
+ *
+ * Every "how many nights" figure [SleepAverages] carries is shown, never only the number
+ * itself: [SleepAverages.consideredNights] against [SleepAverages.totalNights] right under
+ * the header (so "30 dernières nuits" against an archive with only four recorded nights
+ * reads honestly), and [SleepAverages.stageNights] again next to the phase breakdown, since
+ * that count can be smaller still. A `null` average (its own denominator empty) renders as
+ * [R.string.sleep_average_value_missing], never a fabricated zero.
+ */
+@Composable
+private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverageWindow, onWindowChange: (SleepAverageWindow) -> Unit) {
+    val colors = HelionThemeTokens.colors
+    val averages = remember(nights, window) { computeSleepAverages(nights, window) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.sleep_average_section_title).uppercase(),
+            style = HelionType.label,
+            color = colors.textSecondary,
+        )
+
+        AverageWindowSelector(selected = window, onSelect = onWindowChange)
+
+        if (averages.consideredNights == 0) {
+            Text(stringResource(R.string.sleep_average_no_nights), style = HelionType.bodySmall, color = colors.textTertiary)
+            return@Column
+        }
+
+        Text(
+            stringResource(R.string.sleep_average_nights_basis, averages.consideredNights, averages.totalNights),
+            style = HelionType.bodySmall,
+            color = colors.textTertiary,
+        )
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatItem(
+                stringResource(R.string.sleep_average_duration_label),
+                averageDurationText(averages.avgDurationMinutes),
+                Modifier.weight(1f),
+            )
+            StatItem(
+                stringResource(R.string.sleep_awakenings),
+                averages.avgAwakenings?.let {
+                    stringResource(
+                        R.string.sleep_awakenings_value,
+                        it.roundToInt(),
+                        (averages.avgAwakeningsDurationMinutes ?: 0.0).roundToInt(),
+                    )
+                } ?: stringResource(R.string.sleep_average_value_missing),
+                Modifier.weight(1f),
+            )
+            StatItem(
+                stringResource(R.string.sleep_efficiency),
+                averages.avgEfficiency?.let { "${(it * 100).toInt()} %" } ?: stringResource(R.string.sleep_average_value_missing),
+                Modifier.weight(1f),
+            )
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            StatItem(stringResource(R.string.sleep_phase_deep), averagePhaseDurationText(averages.avgDeepMinutes), Modifier.weight(1f))
+            StatItem(stringResource(R.string.sleep_phase_rem), averagePhaseDurationText(averages.avgRemMinutes), Modifier.weight(1f))
+            StatItem(stringResource(R.string.sleep_phase_light), averagePhaseDurationText(averages.avgLightMinutes), Modifier.weight(1f))
+        }
+        Text(
+            stringResource(R.string.sleep_average_stage_basis, averages.stageNights, averages.consideredNights),
+            style = HelionType.bodySmall,
+            color = colors.textTertiary,
+        )
+
+        if (averages.avgRespiratoryRate != null) {
+            StatItem(
+                stringResource(R.string.metric_respiratory_rate),
+                "${averages.avgRespiratoryRate.roundToInt()}",
+                Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AverageWindowSelector(selected: SleepAverageWindow, onSelect: (SleepAverageWindow) -> Unit) {
+    val colors = HelionThemeTokens.colors
+    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        SleepAverageWindow.entries.forEach { option ->
+            Text(
+                stringResource(option.labelRes).uppercase(),
+                style = HelionType.label,
+                color = if (option == selected) colors.accentViolet else colors.textTertiary,
+                modifier = Modifier
+                    .clickable { onSelect(option) }
+                    .padding(vertical = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun averageDurationText(minutes: Double?): String {
+    if (minutes == null) return stringResource(R.string.sleep_average_value_missing)
+    val total = minutes.toLong()
+    return stringResource(R.string.sleep_duration_format, (total / 60).toInt(), (total % 60).toInt())
+}
+
+@Composable
+private fun averagePhaseDurationText(minutes: Double?): String {
+    if (minutes == null) return stringResource(R.string.sleep_average_value_missing)
+    val total = minutes.toLong()
+    return "%dh%02d".format(total / 60, total % 60)
 }
 
 // HistoryRow now lives in SleepHistory.kt, alongside the per-row stage composition bar and

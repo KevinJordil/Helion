@@ -575,6 +575,80 @@ class SleepHistoryRowWidthTest {
 }
 
 /**
+ * Sommeil's averages panel (`SleepScreen.kt`'s `SleepAveragesSection`): the window selector
+ * (5/7/30 nuits, Tout), the "N nuits sur M" and "stades disponibles..." basis lines, and the
+ * duration/awakenings/efficiency/phase figures it shares with [SleepScreenWidthTest] --
+ * same 280dp root-column budget, same fonts, since this panel lives inside the same
+ * `SleepScreen` root `Column`.
+ */
+class SleepAveragesWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun labelWidthDp(text: String): Float {
+        val upper = text.uppercase()
+        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * 12f
+        val letterSpacingTotalSp = 1.5f * upper.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
+    }
+
+    @Test
+    fun `the averages section title fits a full-width row at a 1_3x font scale`() {
+        val width = labelWidthDp("Moyennes")
+        assertTrue("\"Moyennes\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `the four window-selector labels, laid out in one row with their real gaps, fit the panel's width`() {
+        // AverageWindowSelector lays all four labels out in a single Row with 20dp gaps
+        // between them (the same pattern MetricScreen's own RangeSelector uses for its
+        // three options) -- unlike a set of equal-weight columns, there is no per-label
+        // budget to check individually; what must fit is the row as a whole.
+        val labels = listOf("5", "7", "30", "Tout")
+        val totalWidth = labels.sumOf { labelWidthDp(it).toDouble() }.toFloat() + 3 * 20f
+        assertTrue("selector row measured ${totalWidth}dp, budget is ${rowWidthDp}dp", totalWidth <= rowWidthDp)
+    }
+
+    @Test
+    fun `the nights-basis and stage-basis lines fit within one line at their widest plausible values`() {
+        val lines = listOf(
+            "30 nuits sur 30",
+            "Stades : 30/30 nuits",
+        )
+        lines.forEach { line ->
+            val width = proseWidthDp(line, fontSizeSp = 13f)
+            assertTrue("\"$line\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+        }
+    }
+
+    @Test
+    fun `the no-nights-available message fits within two lines`() {
+        val message = "Aucune nuit exploitable sur cette période."
+        val width = proseWidthDp(message, fontSizeSp = 13f)
+        assertTrue("\"$message\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+    }
+}
+
+/**
  * The minimum of a TrueType font needed to answer one question: how wide, in em units, is
  * a given character's glyph. Parses only `head` (unitsPerEm), `maxp` (glyph count), `hhea`
  * (how many `hmtx` entries carry their own width), `hmtx` (the widths), and a `cmap`

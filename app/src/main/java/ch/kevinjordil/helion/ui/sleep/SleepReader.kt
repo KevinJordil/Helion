@@ -51,9 +51,15 @@ class SleepReader(
     private val thresholds: SleepThresholds = SleepThresholds(),
 ) {
 
-    /** Nights only, most recent last, over the last [LOOKBACK_DAYS] days. */
-    suspend fun loadNights(now: Long): List<SleepEpisode> = withContext(dispatcher) {
-        val from = now - LOOKBACK_DAYS * 86_400
+    /**
+     * Nights only, most recent last, over the last [lookbackDays] days -- [LOOKBACK_DAYS]
+     * by default, matching the history list and the personal baseline behind it. `null`
+     * reads from the beginning of the archive: the one caller that needs this is
+     * Sommeil's averages panel (see [ch.kevinjordil.helion.ui.sleep.SleepAverageWindow.ALL]),
+     * which must be able to answer "everything", not just the last month.
+     */
+    suspend fun loadNights(now: Long, lookbackDays: Long? = LOOKBACK_DAYS): List<SleepEpisode> = withContext(dispatcher) {
+        val from = lookbackDays?.let { (now - it * 86_400).coerceAtLeast(0) } ?: 0L
         val minutes = db.minuteSamples().between(from, now)
         val episodes = segmentSleepEpisodes(minutes, zone, now, thresholds)
         val nights = episodes.filter { it.kind == SleepEpisodeKind.NIGHT }

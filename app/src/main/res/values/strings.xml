@@ -342,6 +342,17 @@
     <string name="sleep_overlay_respiratory">Respiration</string>
     <string name="sleep_overlay_movement">Mouvement</string>
 
+    <string name="sleep_average_section_title">Moyennes</string>
+    <string name="sleep_average_window_5">5</string>
+    <string name="sleep_average_window_7">7</string>
+    <string name="sleep_average_window_30">30</string>
+    <string name="sleep_average_window_all">Tout</string>
+    <string name="sleep_average_nights_basis">%1$d nuits sur %2$d</string>
+    <string name="sleep_average_no_nights">Aucune nuit exploitable sur cette période.</string>
+    <string name="sleep_average_duration_label">Durée</string>
+    <string name="sleep_average_stage_basis">Stades : %1$d/%2$d nuits</string>
+    <string name="sleep_average_value_missing">—</string>
+
     <!-- Abbreviated French weekday names, Monday first (java.time.DayOfWeek order), for
          the date shown next to each night, kept short so it never crowds the date on a
          narrow screen. -->
