@@ -213,13 +213,17 @@ fun HomeScreen(
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {
+                    val heroWindowStart = System.currentTimeMillis() / 1000 - Range.DAY.seconds
+                    val heroWindowEnd = System.currentTimeMillis() / 1000
                     HeroHeartRate(
                         latest = latestByMetricId[HEART_RATE_ID],
                         ribbonBars = buildRibbon(
                             dayReadingsByMetricId[HEART_RATE_ID].orEmpty(),
-                            windowStart = System.currentTimeMillis() / 1000 - Range.DAY.seconds,
-                            windowEnd = System.currentTimeMillis() / 1000,
+                            windowStart = heroWindowStart,
+                            windowEnd = heroWindowEnd,
                         ),
+                        windowStart = heroWindowStart,
+                        windowEnd = heroWindowEnd,
                         personalBaseline = latestByMetricId[HEART_RATE_ID]?.value?.let { value ->
                             placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[HEART_RATE_ID].orEmpty()))
                         },
@@ -285,6 +289,8 @@ fun HomeScreen(
 private fun HeroHeartRate(
     latest: Reading?,
     ribbonBars: List<RibbonBar>,
+    windowStart: Long,
+    windowEnd: Long,
     personalBaseline: PersonalBaseline?,
     onClick: () -> Unit,
 ) {
@@ -300,10 +306,16 @@ private fun HeroHeartRate(
             .clickable(onClick = onClick, role = Role.Button)
             .padding(bottom = 8.dp),
     ) {
+        // Hour ticks along the bottom of the ribbon: the one piece of Accueil the owner
+        // sees before ever opening a metric, so it is the one place besides the detail
+        // chart that gets an explicit time axis rather than only a bare shape.
         DayRibbon(
             bars = ribbonBars,
             barColor = colors.accentViolet.copy(alpha = 0.35f),
             modifier = Modifier.heroRibbonSize(),
+            windowStart = windowStart,
+            windowEnd = windowEnd,
+            axisLabelColor = colors.textTertiary,
         )
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
             if (latest != null) {
