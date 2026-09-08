@@ -355,6 +355,19 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
 }
 
 /**
+ * Adds the `notified_sleep_night` table backing the morning sleep-summary notification's
+ * own "once per night, ever" rule -- see [NotifiedSleepNight]'s own kdoc for why this is a
+ * whole table rather than a column: a night is not a row anywhere else, it is derived on
+ * the fly from minute samples and stage segments. A brand-new, empty table: there is
+ * nothing to backfill, since no night was ever notified before this feature existed.
+ */
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `notified_sleep_night` (`wokeAt` INTEGER NOT NULL, PRIMARY KEY(`wokeAt`))")
+    }
+}
+
+/**
  * Every migration this app ships, in order, as one list rather than an argument list spelled
  * out at the call site. A migration was once defined and simply left out of that argument
  * list; Room then refused to open an upgraded database and the app died on launch with
@@ -365,4 +378,5 @@ val HELION_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
+    MIGRATION_16_17,
 )
