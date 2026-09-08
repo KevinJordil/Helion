@@ -120,6 +120,7 @@
     <string name="activity_notes_label">Notes</string>
     <string name="activity_start_label">Début</string>
     <string name="activity_end_label">Fin</string>
+    <string name="activity_datetime_placeholder">jj/mm/aaaa hh:mm</string>
     <string name="activity_datetime_invalid">Format invalide (jj/mm/aaaa hh:mm). Pas encore enregistré.</string>
     <string name="activity_end_before_start">La fin doit être après le début. Pas encore enregistré.</string>
     <string name="activity_duration_hours_minutes">%1$d h %2$02d</string>

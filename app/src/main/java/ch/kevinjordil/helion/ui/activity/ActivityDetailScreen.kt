@@ -3,6 +3,7 @@ package ch.kevinjordil.helion.ui.activity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,9 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,12 +34,28 @@ import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
+import ch.kevinjordil.helion.ui.theme.HelionField
+import ch.kevinjordil.helion.ui.theme.HelionFieldLabel
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.HelionWarning
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * The root Column's own horizontal inset, matching the pattern every other screen's own
+ * width tests are built on (Sommeil's `SCREEN_EDGE_MARGIN`, the metric detail's own):
+ * [SCREEN_EDGE_MARGIN] plus [CARD_PADDING] is the historical 20dp inset
+ * `ActivityLabelWidthTest` and `NoTextClippingTest` measure this screen's content against, so
+ * moving each field onto its own card does not change either budget.
+ */
+private val SCREEN_EDGE_MARGIN = 4.dp
+
+/** A card's own internal padding: [SCREEN_EDGE_MARGIN] plus this is the historical 20dp inset. */
+private val CARD_PADDING = 16.dp
 
 /**
  * One activity, fully editable: title, sport, notes, start and end, plus delete and the
@@ -53,6 +68,12 @@ import kotlinx.coroutines.withContext
  * mid-thought. The one field that can be genuinely invalid mid-edit, start/end text, shows
  * its own inline note instead of being saved or silently reverted while it is invalid: what
  * is on screen is always either what is stored, or an explicit "not yet applied" state.
+ *
+ * Laid out the same way every other screen now is: one raised [HelionSurface] per field or
+ * per genuine whole -- start and end share one card (the two ends of the same activity,
+ * exactly the pairing Sommeil's bedtime/wake row uses), everything else (title, sport,
+ * detection context, notes, calories, the Strava send) gets its own -- rather than the
+ * plain, divider-separated column this screen used to be.
  */
 @Composable
 fun ActivityDetailScreen(
@@ -135,26 +156,36 @@ fun ActivityDetailScreen(
         }
     }
 
-    val startEndError = run {
-        val start = parseActivityDateTime(startText, zone)
-        val end = parseActivityDateTime(endText, zone)
-        when {
-            start == null || end == null -> R.string.activity_datetime_invalid
-            end <= start -> R.string.activity_end_before_start
-            else -> null
-        }
+    val startParsed = parseActivityDateTime(startText, zone)
+    val endParsed = parseActivityDateTime(endText, zone)
+    // Each field is marked invalid on its own -- a malformed start must not make the end
+    // field look wrong too -- and the ordering problem (both parse, but end is not after
+    // start) is called out on both, since neither one alone is "the" mistake.
+    val startEndOrderInvalid = startParsed != null && endParsed != null && endParsed <= startParsed
+    val startWarning = when {
+        startParsed == null -> stringResource(R.string.activity_datetime_invalid)
+        startEndOrderInvalid -> stringResource(R.string.activity_end_before_start)
+        else -> null
+    }
+    val endWarning = when {
+        endParsed == null -> stringResource(R.string.activity_datetime_invalid)
+        startEndOrderInvalid -> stringResource(R.string.activity_end_before_start)
+        else -> null
     }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        BackLink(onBack)
+        BackLink(onBack, modifier = Modifier.padding(horizontal = CARD_PADDING))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = CARD_PADDING),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             Text(stringResource(R.string.activity_detail_title), style = HelionType.headline, color = colors.textPrimary)
             Text(
                 stringResource(statusLabelRes(current.status)),
@@ -163,67 +194,83 @@ fun ActivityDetailScreen(
             )
         }
 
-        Text(stringResource(R.string.activity_title_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        OutlinedTextField(
-            value = titleText,
-            onValueChange = { text ->
-                titleText = text
-                save(current.copy(title = text.ifBlank { null }))
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionField(
+                label = stringResource(R.string.activity_title_label),
+                value = titleText,
+                onValueChange = { text ->
+                    titleText = text
+                    save(current.copy(title = text.ifBlank { null }))
+                },
+            )
+        }
 
-        Text(stringResource(R.string.sport_picker_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        SportPicker(selected = current.sport, onSelect = { save(current.copy(sport = it)) })
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionFieldLabel(stringResource(R.string.sport_picker_label))
+            SportPicker(
+                selected = current.sport,
+                onSelect = { save(current.copy(sport = it)) },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            )
+        }
 
-        Text(stringResource(R.string.activity_start_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        OutlinedTextField(
-            value = startText,
-            onValueChange = { text ->
-                startText = text
-                applyStartEnd(text, endText)
-            },
-            singleLine = true,
+        // Start and end: the two ends of the same activity, exactly the pairing Sommeil's
+        // own bedtime/wake row uses, so they share one card rather than each getting its own.
+        HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-        )
-
-        Text(stringResource(R.string.activity_end_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        OutlinedTextField(
-            value = endText,
-            onValueChange = { text ->
-                endText = text
-                applyStartEnd(startText, text)
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        startEndError?.let { errorRes ->
-            Text(stringResource(errorRes), style = HelionType.bodySmall, color = colors.accentAmber)
+            padding = PaddingValues(CARD_PADDING),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            HelionField(
+                label = stringResource(R.string.activity_start_label),
+                value = startText,
+                onValueChange = { text ->
+                    startText = text
+                    applyStartEnd(text, endText)
+                },
+                placeholder = stringResource(R.string.activity_datetime_placeholder),
+                warning = startWarning,
+            )
+            HelionField(
+                label = stringResource(R.string.activity_end_label),
+                value = endText,
+                onValueChange = { text ->
+                    endText = text
+                    applyStartEnd(startText, text)
+                },
+                placeholder = stringResource(R.string.activity_datetime_placeholder),
+                warning = endWarning,
+            )
         }
 
         current.detectionContext?.takeIf { it.isNotBlank() }?.let { detectionContext ->
-            Text(
-                stringResource(R.string.activity_detection_context_label),
-                style = HelionType.bodySmall,
-                color = colors.textSecondary,
-            )
-            Text(detectionContext, style = HelionType.body, color = colors.textSecondary)
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+                HelionFieldLabel(stringResource(R.string.activity_detection_context_label))
+                Text(
+                    detectionContext,
+                    style = HelionType.body,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
 
-        Text(stringResource(R.string.activity_notes_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        OutlinedTextField(
-            value = notesText,
-            onValueChange = { text ->
-                notesText = text
-                save(current.copy(notes = text.ifBlank { null }))
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionField(
+                label = stringResource(R.string.activity_notes_label),
+                value = notesText,
+                onValueChange = { text ->
+                    notesText = text
+                    save(current.copy(notes = text.ifBlank { null }))
+                },
+                singleLine = false,
+            )
+        }
 
-        HorizontalDivider(color = colors.divider)
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Status transitions and delete are actions, not measures, so -- like every other
+        // action button in the app (Réglages' own Button calls, the empty-state action) --
+        // they stay plain buttons on the page rather than riding on a card of their own.
+        Row(modifier = Modifier.padding(horizontal = CARD_PADDING), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             when (current.status) {
                 ActivityStatus.CANDIDATE -> {
                     Button(onClick = { save(current.copy(status = ActivityStatus.CONFIRMED)) }) {
@@ -244,73 +291,101 @@ fun ActivityDetailScreen(
             }
         }
 
-        HorizontalDivider(color = colors.divider)
-
-        // Kept away from the send action at the very bottom of this screen (see below) so
-        // scrolling down to send never lands a thumb on delete instead -- the confirmation
-        // dialog is still there either way, but distance is the first line of defense.
-        OutlinedButton(onClick = { showDeleteConfirm = true }) {
+        // Kept away from the send action further down this screen (see below) so scrolling
+        // down to send never lands a thumb on delete instead -- the confirmation dialog is
+        // still there either way, but distance is the first line of defense.
+        OutlinedButton(
+            onClick = { showDeleteConfirm = true },
+            modifier = Modifier.padding(horizontal = CARD_PADDING),
+        ) {
             Text(stringResource(R.string.activity_action_delete))
         }
 
-        HorizontalDivider(color = colors.divider)
-
-        Text(stringResource(R.string.calorie_section_title), style = HelionType.title, color = colors.textPrimary)
-        when (val estimate = calorieEstimate) {
-            null -> Unit // still loading -- nothing to say yet, rather than a flash of "no data"
-            is ActivityCalorieEstimate.ProfileIncomplete ->
-                Text(stringResource(R.string.calorie_needs_profile), style = HelionType.bodySmall, color = colors.textSecondary)
-            is ActivityCalorieEstimate.NoHeartRateData ->
-                Text(stringResource(R.string.calorie_no_heart_rate), style = HelionType.bodySmall, color = colors.textSecondary)
-            is ActivityCalorieEstimate.Estimated -> {
-                Text(stringResource(R.string.calorie_value, estimate.kcal), style = HelionType.body, color = colors.textPrimary)
-                Text(stringResource(R.string.calorie_accuracy_note), style = HelionType.bodySmall, color = colors.textSecondary)
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            Text(stringResource(R.string.calorie_section_title), style = HelionType.title, color = colors.textPrimary)
+            when (val estimate = calorieEstimate) {
+                null -> Unit // still loading -- nothing to say yet, rather than a flash of "no data"
+                is ActivityCalorieEstimate.ProfileIncomplete ->
+                    Text(
+                        stringResource(R.string.calorie_needs_profile),
+                        style = HelionType.bodySmall,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                is ActivityCalorieEstimate.NoHeartRateData ->
+                    Text(
+                        stringResource(R.string.calorie_no_heart_rate),
+                        style = HelionType.bodySmall,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                is ActivityCalorieEstimate.Estimated -> {
+                    Text(
+                        stringResource(R.string.calorie_value, estimate.kcal),
+                        style = HelionType.body,
+                        color = colors.textPrimary,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    Text(stringResource(R.string.calorie_accuracy_note), style = HelionType.bodySmall, color = colors.textSecondary)
+                }
             }
         }
-
-        HorizontalDivider(color = colors.divider)
 
         // The one send action on this screen, deliberately last: it goes through the
         // owner's own server (see CustomServerPublisher's own kdoc), which relays the
         // activity on to Strava -- the mechanism `custom_server_send_note` states plainly
         // rather than hiding behind the button alone.
-        Text(stringResource(R.string.custom_server_section_title), style = HelionType.title, color = colors.textPrimary)
-        Text(stringResource(R.string.custom_server_send_note), style = HelionType.bodySmall, color = colors.textSecondary)
+        HelionSurface(
+            modifier = Modifier.fillMaxWidth(),
+            padding = PaddingValues(CARD_PADDING),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.custom_server_section_title), style = HelionType.title, color = colors.textPrimary)
+            Text(stringResource(R.string.custom_server_send_note), style = HelionType.bodySmall, color = colors.textSecondary)
 
-        val currentCustomServerPublication = customServerPublication
-        if (currentCustomServerPublication != null) {
-            Text(
-                stringResource(customServerStateLabelRes(currentCustomServerPublication.state)),
-                style = HelionType.bodySmall,
-                color = if (currentCustomServerPublication.state == PublicationState.FAILED) colors.accentAmber else colors.textSecondary,
-            )
-            if (currentCustomServerPublication.state == PublicationState.FAILED) {
-                Text(
-                    stringResource(
-                        customServerFailureReasonRes(currentCustomServerPublication.lastError),
-                        *customServerFailureReasonArgs(
-                            currentCustomServerPublication.lastError,
-                            currentCustomServerPublication.lastErrorDetail,
-                        ).toTypedArray(),
-                    ),
-                    style = HelionType.bodySmall,
-                    color = colors.accentAmber,
-                )
-            } else if (currentCustomServerPublication.lastMessage != null) {
-                // The server's own text, verbatim (status included) -- see
-                // CustomServerPublisher's own kdoc for why this replaces nothing when
-                // there was no real message to show (an empty body, or one unreadable as
-                // text): the state label above already stands on its own in that case.
-                Text(
-                    stringResource(R.string.custom_server_response_detail, currentCustomServerPublication.lastMessage),
-                    style = HelionType.bodySmall,
-                    color = colors.textSecondary,
-                )
+            val currentCustomServerPublication = customServerPublication
+            if (currentCustomServerPublication != null) {
+                if (currentCustomServerPublication.state == PublicationState.FAILED) {
+                    HelionWarning(
+                        stringResource(customServerStateLabelRes(currentCustomServerPublication.state)),
+                    )
+                    HelionWarning(
+                        stringResource(
+                            customServerFailureReasonRes(currentCustomServerPublication.lastError),
+                            *customServerFailureReasonArgs(
+                                currentCustomServerPublication.lastError,
+                                currentCustomServerPublication.lastErrorDetail,
+                            ).toTypedArray(),
+                        ),
+                    )
+                } else {
+                    Text(
+                        stringResource(customServerStateLabelRes(currentCustomServerPublication.state)),
+                        style = HelionType.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                    if (currentCustomServerPublication.lastMessage != null) {
+                        // The server's own text, verbatim (status included) -- see
+                        // CustomServerPublisher's own kdoc for why this replaces nothing
+                        // when there was no real message to show (an empty body, or one
+                        // unreadable as text): the state label above already stands on its
+                        // own in that case.
+                        Text(
+                            stringResource(R.string.custom_server_response_detail, currentCustomServerPublication.lastMessage),
+                            style = HelionType.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
             }
-        }
 
-        OutlinedButton(onClick = { sendToCustomServer() }, enabled = !sendingToCustomServer && current.sport != null) {
-            Text(stringResource(R.string.custom_server_send_action))
+            OutlinedButton(
+                onClick = { sendToCustomServer() },
+                enabled = !sendingToCustomServer && current.sport != null,
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
+                Text(stringResource(R.string.custom_server_send_action))
+            }
         }
     }
 
@@ -340,12 +415,12 @@ fun ActivityDetailScreen(
 }
 
 @Composable
-private fun BackLink(onBack: () -> Unit) {
+private fun BackLink(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Text(
         stringResource(R.string.action_back),
         style = HelionType.label,
         color = colors.accentViolet,
-        modifier = Modifier.clickable(onClick = onBack),
+        modifier = modifier.clickable(onClick = onBack),
     )
 }
