@@ -3,6 +3,7 @@ package ch.kevinjordil.helion.ui.activity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,9 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,8 +34,12 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.store.Slot
 import ch.kevinjordil.helion.store.SportType
+import ch.kevinjordil.helion.ui.theme.HelionField
+import ch.kevinjordil.helion.ui.theme.HelionFieldLabel
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.HelionWarning
 import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -44,6 +47,9 @@ import java.time.format.DateTimeParseException
 import kotlinx.coroutines.launch
 
 private val SLOT_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+/** A card's own internal padding, the same rhythm every other screen's cards use. */
+private val CARD_PADDING = 16.dp
 
 private fun parseSlotTime(text: String): Int? = try {
     LocalTime.parse(text.trim(), SLOT_TIME_FORMAT).toSecondOfDay()
@@ -60,6 +66,10 @@ private fun formatSlotTime(secondOfDay: Int): String = SLOT_TIME_FORMAT.format(L
  * nothing yet to autosave into), while editing an existing slot saves each valid field the
  * moment it changes, the same immediate-save pattern [ActivityDetailScreen] uses, so an edit
  * here is never silently lost either.
+ *
+ * Laid out on the same shared [HelionSurface]/[HelionField] tokens the activity edit screen
+ * now uses: one card per field, except start and end, which share one card as the two ends
+ * of the same slot.
  */
 @Composable
 fun SlotEditScreen(
@@ -120,125 +130,138 @@ fun SlotEditScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 4.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             stringResource(R.string.action_back),
             style = HelionType.label,
             color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack),
+            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = CARD_PADDING),
         )
 
         if (loaded) {
-        Text(stringResource(R.string.slot_label_field), style = HelionType.bodySmall, color = colors.textSecondary)
-        OutlinedTextField(
-            value = labelText,
-            onValueChange = { text ->
-                labelText = text
-                if (slotId != null) saveExisting { it.copy(label = text) }
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Text(stringResource(R.string.sport_picker_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        SportPicker(
-            selected = sport,
-            onSelect = {
-                sport = it
-                if (slotId != null) saveExisting { slot -> slot.copy(sport = it) }
-            },
-        )
-
-        Text(stringResource(R.string.slot_day_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        DayOfWeekPicker(
-            selected = dayOfWeek,
-            onSelect = {
-                dayOfWeek = it
-                if (slotId != null) saveExisting { slot -> slot.copy(dayOfWeek = it) }
-            },
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.slot_start_label), style = HelionType.bodySmall, color = colors.textSecondary)
-                OutlinedTextField(
-                    value = startText,
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+                HelionField(
+                    label = stringResource(R.string.slot_label_field),
+                    value = labelText,
                     onValueChange = { text ->
-                        startText = text
-                        val newStart = parseSlotTime(text)
-                        val newEnd = parseSlotTime(endText)
-                        if (slotId != null && newStart != null && newEnd != null) {
-                            saveExisting { slot -> slot.copy(startSecondOfDay = newStart, endSecondOfDay = newEnd) }
-                        }
+                        labelText = text
+                        if (slotId != null) saveExisting { it.copy(label = text) }
                     },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.slot_end_label), style = HelionType.bodySmall, color = colors.textSecondary)
-                OutlinedTextField(
-                    value = endText,
-                    onValueChange = { text ->
-                        endText = text
-                        val newStart = parseSlotTime(startText)
-                        val newEnd = parseSlotTime(text)
-                        if (slotId != null && newStart != null && newEnd != null) {
-                            saveExisting { slot -> slot.copy(startSecondOfDay = newStart, endSecondOfDay = newEnd) }
-                        }
+
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+                HelionFieldLabel(stringResource(R.string.sport_picker_label))
+                SportPicker(
+                    selected = sport,
+                    onSelect = {
+                        sport = it
+                        if (slotId != null) saveExisting { slot -> slot.copy(sport = it) }
                     },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 )
             }
-        }
-        if (timeError) {
-            Text(stringResource(R.string.slot_time_invalid), style = HelionType.bodySmall, color = colors.accentAmber)
-        }
 
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.slot_active_label), style = HelionType.bodySmall, color = colors.textSecondary)
-            Switch(
-                checked = active,
-                onCheckedChange = { checked ->
-                    active = checked
-                    if (slotId != null) saveExisting { slot -> slot.copy(active = checked) }
-                },
-            )
-        }
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+                HelionFieldLabel(stringResource(R.string.slot_day_label))
+                DayOfWeekPicker(
+                    selected = dayOfWeek,
+                    onSelect = {
+                        dayOfWeek = it
+                        if (slotId != null) saveExisting { slot -> slot.copy(dayOfWeek = it) }
+                    },
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
 
-        HorizontalDivider(color = colors.divider)
-
-        if (slotId == null) {
-            Button(
-                enabled = labelText.isNotBlank() && !timeError,
-                onClick = {
-                    val start = startSecond ?: return@Button
-                    val end = endSecond ?: return@Button
-                    scope.launch {
-                        container.database.slots().upsert(
-                            Slot(
-                                label = labelText,
-                                dayOfWeek = dayOfWeek,
-                                startSecondOfDay = start,
-                                endSecondOfDay = end,
-                                sport = sport,
-                                active = active,
-                            ),
-                        )
-                        onSaved()
-                    }
-                },
+            // Start and end: the two ends of the same slot, so they share one card rather
+            // than each getting its own -- the same pairing rule the activity edit screen
+            // and Sommeil's own bedtime/wake row use.
+            HelionSurface(
+                modifier = Modifier.fillMaxWidth(),
+                padding = PaddingValues(CARD_PADDING),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(stringResource(R.string.slot_action_create))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    HelionField(
+                        label = stringResource(R.string.slot_start_label),
+                        value = startText,
+                        onValueChange = { text ->
+                            startText = text
+                            val newStart = parseSlotTime(text)
+                            val newEnd = parseSlotTime(endText)
+                            if (slotId != null && newStart != null && newEnd != null) {
+                                saveExisting { slot -> slot.copy(startSecondOfDay = newStart, endSecondOfDay = newEnd) }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    HelionField(
+                        label = stringResource(R.string.slot_end_label),
+                        value = endText,
+                        onValueChange = { text ->
+                            endText = text
+                            val newStart = parseSlotTime(startText)
+                            val newEnd = parseSlotTime(text)
+                            if (slotId != null && newStart != null && newEnd != null) {
+                                saveExisting { slot -> slot.copy(startSecondOfDay = newStart, endSecondOfDay = newEnd) }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (timeError) {
+                    HelionWarning(stringResource(R.string.slot_time_invalid))
+                }
             }
-        } else {
-            OutlinedButton(onClick = { showDeleteConfirm = true }) {
-                Text(stringResource(R.string.slot_action_delete))
+
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.slot_active_label), style = HelionType.bodySmall, color = colors.textSecondary)
+                    Switch(
+                        checked = active,
+                        onCheckedChange = { checked ->
+                            active = checked
+                            if (slotId != null) saveExisting { slot -> slot.copy(active = checked) }
+                        },
+                    )
+                }
             }
-        }
+
+            // Create/delete are actions, not measures, so they stay a plain button on the
+            // page like every other action button in the app rather than riding on a card.
+            Row(modifier = Modifier.padding(horizontal = CARD_PADDING)) {
+                if (slotId == null) {
+                    Button(
+                        enabled = labelText.isNotBlank() && !timeError,
+                        onClick = {
+                            val start = startSecond ?: return@Button
+                            val end = endSecond ?: return@Button
+                            scope.launch {
+                                container.database.slots().upsert(
+                                    Slot(
+                                        label = labelText,
+                                        dayOfWeek = dayOfWeek,
+                                        startSecondOfDay = start,
+                                        endSecondOfDay = end,
+                                        sport = sport,
+                                        active = active,
+                                    ),
+                                )
+                                onSaved()
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.slot_action_create))
+                    }
+                } else {
+                    OutlinedButton(onClick = { showDeleteConfirm = true }) {
+                        Text(stringResource(R.string.slot_action_delete))
+                    }
+                }
+            }
         }
     }
 

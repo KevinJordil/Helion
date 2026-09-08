@@ -3,6 +3,7 @@ package ch.kevinjordil.helion.ui.activity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,9 +26,19 @@ import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.store.Slot
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.LocalTime
+
+/**
+ * The root Column's own horizontal inset, matching [ActivityListScreen]'s own pattern now
+ * that every slot sits on a raised [HelionSurface] instead of being separated by hairline
+ * dividers alone -- see [CARD_PADDING]. The two still add up to the historical 20dp inset
+ * `ActivityLabelWidthTest`'s slot active-state labels are measured against.
+ */
+private val SCREEN_EDGE_MARGIN = 4.dp
+private val CARD_PADDING = 16.dp
 
 /**
  * Every declared [Slot], in real calendar-week order (see [ch.kevinjordil.helion.store.SlotDao.all]'s
@@ -53,18 +64,23 @@ fun SlotListScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             stringResource(R.string.action_back),
             style = HelionType.label,
             color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack),
+            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = CARD_PADDING),
         )
-        Text(stringResource(R.string.activity_manage_slots), style = HelionType.headline, color = colors.textPrimary)
+        Text(
+            stringResource(R.string.activity_manage_slots),
+            style = HelionType.headline,
+            color = colors.textPrimary,
+            modifier = Modifier.padding(horizontal = CARD_PADDING),
+        )
 
-        Button(onClick = onNewSlot) {
+        Button(onClick = onNewSlot, modifier = Modifier.padding(horizontal = CARD_PADDING)) {
             Text(stringResource(R.string.slot_new_action))
         }
 
@@ -72,17 +88,32 @@ fun SlotListScreen(
         when {
             loaded == null -> Unit
 
-            loaded.isEmpty() -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            loaded.isEmpty() -> Column(
+                modifier = Modifier.padding(horizontal = CARD_PADDING),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(stringResource(R.string.slot_list_empty_title), style = HelionType.body, color = colors.textPrimary)
                 Text(stringResource(R.string.slot_list_empty_body), style = HelionType.bodySmall, color = colors.textSecondary)
             }
 
             else -> {
                 val weekdayAbbreviations = stringArrayResource(R.array.weekday_short).toList()
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(loaded, key = { it.id }) { slot ->
-                        SlotRow(slot, weekdayAbbreviations, onClick = { onOpenSlot(slot.id) })
-                        HorizontalDivider(color = colors.divider)
+                LazyColumn {
+                    item {
+                        // Every slot now shares one raised surface instead of being
+                        // separated only by hairline dividers -- see ActivityListScreen's
+                        // own day groups, the same pattern.
+                        HelionSurface(
+                            modifier = Modifier.fillMaxWidth(),
+                            padding = PaddingValues(CARD_PADDING),
+                        ) {
+                            loaded.forEachIndexed { index, slot ->
+                                SlotRow(slot, weekdayAbbreviations, onClick = { onOpenSlot(slot.id) })
+                                if (index != loaded.lastIndex) {
+                                    HorizontalDivider(color = colors.divider.copy(alpha = 0.4f))
+                                }
+                            }
+                        }
                     }
                 }
             }

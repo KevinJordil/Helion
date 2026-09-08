@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +19,6 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +51,9 @@ import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.SportType
 import ch.kevinjordil.helion.ui.metric.Reading
 import ch.kevinjordil.helion.ui.metric.chartYRange
+import ch.kevinjordil.helion.ui.theme.HelionField
+import ch.kevinjordil.helion.ui.theme.HelionFieldLabel
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -61,6 +64,14 @@ import kotlinx.coroutines.launch
 
 private val TIMELINE_CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val TIMELINE_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+/**
+ * The root Column's own horizontal inset, matching every other screen's own width tests:
+ * [SCREEN_EDGE_MARGIN] plus [CARD_PADDING] is the historical 20dp inset
+ * `DayTimelineReadoutWidthTest` measures the chart card's content against.
+ */
+private val SCREEN_EDGE_MARGIN = 4.dp
+private val CARD_PADDING = 16.dp
 
 /**
  * A chosen day's heart rate and movement intensity, scrubbable by dragging out a range
@@ -99,17 +110,20 @@ fun DayTimelineScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             stringResource(R.string.action_back),
             style = HelionType.label,
             color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack),
+            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = CARD_PADDING),
         )
 
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = CARD_PADDING),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             IconButton(onClick = { date = date.minusDays(1) }) {
                 Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.day_timeline_previous_day))
             }
@@ -124,43 +138,53 @@ fun DayTimelineScreen(
             }
         }
 
-        Text(stringResource(R.string.day_timeline_selection_hint), style = HelionType.bodySmall, color = colors.textSecondary)
-
+        // The chart, its readout and the clear-selection link are one idea -- the one
+        // selection tool this screen offers -- so they share one card.
         val state = dayState
         if (state != null) {
-            if (state.heartRate.isEmpty() && state.movement.isEmpty()) {
-                Text(stringResource(R.string.day_timeline_no_data), style = HelionType.body, color = colors.textSecondary)
-            } else {
-                DayTimelineCanvas(
-                    state = state,
-                    selection = selection,
-                    onSelectionChange = { selection = it },
-                    heartRateColor = colors.accentViolet,
-                    movementColor = colors.textSecondary,
-                    modifier = Modifier.fillMaxWidth().height(180.dp),
-                )
+            HelionSurface(
+                modifier = Modifier.fillMaxWidth(),
+                padding = PaddingValues(CARD_PADDING),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(stringResource(R.string.day_timeline_selection_hint), style = HelionType.bodySmall, color = colors.textSecondary)
 
-                SelectionReadout(selection, zone)
+                if (state.heartRate.isEmpty() && state.movement.isEmpty()) {
+                    Text(stringResource(R.string.day_timeline_no_data), style = HelionType.body, color = colors.textSecondary)
+                } else {
+                    DayTimelineCanvas(
+                        state = state,
+                        selection = selection,
+                        onSelectionChange = { selection = it },
+                        heartRateColor = colors.accentViolet,
+                        movementColor = colors.textSecondary,
+                        modifier = Modifier.fillMaxWidth().height(180.dp),
+                    )
 
-                Text(
-                    stringResource(R.string.day_timeline_clear_selection),
-                    style = HelionType.bodySmall,
-                    color = colors.accentViolet,
-                    modifier = Modifier.clickable(enabled = selection != null) { selection = null },
-                )
+                    SelectionReadout(selection, zone)
+
+                    Text(
+                        stringResource(R.string.day_timeline_clear_selection),
+                        style = HelionType.bodySmall,
+                        color = colors.accentViolet,
+                        modifier = Modifier.clickable(enabled = selection != null) { selection = null },
+                    )
+                }
             }
         }
 
-        Text(stringResource(R.string.sport_picker_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        SportPicker(selected = sport, onSelect = { sport = it })
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionFieldLabel(stringResource(R.string.sport_picker_label))
+            SportPicker(selected = sport, onSelect = { sport = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+        }
 
-        Text(stringResource(R.string.activity_title_label), style = HelionType.bodySmall, color = colors.textSecondary)
-        OutlinedTextField(
-            value = titleText,
-            onValueChange = { titleText = it },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionField(
+                label = stringResource(R.string.activity_title_label),
+                value = titleText,
+                onValueChange = { titleText = it },
+            )
+        }
 
         val currentSelection = selection
         Button(
@@ -182,6 +206,7 @@ fun DayTimelineScreen(
                     onActivityCreated(id)
                 }
             },
+            modifier = Modifier.padding(horizontal = CARD_PADDING),
         ) {
             Text(stringResource(R.string.day_timeline_create_action))
         }
