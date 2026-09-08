@@ -1,5 +1,8 @@
 package ch.kevinjordil.helion.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -14,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
@@ -31,6 +35,9 @@ import kotlinx.coroutines.launch
 private val LAST_REANALYSIS_FORMAT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
 
+private val LAST_BACKGROUND_SYNC_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
+
 /**
  * Re-runs activity detection over the entire archive Helion already holds, for whatever
  * candidates a slot or a threshold change since the last full pass would now catch --
@@ -43,9 +50,29 @@ private val LAST_REANALYSIS_FORMAT: DateTimeFormatter =
  * committed its own overlap-checked inserts, and a later re-run (this action tapped again)
  * simply resumes covering the rest of the archive without duplicating anything that slice
  * already produced.
+ *
+ * Also shows when the *background* worker itself last ran (see
+ * [ch.kevinjordil.helion.store.SyncState.lastBackgroundSyncAttempt]'s kdoc for why that is
+ * a different fact from "a sync ran recently" -- opening the app runs one every time) and,
+ * since the one thing this app cannot do anything about from inside itself is a phone that
+ * refuses to schedule it, a direct way to reach the per-app battery setting that -- on this
+ * owner's Samsung phone in particular -- is what silently starves it: "Mise en veille" or
+ * "Mise en veille profonde" put an infrequently-opened app's background work to sleep by
+ * default. [Settings.ACTION_APPLICATION_DETAILS_SETTINGS] is the one battery-related screen
+ * every Android build exposes through a stable, documented action; the OEM-specific
+ * "sleeping apps" list Samsung actually uses has no public entry point at all, so pointing at
+ * the app's own settings page -- one tap further to the battery section from there -- is the
+ * closest this code can get the owner without guessing at a vendor-specific Intent that the
+ * next One UI release could rename or remove outright.
+ *
+ * Moved here from [SourceSettingsSection] -- this is diagnostic status about why background
+ * work isn't happening, which the owner reasonably expects to find alongside the other
+ * diagnostic action this screen already had (the re-analysis button above), not under "where
+ * does my data come from".
  */
 @Composable
 fun ArchiveReanalysisSection(container: AppContainer) {
+    val context = LocalContext.current
     val colors = HelionThemeTokens.colors
     val scope = rememberCoroutineScope()
 
@@ -53,9 +80,11 @@ fun ArchiveReanalysisSection(container: AppContainer) {
     var reanalysisJob by remember { mutableStateOf<Job?>(null) }
     var reanalysisMessageRes by remember { mutableStateOf<Int?>(null) }
     var reanalysisMessageArgs by remember { mutableStateOf(emptyList<Any>()) }
+    var lastBackgroundSync by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(Unit) {
         lastFullReanalysis = container.database.syncState().get()?.lastFullDetectionRun
+        lastBackgroundSync = container.database.syncState().get()?.lastBackgroundSyncAttempt
     }
 
     fun startReanalysis() {
@@ -106,5 +135,25 @@ fun ArchiveReanalysisSection(container: AppContainer) {
             style = HelionType.bodySmall,
             color = colors.textTertiary,
         )
+    }
+
+    Text(
+        lastBackgroundSync?.let {
+            stringResource(R.string.source_last_background_sync, LAST_BACKGROUND_SYNC_FORMAT.format(Instant.ofEpochSecond(it)))
+        } ?: stringResource(R.string.source_last_background_sync_never),
+        style = HelionType.bodySmall,
+        color = colors.textTertiary,
+    )
+    Text(stringResource(R.string.source_background_sync_battery_hint), style = HelionType.bodySmall, color = colors.textSecondary)
+    Button(
+        onClick = {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                },
+            )
+        },
+    ) {
+        Text(stringResource(R.string.source_open_battery_settings))
     }
 }

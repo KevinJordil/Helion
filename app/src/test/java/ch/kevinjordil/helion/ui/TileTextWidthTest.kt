@@ -901,11 +901,14 @@ class ArchiveReanalysisWidthTest {
 }
 
 /**
- * The background-sync status and battery guidance added to Réglages' source section
- * (`SourceSettingsSection.kt`'s `SourceSettingsSection`): the last-background-sync line at
- * its fixed-width `dd/MM/yyyy HH:mm` stamp and its never-yet form, the battery hint
- * paragraph, and the button label that opens the app's own settings page. Same 280dp content
- * width and `HelionType.bodySmall` prose style as [ArchiveReanalysisWidthTest].
+ * The background-sync status and battery guidance shown in Réglages' Maintenance section
+ * (`MaintenanceSettingsSection.kt`'s `ArchiveReanalysisSection`, moved there from
+ * `SourceSettingsSection`): the last-background-sync line at its fixed-width
+ * `dd/MM/yyyy HH:mm` stamp and its never-yet form, the battery hint paragraph, and the
+ * button label that opens the app's own settings page. Same 280dp content width and
+ * `HelionType.bodySmall` prose style as [ArchiveReanalysisWidthTest] -- both sit in the same
+ * 20dp-padded [ch.kevinjordil.helion.ui.settings.SettingsSectionScreen] container, so the
+ * move changes neither.
  */
 class SourceSyncStatusWidthTest {
 
