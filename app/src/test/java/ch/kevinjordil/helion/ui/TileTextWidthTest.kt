@@ -1347,10 +1347,18 @@ class NotificationLabelWidthTest {
     }
 
     @Test
-    fun `the permission-denied note fits within three lines`() {
-        val message = "Autorisation refusée : les activités candidates restent visibles dans Activités, sans notification."
+    fun `the permission-missing note fits within four lines`() {
+        val message =
+            "Autorisation manquante : les activités candidates restent visibles dans Activités, sans notification tant qu'elle n'est pas accordée."
         val width = proseWidthDp(message, fontSizeSp = 13f)
-        assertTrue("\"$message\" measured ${width}dp, three-line budget is ${rowWidthDp * 3}dp", width <= rowWidthDp * 3)
+        assertTrue("\"$message\" measured ${width}dp, four-line budget is ${rowWidthDp * 4}dp", width <= rowWidthDp * 4)
+    }
+
+    @Test
+    fun `the grant-notifications button label fits a full-width row`() {
+        val label = "Autoriser les notifications"
+        val width = proseWidthDp(label, fontSizeSp = 14f)
+        assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
     }
 
     @Test
