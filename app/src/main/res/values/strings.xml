@@ -381,6 +381,16 @@
     <string name="notification_test_title">Notification de test</string>
     <string name="notification_test_text">Si vous voyez ceci, Helion peut vous notifier normalement.</string>
 
+    <string name="sleep_notification_channel_name">Résumé du sommeil</string>
+    <string name="sleep_notification_channel_description">Un résumé de la nuit, une fois qu\'elle est terminée.</string>
+    <string name="sleep_notification_title">Votre nuit</string>
+    <string name="sleep_notification_text">%1$s · %2$s · %3$s</string>
+
+    <string name="sleep_notification_settings_toggle_label">Me notifier une fois la nuit terminée</string>
+    <string name="sleep_notification_settings_explanation">Une notification par nuit, une fois qu\'elle est terminée : la durée, sa position par rapport à vos nuits récentes et à la plage recommandée.</string>
+    <string name="sleep_notification_settings_permission_missing">Autorisation manquante : le résumé de la nuit ne peut pas être notifié tant qu\'elle n\'est pas accordée.</string>
+    <string name="sleep_notification_settings_all_clear">Tout est en ordre : une notification peut vous être envoyée dès qu\'une nuit est terminée.</string>
+
     <string name="settings_entry_source_title">Source des données</string>
     <string name="settings_entry_source_configured">Fichier configuré</string>
     <string name="settings_entry_profile_complete">Complet</string>

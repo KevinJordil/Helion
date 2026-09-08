@@ -9,8 +9,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import ch.kevinjordil.helion.notification.EXTRA_OPEN_ACTIVITIES_LIST
 import ch.kevinjordil.helion.notification.EXTRA_OPEN_ACTIVITY_ID
+import ch.kevinjordil.helion.notification.EXTRA_OPEN_SLEEP
 import ch.kevinjordil.helion.ui.HelionNavHost
 import ch.kevinjordil.helion.ui.NotificationNavigationTarget
+import ch.kevinjordil.helion.ui.RootDestination
 import ch.kevinjordil.helion.ui.activityDetailRoute
 import ch.kevinjordil.helion.ui.activitiesListRoute
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
@@ -40,8 +42,9 @@ class MainActivity : ComponentActivity() {
      * Reads the extras [ch.kevinjordil.helion.notification.CandidateNotifier] puts on a
      * notification's own content intent and turns them into the one route
      * [ch.kevinjordil.helion.ui.HelionNavHost] should land on next -- a single candidate's
-     * detail directly, or the Activités list for a batch. Neither extra present (any other
-     * launch, including a plain relaunch from the launcher) leaves
+     * detail directly, the Activités list for a batch, or Sommeil for the sleep-summary
+     * notification (see [ch.kevinjordil.helion.notification.SleepNightNotifier]). No extra
+     * present (any other launch, including a plain relaunch from the launcher) leaves
      * [NotificationNavigationTarget] untouched, so the app opens wherever it otherwise would.
      */
     private fun handleNotificationIntent(intent: Intent) {
@@ -49,6 +52,7 @@ class MainActivity : ComponentActivity() {
         when {
             activityId >= 0 -> NotificationNavigationTarget.route = activityDetailRoute(activityId)
             intent.getBooleanExtra(EXTRA_OPEN_ACTIVITIES_LIST, false) -> NotificationNavigationTarget.route = activitiesListRoute
+            intent.getBooleanExtra(EXTRA_OPEN_SLEEP, false) -> NotificationNavigationTarget.route = RootDestination.SLEEP.route
         }
     }
 }

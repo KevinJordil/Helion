@@ -17,6 +17,7 @@ import ch.kevinjordil.helion.source.ExportReader
 import ch.kevinjordil.helion.source.GadgetbridgeCommands
 import ch.kevinjordil.helion.source.Ingestor
 import ch.kevinjordil.helion.notification.CandidateNotifier
+import ch.kevinjordil.helion.notification.SleepNightNotifier
 import ch.kevinjordil.helion.store.HELION_MIGRATIONS
 import ch.kevinjordil.helion.store.HelionDatabase
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
@@ -25,6 +26,7 @@ import ch.kevinjordil.helion.ui.settings.HealthConnectConfig
 import ch.kevinjordil.helion.ui.settings.NotificationPreference
 import ch.kevinjordil.helion.ui.settings.Profile
 import ch.kevinjordil.helion.ui.settings.RecordingDeviceName
+import ch.kevinjordil.helion.ui.settings.SleepNotificationPreference
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 import java.time.ZoneId
 
@@ -94,6 +96,21 @@ class AppContainer(context: Context) {
      */
     val candidateNotifier = CandidateNotifier(context, notificationPreference)
 
+    /** The Réglages on/off switch for the morning sleep-summary notification -- its own channel, see [SleepNightNotifier]'s own kdoc. */
+    val sleepNotificationPreference = SleepNotificationPreference(context)
+
+    /**
+     * The one [SleepNightNotifier] instance both [ingestor] (a real ingest pass) and
+     * Réglages' own "send a test notification" action for this channel post through --
+     * same reasoning as [candidateNotifier].
+     */
+    val sleepNightNotifier = SleepNightNotifier(
+        context = context,
+        database = database,
+        preference = sleepNotificationPreference,
+        now = { System.currentTimeMillis() / 1000 },
+    )
+
     val commands = GadgetbridgeCommands(BroadcastCommandSender(context))
 
     /**
@@ -140,6 +157,7 @@ class AppContainer(context: Context) {
     init {
         ingestor.detector = activityDetector
         ingestor.notifier = candidateNotifier
+        ingestor.sleepNotifier = sleepNightNotifier
         ingestor.healthConnectExportTrigger = { enqueueHealthConnectExport(context) }
     }
 }

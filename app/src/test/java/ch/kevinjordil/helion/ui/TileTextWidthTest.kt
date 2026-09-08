@@ -1510,6 +1510,60 @@ class NotificationLabelWidthTest {
         val textWidth = proseWidthDp(text, fontSizeSp = 14f)
         assertTrue("\"$text\" measured ${textWidth}dp, three-line budget is ${rowWidthDp * 3}dp", textWidth <= rowWidthDp * 3)
     }
+
+    // The morning sleep-summary channel added alongside the candidate-detection one --
+    // same 280dp budget, same fonts and sizes, since both channels share this one
+    // Réglages screen (see `NotificationsSettingsSection.kt`'s `NotificationChannelSection`).
+
+    @Test
+    fun `the sleep-notification toggle label fits within one line`() {
+        val message = "Me notifier une fois la nuit terminée"
+        val width = proseWidthDp(message, fontSizeSp = 13f)
+        assertTrue("\"$message\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+
+    @Test
+    fun `the sleep-notification explanation fits within four lines`() {
+        val message = "Une notification par nuit, une fois qu'elle est terminée : la durée, sa position par rapport à vos nuits récentes et à la plage recommandée."
+        val width = proseWidthDp(message, fontSizeSp = 13f)
+        assertTrue("\"$message\" measured ${width}dp, four-line budget is ${rowWidthDp * 4}dp", width <= rowWidthDp * 4)
+    }
+
+    @Test
+    fun `the sleep-notification permission-missing and all-clear messages fit within four lines`() {
+        val messages = listOf(
+            "Autorisation manquante : le résumé de la nuit ne peut pas être notifié tant qu'elle n'est pas accordée.",
+            "Tout est en ordre : une notification peut vous être envoyée dès qu'une nuit est terminée.",
+        )
+        messages.forEach { message ->
+            val width = proseWidthDp(message, fontSizeSp = 13f)
+            assertTrue("\"$message\" measured ${width}dp, four-line budget is ${rowWidthDp * 4}dp", width <= rowWidthDp * 4)
+        }
+    }
+
+    @Test
+    fun `the sleep-notification channel name fits within one line and its description within two`() {
+        val name = "Résumé du sommeil"
+        val nameWidth = proseWidthDp(name, fontSizeSp = 13f)
+        assertTrue("\"$name\" measured ${nameWidth}dp, budget is ${rowWidthDp}dp", nameWidth <= rowWidthDp)
+
+        val description = "Un résumé de la nuit, une fois qu'elle est terminée."
+        val descriptionWidth = proseWidthDp(description, fontSizeSp = 13f)
+        assertTrue("\"$description\" measured ${descriptionWidth}dp, two-line budget is ${rowWidthDp * 2}dp", descriptionWidth <= rowWidthDp * 2)
+    }
+
+    @Test
+    fun `the sleep-notification title fits within one line and its widest text within three`() {
+        val title = "Votre nuit"
+        val titleWidth = proseWidthDp(title, fontSizeSp = 14f)
+        assertTrue("\"$title\" measured ${titleWidth}dp, budget is ${rowWidthDp}dp", titleWidth <= rowWidthDp)
+
+        // Widest plausible composition: a full "23 h 59" duration plus the longest personal
+        // and reference phrases this app has for sleep_duration.
+        val text = "23 h 59 · Historique insuffisant pour l'instant · Au-dessus de la plage recommandée (7-9 h)"
+        val textWidth = proseWidthDp(text, fontSizeSp = 14f)
+        assertTrue("\"$text\" measured ${textWidth}dp, three-line budget is ${rowWidthDp * 3}dp", textWidth <= rowWidthDp * 3)
+    }
 }
 
 /**

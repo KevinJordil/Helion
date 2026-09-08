@@ -103,6 +103,17 @@ class Ingestor(
 
     /**
      * Set by [ch.kevinjordil.helion.AppContainer] after construction, same reasoning as
+     * [detector] and [notifier]. Checked (via [runSleepNotificationOver]) only on a pass
+     * that actually stored new minute samples or new stage segments -- see
+     * [SleepNightNotificationSink]'s own kdoc for why nothing new means nothing to check.
+     * Unlike [notifier], this is a plain fire-and-forget hook: the real implementation
+     * owns its whole decision -- which night, dedup, freshness -- so there is nothing for
+     * [Ingestor] itself to mark afterwards.
+     */
+    var sleepNotifier: SleepNightNotificationSink? = null
+
+    /**
+     * Set by [ch.kevinjordil.helion.AppContainer] after construction, same reasoning as
      * [detector] and [notifier]. Called once at the end of a pass that actually stored
      * something new -- never for a pass that found nothing to ingest, and never awaited
      * here: this is expected to enqueue a background job (see
@@ -237,6 +248,7 @@ class Ingestor(
         db.syncState().put(nextSyncState(now(), lastError = null, streak = streak, lastAttempt = lastAttempt, background = background))
         runDetectionOver(samples.minutes)
         runNotificationsOver()
+        runSleepNotificationOver(samples.minutes.size, samples.stageSegments.size)
         if (samples.minutes.isNotEmpty() || samples.points.isNotEmpty() || samples.stageSegments.isNotEmpty()) {
             // Best-effort like the two calls above: enqueuing must never turn a genuinely
             // successful ingest pass into a reported failure.
@@ -303,6 +315,27 @@ class Ingestor(
             false
         }
         if (posted) db.activities().markNotified(pending.map { it.id })
+    }
+
+    /**
+     * Fires [sleepNotifier] only when this pass actually stored new minute samples or new
+     * stage segments: neither can appear for a night that was already fully known, so a
+     * pass with neither is guaranteed to have nothing newly completed to check, and
+     * skipping the check entirely is cheaper than running it to find nothing. Best-effort
+     * like [runDetectionOver] and [runNotificationsOver]: a bug in the sleep-notification
+     * path must never turn a genuinely successful ingest pass into
+     * [IngestResult.Failed].
+     */
+    private suspend fun runSleepNotificationOver(minutesStored: Int, stageSegmentsStored: Int) {
+        if (minutesStored == 0 && stageSegmentsStored == 0) return
+        val sleepNotifier = sleepNotifier ?: return
+        try {
+            sleepNotifier.checkForCompletedNight()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Best-effort: see this method's own kdoc.
+        }
     }
 
     private suspend fun fail(reason: String, streak: Int, lastAttempt: Long, background: Boolean): IngestResult.Failed {
