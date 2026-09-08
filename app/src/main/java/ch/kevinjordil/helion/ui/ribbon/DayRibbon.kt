@@ -72,7 +72,7 @@ fun DayRibbon(
                 val x = ((timestamp - windowStart).toFloat() / span) * size.width
                 val label = textMeasurer.measure(
                     formatAxisTimestamp(timestamp, span),
-                    HelionType.labelSmall.copy(color = axisLabelColor),
+                    HelionType.axisLabel.copy(color = axisLabelColor),
                 )
                 val labelLeft = (x - label.size.width / 2f).coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f))
                 if (labelLeft >= lastLabelRight) {

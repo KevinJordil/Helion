@@ -39,6 +39,7 @@ import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceForSleepDuration
 import ch.kevinjordil.helion.ui.quality.referenceMessage
 import ch.kevinjordil.helion.ui.theme.HelionColors
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -70,6 +71,17 @@ internal fun weekdayDateText(date: LocalDate, weekdayAbbreviations: List<String>
  * DurationTextWidthTest -- see that test for the actual measurement.
  */
 private val SLEEP_DURATION_STYLE = HelionType.hero.copy(fontSize = 40.sp, lineHeight = 44.sp)
+
+/**
+ * The root Column's own horizontal inset, now that the selected-night and averages cards sit
+ * on raised [ch.kevinjordil.helion.ui.theme.HelionSurface]s rather than directly against it
+ * -- see [CARD_PADDING] and this screen's own [SleepScreen] kdoc comment for why the two add
+ * up to exactly the 20dp every Sommeil width test still measures against.
+ */
+private val SCREEN_EDGE_MARGIN = 4.dp
+
+/** A card's own internal padding: [SCREEN_EDGE_MARGIN] plus this is the historical 20dp inset. */
+private val CARD_PADDING = 16.dp
 
 /**
  * Sommeil: one selected night's full detail (the most recent by default), with
@@ -134,11 +146,18 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
     val loaded = nights ?: return
 
+    // Only a thin 4dp margin lives on the root Column now: the 20dp inset every width
+    // budget in SleepScreenWidthTest/SleepAveragesWidthTest is built on has moved onto each
+    // card's own surface padding (see CARD_PADDING below) instead of sitting on the screen
+    // as a whole, so the total inset -- and every one of those tests' numbers -- is
+    // unchanged even though the visual result (a rounded, padded card, not a bare column) is
+    // not. The history list below the cards, which is not itself on a card, gets that same
+    // 16dp back explicitly (see the history item and HistoryRow below) for the same total.
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // No page header here: the bottom navigation bar already names this destination
         // (icon + "Sommeil" label), so a second, purely decorative "SOMMEIL" line at the
@@ -156,7 +175,7 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
             .filter { (index, _) -> index != selectedIndex }
             .reversed()
 
-        LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
             item {
                 SelectedNightCard(
                     episode = selected,
@@ -183,14 +202,14 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
             if (history.isNotEmpty()) {
                 item {
                     Text(
-                        stringResource(R.string.sleep_history_title).uppercase(),
-                        style = HelionType.label,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(top = 8.dp),
+                        stringResource(R.string.sleep_history_title),
+                        style = HelionType.title,
+                        color = colors.textPrimary,
+                        modifier = Modifier.padding(start = CARD_PADDING, end = CARD_PADDING, top = 8.dp),
                     )
                 }
                 items(history, key = { (index, _) -> index }) { (index, episode) ->
-                    HistoryRow(episode, onClick = { selectedIndex = index })
+                    HistoryRow(episode, onClick = { selectedIndex = index }, modifier = Modifier.padding(horizontal = CARD_PADDING))
                 }
             }
         }
@@ -215,7 +234,11 @@ private fun SelectedNightCard(
     val minutes = episode.durationAsleepMinutes % 60
     val weekdays = stringArrayResource(R.array.weekday_short).toList()
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    HelionSurface(
+        modifier = Modifier.fillMaxWidth(),
+        padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -386,7 +409,7 @@ private fun phaseDurationText(minutesInPhase: Int): String {
 private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Column(modifier = modifier) {
-        Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
+        Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
         Text(value, style = HelionType.valueMedium, color = colors.textPrimary)
     }
 }
@@ -409,18 +432,22 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
     val colors = HelionThemeTokens.colors
     val averages = remember(nights, window) { computeSleepAverages(nights, window) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    HelionSurface(
+        modifier = Modifier.fillMaxWidth(),
+        padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         Text(
-            stringResource(R.string.sleep_average_section_title).uppercase(),
-            style = HelionType.label,
-            color = colors.textSecondary,
+            stringResource(R.string.sleep_average_section_title),
+            style = HelionType.title,
+            color = colors.textPrimary,
         )
 
         AverageWindowSelector(selected = window, onSelect = onWindowChange)
 
         if (averages.consideredNights == 0) {
             Text(stringResource(R.string.sleep_average_no_nights), style = HelionType.bodySmall, color = colors.textTertiary)
-            return@Column
+            return@HelionSurface
         }
 
         Text(
@@ -480,7 +507,7 @@ private fun AverageWindowSelector(selected: SleepAverageWindow, onSelect: (Sleep
     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         SleepAverageWindow.entries.forEach { option ->
             Text(
-                stringResource(option.labelRes).uppercase(),
+                stringResource(option.labelRes),
                 style = HelionType.label,
                 color = if (option == selected) colors.accentViolet else colors.textTertiary,
                 modifier = Modifier

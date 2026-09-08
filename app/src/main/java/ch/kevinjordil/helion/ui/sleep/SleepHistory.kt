@@ -68,7 +68,7 @@ internal fun nightBarWidthFraction(durationMinutes: Long, referenceMaxMinutes: L
  * detail card uses, so it is never mistaken for the device's own measurement.
  */
 @Composable
-internal fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit) {
+internal fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     val hours = episode.durationAsleepMinutes / 60
     val minutes = episode.durationAsleepMinutes % 60
@@ -93,12 +93,12 @@ internal fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit) {
     }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick, role = Role.Button)
-            .padding(vertical = 10.dp),
+            .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             weekdayDateText(episode.date, weekdays),

@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -184,7 +185,7 @@ fun NightChartSection(
     val showHypnogram = phaseSource !is SleepPhaseSource.NotEstimable
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.sleep_night_chart_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(stringResource(R.string.sleep_night_chart_title), style = HelionType.title, color = colors.textPrimary)
 
         val overlays = buildMap {
             if (showRespiratory && respiratoryReadings.size >= 2) {
@@ -221,7 +222,7 @@ fun NightChartSection(
                 lanes.forEach { lane ->
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.width(LANE_LABEL_WIDTH)) {
-                            Text(phaseLabel.getValue(lane).uppercase(), style = HelionType.labelSmall, color = colors.textSecondary)
+                            Text(phaseLabel.getValue(lane), style = HelionType.labelSmall, color = colors.textSecondary)
                         }
                         HypnogramLaneCanvas(
                             bars = hypnogramBars,
@@ -257,7 +258,7 @@ fun NightChartSection(
         }
 
         if (phaseSource is SleepPhaseSource.Estimated) {
-            Text(stringResource(R.string.sleep_phase_title_estimated).uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
+            Text(stringResource(R.string.sleep_phase_title_estimated), style = HelionType.labelSmall, color = colors.textTertiary)
         }
 
         if (respiratoryReadings.size >= 2 || movementReadings.size >= 2) {
@@ -313,7 +314,7 @@ private fun OverlayCheckbox(label: String, checked: Boolean, onCheckedChange: (B
 private fun NightStatItem(label: String, value: String, unit: String, valueColor: Color, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Column(modifier = modifier) {
-        Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
+        Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
         Text(value, style = HelionType.valueMedium, color = valueColor)
         Text(unit, style = HelionType.labelSmall, color = colors.textTertiary)
     }
@@ -388,8 +389,8 @@ private fun HeartRateCanvas(
             var lastLabelBottom = Float.NEGATIVE_INFINITY
             chartGridlines(gridMinY, gridMaxY).forEach { value ->
                 val y = size.height - (value - gridMinY) / gridYSpan * size.height
-                drawLine(color = colors.divider, start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = 1f)
-                val label = textMeasurer.measure("${value.toInt()} $bpmUnit", HelionType.labelSmall.copy(color = colors.textTertiary))
+                drawLine(color = colors.divider.copy(alpha = 0.5f), start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = 1f)
+                val label = textMeasurer.measure("${value.toInt()} $bpmUnit", HelionType.axisLabel.copy(color = colors.textTertiary))
                 val labelTop = (y - label.size.height - 2f).coerceAtLeast(0f)
                 if (labelTop >= lastLabelBottom) {
                     drawText(label, topLeft = Offset(4f, labelTop))
@@ -414,7 +415,11 @@ private fun HeartRateCanvas(
             drawPath(
                 path,
                 color = overlay.color,
-                style = Stroke(width = 2.5f, pathEffect = PathEffect.dashPathEffect(overlay.dashIntervals)),
+                style = Stroke(
+                    width = 2.5f,
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(overlay.dashIntervals),
+                ),
             )
         }
 
@@ -431,7 +436,26 @@ private fun HeartRateCanvas(
             val y = yOf(reading.value.toFloat())
             if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path, color = lineColor, style = Stroke(width = 4f))
+
+        // A soft gradient wash under the curve, in the line's own hue -- the same treatment
+        // MetricScreen's own chart uses for its curve, so a night's heart-rate line and a
+        // metric's detail chart read as the same instrument rather than two different ones.
+        val fillPath = Path().apply {
+            addPath(path)
+            lineTo(xOf(heartRateReadings.last().timestamp.toFloat()), size.height)
+            lineTo(xOf(heartRateReadings.first().timestamp.toFloat()), size.height)
+            close()
+        }
+        drawPath(
+            fillPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(lineColor.copy(alpha = 0.16f), lineColor.copy(alpha = 0f)),
+                startY = 0f,
+                endY = size.height,
+            ),
+        )
+
+        drawPath(path, color = lineColor, style = Stroke(width = 4f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
 
         if (scrubFraction != null && scrubbedReading != null) {
             val pointX = xOf(scrubbedReading.timestamp.toFloat())
@@ -442,6 +466,7 @@ private fun HeartRateCanvas(
                 start = Offset(pointX, 0f),
                 end = Offset(pointX, size.height),
                 strokeWidth = 2f,
+                cap = StrokeCap.Round,
             )
             drawCircle(color = lineColor, radius = 7f, center = Offset(pointX, pointY))
             drawCircle(color = colors.ground, radius = 3f, center = Offset(pointX, pointY))
@@ -454,8 +479,8 @@ private fun HeartRateCanvas(
             val valueText = "${scrubbedReading.value.toInt()} $bpmUnit"
             val phaseText = phaseAtInstant?.let { phaseLabel.getValue(it) }
 
-            val timeLayout = textMeasurer.measure(timeText, HelionType.labelSmall.copy(color = colors.textSecondary))
-            val valueLayout = textMeasurer.measure(valueText, HelionType.labelSmall.copy(color = colors.accentViolet))
+            val timeLayout = textMeasurer.measure(timeText, HelionType.axisLabel.copy(color = colors.textSecondary))
+            val valueLayout = textMeasurer.measure(valueText, HelionType.axisLabel.copy(color = colors.accentViolet))
             val phaseLayout = phaseText?.let { textMeasurer.measure(it, HelionType.labelSmall.copy(color = colors.textPrimary)) }
 
             val padding = 8f
@@ -473,13 +498,13 @@ private fun HeartRateCanvas(
                 color = colors.surfaceRaised,
                 topLeft = Offset(chipLeft, chipTop),
                 size = Size(chipWidth, chipHeight),
-                cornerRadius = CornerRadius(6f, 6f),
+                cornerRadius = CornerRadius(10f, 10f),
             )
             drawRoundRect(
                 color = colors.divider,
                 topLeft = Offset(chipLeft, chipTop),
                 size = Size(chipWidth, chipHeight),
-                cornerRadius = CornerRadius(6f, 6f),
+                cornerRadius = CornerRadius(10f, 10f),
                 style = Stroke(width = 1f),
             )
             var lineTop = chipTop + padding / 2f
@@ -547,7 +572,7 @@ private fun HypnogramLaneCanvas(
         }
         if (scrubFraction != null) {
             val x = scrubFraction * size.width
-            drawLine(color = cursorColor, start = Offset(x, 0f), end = Offset(x, size.height), strokeWidth = 2f)
+            drawLine(color = cursorColor, start = Offset(x, 0f), end = Offset(x, size.height), strokeWidth = 2f, cap = StrokeCap.Round)
         }
     }
 }
