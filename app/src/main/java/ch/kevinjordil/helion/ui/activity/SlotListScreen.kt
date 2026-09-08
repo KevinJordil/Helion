@@ -62,7 +62,7 @@ fun SlotListScreen(
             color = colors.accentViolet,
             modifier = Modifier.clickable(onClick = onBack),
         )
-        Text(stringResource(R.string.activity_manage_slots).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(stringResource(R.string.activity_manage_slots), style = HelionType.headline, color = colors.textPrimary)
 
         Button(onClick = onNewSlot) {
             Text(stringResource(R.string.slot_new_action))
@@ -105,7 +105,7 @@ private fun SlotRow(slot: Slot, weekdayAbbreviations: List<String>, onClick: () 
             // in its own share rather than crowding the active/suspended label off the row.
             Text(slot.label, style = HelionType.body, color = colors.textPrimary, modifier = Modifier.weight(1f))
             Text(
-                stringResource(if (slot.active) R.string.slot_active_on else R.string.slot_active_off).uppercase(),
+                stringResource(if (slot.active) R.string.slot_active_on else R.string.slot_active_off),
                 style = HelionType.labelSmall,
                 color = if (slot.active) colors.textTertiary else colors.accentAmber,
             )

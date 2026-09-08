@@ -216,7 +216,7 @@ private fun SelectionReadout(selection: TimelineSelection?, zone: ZoneId, modifi
 private fun ReadoutItem(label: String, value: String, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Column(modifier = modifier) {
-        Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
+        Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
         Text(value, style = HelionType.valueMedium, color = colors.accentViolet)
     }
 }

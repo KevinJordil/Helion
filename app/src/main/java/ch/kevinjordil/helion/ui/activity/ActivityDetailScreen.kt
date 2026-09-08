@@ -155,9 +155,9 @@ fun ActivityDetailScreen(
         BackLink(onBack)
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.activity_detail_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+            Text(stringResource(R.string.activity_detail_title), style = HelionType.headline, color = colors.textPrimary)
             Text(
-                stringResource(statusLabelRes(current.status)).uppercase(),
+                stringResource(statusLabelRes(current.status)),
                 style = HelionType.label,
                 color = if (needsAttention(current.status)) colors.accentAmber else colors.textTertiary,
             )
@@ -255,7 +255,7 @@ fun ActivityDetailScreen(
 
         HorizontalDivider(color = colors.divider)
 
-        Text(stringResource(R.string.calorie_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(stringResource(R.string.calorie_section_title), style = HelionType.title, color = colors.textPrimary)
         when (val estimate = calorieEstimate) {
             null -> Unit // still loading -- nothing to say yet, rather than a flash of "no data"
             is ActivityCalorieEstimate.ProfileIncomplete ->
@@ -274,7 +274,7 @@ fun ActivityDetailScreen(
         // owner's own server (see CustomServerPublisher's own kdoc), which relays the
         // activity on to Strava -- the mechanism `custom_server_send_note` states plainly
         // rather than hiding behind the button alone.
-        Text(stringResource(R.string.custom_server_section_title).uppercase(), style = HelionType.label, color = colors.textSecondary)
+        Text(stringResource(R.string.custom_server_section_title), style = HelionType.title, color = colors.textPrimary)
         Text(stringResource(R.string.custom_server_send_note), style = HelionType.bodySmall, color = colors.textSecondary)
 
         val currentCustomServerPublication = customServerPublication

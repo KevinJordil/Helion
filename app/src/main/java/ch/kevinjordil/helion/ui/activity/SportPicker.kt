@@ -63,7 +63,7 @@ fun SportPicker(selected: SportType?, onSelect: (SportType) -> Unit, modifier: M
 
     Column(modifier = modifier) {
         Text(
-            (selected?.let { stringResource(sportLabelRes(it)) } ?: stringResource(R.string.sport_none)).uppercase(),
+            selected?.let { stringResource(sportLabelRes(it)) } ?: stringResource(R.string.sport_none),
             style = HelionType.label,
             color = if (selected != null) colors.accentViolet else colors.textTertiary,
             modifier = Modifier
@@ -91,7 +91,7 @@ fun SportPicker(selected: SportType?, onSelect: (SportType) -> Unit, modifier: M
                     if (inCategory.isNotEmpty()) {
                         item(key = "category-${category.name}") {
                             Text(
-                                stringResource(sportCategoryLabelRes(category)).uppercase(),
+                                stringResource(sportCategoryLabelRes(category)),
                                 style = HelionType.labelSmall,
                                 color = colors.textTertiary,
                                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
