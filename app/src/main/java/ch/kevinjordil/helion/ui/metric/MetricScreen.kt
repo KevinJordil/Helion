@@ -25,8 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -46,6 +48,7 @@ import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceIndicatorFor
 import ch.kevinjordil.helion.ui.quality.referenceMessage
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -69,6 +72,18 @@ private val CHART_PLOT_HEIGHT = 180.dp
 
 /** A reserved strip below the curve for time-axis tick marks and labels -- see [ScrubbableChart]. */
 private val CHART_AXIS_HEIGHT = 18.dp
+
+/**
+ * The root Column's own horizontal inset, now that the value/chart/stats cluster sits on a
+ * raised [HelionSurface] rather than directly against the screen -- see [CARD_PADDING]. The
+ * two add up to exactly the 20dp every width test in this file (and in `MetricStatsWidthTest`
+ * etc.) still measures against, so none of their budgets change even though the visual result
+ * does: a rounded, padded card in place of a bare column.
+ */
+private val SCREEN_EDGE_MARGIN = 4.dp
+
+/** A card's own internal padding: [SCREEN_EDGE_MARGIN] plus this is the historical 20dp inset. */
+private val CARD_PADDING = 16.dp
 
 /**
  * The metric detail destination, parameterised by [metric] -- a real navigation
@@ -120,37 +135,47 @@ fun MetricScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
             stringResource(R.string.action_back),
             style = HelionType.label,
             color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack),
+            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = CARD_PADDING),
         )
 
-        // No maxLines/ellipsis: this is a section header alone on its own line, so if it
-        // ever does not fit -- a long label at a large system font scale -- it wraps to a
-        // second line instead of clipping. See NoTextClippingTest.
-        Text(
-            stringResource(metric.labelRes).uppercase(),
-            style = HelionType.label,
-            color = colors.textSecondary,
-        )
-
-        // No maxLines/ellipsis here either: the owner-approved wording is shown in full,
-        // wrapping across as many lines as it needs. See NoTextClippingTest.
-        metric.descriptionRes?.let { descriptionRes ->
+        Column(
+            modifier = Modifier.padding(horizontal = CARD_PADDING),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // No maxLines/ellipsis: this is a section header alone on its own line, so if it
+            // ever does not fit -- a long label at a large system font scale -- it wraps to a
+            // second line instead of clipping. See NoTextClippingTest.
             Text(
-                stringResource(descriptionRes),
-                style = HelionType.bodySmall,
-                color = colors.textSecondary,
+                stringResource(metric.labelRes),
+                style = HelionType.title,
+                color = colors.textPrimary,
             )
+
+            // No maxLines/ellipsis here either: the owner-approved wording is shown in full,
+            // wrapping across as many lines as it needs. See NoTextClippingTest.
+            metric.descriptionRes?.let { descriptionRes ->
+                Text(
+                    stringResource(descriptionRes),
+                    style = HelionType.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
         }
 
         val state = uiState
         val displayed = scrubbed ?: state?.latest
+        HelionSurface(
+            modifier = Modifier.fillMaxWidth(),
+            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         if (displayed != null) {
             // Value and unit are two separate Text composables at two different sizes,
             // not one string in one style -- exactly the pattern Accueil's hero already
@@ -212,6 +237,7 @@ fun MetricScreen(
                 Text(stringResource(noteRes), style = HelionType.bodySmall, color = colors.textTertiary)
             }
         }
+        }
     }
 }
 
@@ -221,7 +247,7 @@ private fun RangeSelector(selected: Range, onSelect: (Range) -> Unit, modifier: 
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         RANGE_OPTIONS.forEach { (option, labelRes) ->
             Text(
-                stringResource(labelRes).uppercase(),
+                stringResource(labelRes),
                 style = HelionType.label,
                 color = if (option == selected) colors.accentViolet else colors.textTertiary,
                 modifier = Modifier
@@ -273,7 +299,7 @@ private fun StatsRow(stats: MetricStats, metric: Metric, modifier: Modifier = Mo
 private fun StatItem(label: String, value: String, metric: Metric, valueColor: Color, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label.uppercase(), style = HelionType.labelSmall, color = colors.textTertiary)
+        Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
         Text(value, style = HelionType.valueMedium, color = valueColor)
         val unit = stringResource(metric.unitRes)
         if (unit.isNotEmpty()) {
@@ -428,12 +454,12 @@ private fun ScrubbableChart(
         chartGridlines(minY, maxY).forEach { value ->
             val y = yOf(value)
             drawLine(
-                color = colors.divider,
+                color = colors.divider.copy(alpha = 0.5f),
                 start = Offset(0f, y),
                 end = Offset(size.width, y),
                 strokeWidth = 1f,
             )
-            val label = textMeasurer.measure(metric.formatValue(value.toDouble()), HelionType.labelSmall.copy(color = colors.textTertiary))
+            val label = textMeasurer.measure(metric.formatValue(value.toDouble()), HelionType.axisLabel.copy(color = colors.textTertiary))
             val labelTop = (y - label.size.height - 2f).coerceAtLeast(0f)
             if (labelTop >= lastGridlineLabelBottom) {
                 drawText(label, topLeft = Offset(4f, labelTop))
@@ -451,12 +477,12 @@ private fun ScrubbableChart(
             chartTimeMarkers(minX.toLong(), maxX.toLong()).forEach { timestamp ->
                 val x = xOf(timestamp.toFloat())
                 drawLine(
-                    color = colors.divider,
+                    color = colors.divider.copy(alpha = 0.5f),
                     start = Offset(x, plotHeight),
                     end = Offset(x, plotHeight + 4f),
                     strokeWidth = 1f,
                 )
-                val label = textMeasurer.measure(formatAxisTimestamp(timestamp, spanSeconds), HelionType.labelSmall.copy(color = colors.textTertiary))
+                val label = textMeasurer.measure(formatAxisTimestamp(timestamp, spanSeconds), HelionType.axisLabel.copy(color = colors.textTertiary))
                 val labelLeft = (x - label.size.width / 2f).coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f))
                 if (labelLeft >= lastLabelRight) {
                     drawText(label, topLeft = Offset(labelLeft, plotHeight + axisHeightPx - label.size.height))
@@ -489,9 +515,16 @@ private fun ScrubbableChart(
             lineTo(xOf(readings.first().timestamp.toFloat()), plotHeight)
             close()
         }
-        drawPath(fillPath, color = lineColor.copy(alpha = 0.14f))
+        drawPath(
+            fillPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(lineColor.copy(alpha = 0.18f), lineColor.copy(alpha = 0f)),
+                startY = 0f,
+                endY = plotHeight,
+            ),
+        )
 
-        drawPath(path, color = lineColor, style = Stroke(width = 4f))
+        drawPath(path, color = lineColor, style = Stroke(width = 4f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
 
         val markedReading = scrubbedReading
         if (scrubX != null && markedReading != null) {
@@ -503,14 +536,15 @@ private fun ScrubbableChart(
                 start = Offset(pointX, 0f),
                 end = Offset(pointX, plotHeight),
                 strokeWidth = 2f,
+                cap = StrokeCap.Round,
             )
             drawCircle(color = lineColor, radius = 7f, center = Offset(pointX, pointY))
             drawCircle(color = colors.ground, radius = 3f, center = Offset(pointX, pointY))
 
             val valueText = "${metric.formatValue(markedReading.value)} $unit".trim()
             val timeText = TIMESTAMP_FORMAT.format(Instant.ofEpochSecond(markedReading.timestamp))
-            val valueLayout = textMeasurer.measure(valueText, HelionType.labelSmall.copy(color = lineColor))
-            val timeLayout = textMeasurer.measure(timeText, HelionType.labelSmall.copy(color = colors.textSecondary))
+            val valueLayout = textMeasurer.measure(valueText, HelionType.axisLabel.copy(color = lineColor))
+            val timeLayout = textMeasurer.measure(timeText, HelionType.axisLabel.copy(color = colors.textSecondary))
 
             val padding = 8f
             val chipWidth = maxOf(valueLayout.size.width, timeLayout.size.width) + padding * 2
@@ -526,13 +560,13 @@ private fun ScrubbableChart(
                 color = colors.surfaceRaised,
                 topLeft = Offset(chipLeft, chipTop),
                 size = Size(chipWidth, chipHeight),
-                cornerRadius = CornerRadius(6f, 6f),
+                cornerRadius = CornerRadius(10f, 10f),
             )
             drawRoundRect(
                 color = colors.divider,
                 topLeft = Offset(chipLeft, chipTop),
                 size = Size(chipWidth, chipHeight),
-                cornerRadius = CornerRadius(6f, 6f),
+                cornerRadius = CornerRadius(10f, 10f),
                 style = Stroke(width = 1f),
             )
             drawText(valueLayout, topLeft = Offset(chipLeft + padding, chipTop + padding / 2f))

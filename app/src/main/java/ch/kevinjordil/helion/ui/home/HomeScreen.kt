@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -47,6 +46,7 @@ import ch.kevinjordil.helion.ui.ribbon.RibbonBar
 import ch.kevinjordil.helion.ui.ribbon.buildRibbon
 import ch.kevinjordil.helion.ui.ribbon.heroRibbonSize
 import ch.kevinjordil.helion.ui.settings.SyncOutcome
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import kotlinx.coroutines.launch
@@ -258,26 +258,36 @@ fun HomeScreen(
                     )
                 }
                 items(tiles.chunked(2)) { pair ->
-                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        pair.forEach { metric ->
-                            val now = System.currentTimeMillis() / 1000
-                            val tileLatest = latestByMetricId[metric.id]?.value
-                            MetricTile(
-                                metric = metric,
-                                latestValue = tileLatest,
-                                ribbonBars = buildRibbon(
-                                    dayReadingsByMetricId[metric.id].orEmpty(),
-                                    windowStart = now - Range.DAY.seconds,
-                                    windowEnd = now,
-                                ),
-                                personalBaseline = tileLatest?.let { value ->
-                                    placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
-                                },
-                                onClick = { onOpenMetric(metric.id) },
-                                modifier = Modifier.weight(1f),
-                            )
+                    // A pair of tiles now shares one raised surface instead of sitting on
+                    // bare ground -- see HelionSurface's own kdoc. The 4dp outer margin plus
+                    // the surface's own 12dp padding still add up to the historical 16dp
+                    // inset TileTextWidthTest measures each tile's own content width
+                    // against, so that budget is unchanged.
+                    HelionSurface(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                        padding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            pair.forEach { metric ->
+                                val now = System.currentTimeMillis() / 1000
+                                val tileLatest = latestByMetricId[metric.id]?.value
+                                MetricTile(
+                                    metric = metric,
+                                    latestValue = tileLatest,
+                                    ribbonBars = buildRibbon(
+                                        dayReadingsByMetricId[metric.id].orEmpty(),
+                                        windowStart = now - Range.DAY.seconds,
+                                        windowEnd = now,
+                                    ),
+                                    personalBaseline = tileLatest?.let { value ->
+                                        placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
+                                    },
+                                    onClick = { onOpenMetric(metric.id) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            if (pair.size == 1) Box(modifier = Modifier.weight(1f)) {}
                         }
-                        if (pair.size == 1) Box(modifier = Modifier.weight(1f)) {}
                     }
                 }
                 item { Spacer(Modifier.padding(bottom = 24.dp)) }
@@ -375,7 +385,7 @@ private fun EmptyState(
             .padding(32.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(stringResource(titleRes), style = MaterialTheme.typography.headlineSmall, color = colors.textPrimary)
+        Text(stringResource(titleRes), style = HelionType.headline, color = colors.textPrimary)
         Text(
             stringResource(bodyRes),
             style = HelionType.body,

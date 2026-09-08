@@ -25,8 +25,9 @@ import ch.kevinjordil.helion.ui.theme.HelionType
 
 /**
  * One tile of Accueil's grid: label, latest value and unit, and the metric's own strand
- * of the day ribbon. No card, no border, no shadow -- the boldness is spent once, on the
- * hero; every tile is quiet by design.
+ * of the day ribbon. Pairs of tiles now share one raised surface (see [HomeScreen]'s own
+ * tile row) instead of sitting on bare ground; the tile itself stays a quiet, unbordered
+ * column -- the boldness is spent once, on the hero.
  */
 @Composable
 fun MetricTile(
@@ -48,7 +49,7 @@ fun MetricTile(
         // fit at 320dp, but if a larger system font scale ever still doesn't have room,
         // this wraps to a second line rather than clipping -- see NoTextClippingTest.
         Text(
-            stringResource(metric.labelRes).uppercase(),
+            stringResource(metric.labelRes),
             style = HelionType.label,
             color = colors.textSecondary,
         )
