@@ -30,10 +30,12 @@ import org.junit.Test
  * format-4 subtable (standard for a Latin-covering font like this one) and a plain `hmtx`
  * lookup. It is not a general-purpose font parser and is not meant to become one.
  *
- * Budget: a 320dp screen, minus HomeScreen's tile row padding (16dp each side), split
- * across two equal-weight tiles with no spacing between them, minus MetricTile's own 4dp
- * horizontal padding on each side of its content:
- * `(320 - 2*16) / 2 - 2*4 = 136`dp of usable width per tile.
+ * Budget: a 320dp screen, minus HomeScreen's tile row outer margin (4dp each side) and the
+ * 8dp gap between the two tiles' own surfaces, split across two equal-weight tiles, minus
+ * each tile's own [ch.kevinjordil.helion.ui.theme.HelionSurface] padding (10dp each side --
+ * see HomeScreen's tile row, which now gives each metric its own surface instead of pairing
+ * two unrelated metrics onto one):
+ * `(320 - 2*4 - 8) / 2 - 2*10 = 132`dp of usable width per tile.
  *
  * Font scale: 1.3x, a "large text" setting plenty of people run permanently (per the
  * report that prompted this file), applied to HelionType.label's 12sp size. At density 1,
@@ -46,7 +48,7 @@ import org.junit.Test
  */
 class TileTextWidthTest {
 
-    private val tileContentWidthDp = 136f
+    private val tileContentWidthDp = 132f
     private val fontScale = 1.3f
 
     // Tile captions are sentence case, proportional [HelionType.label]/[HelionType.labelSmall]

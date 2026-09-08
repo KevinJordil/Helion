@@ -171,72 +171,90 @@ fun MetricScreen(
 
         val state = uiState
         val displayed = scrubbed ?: state?.latest
+
+        // One idea per card: the current value and its chart are the answer to "what is
+        // this metric doing right now", so they share the primary, larger card; the
+        // min/max/average trio (one whole -- three views of the same window) and the two
+        // quality captions (also one whole -- both describe the same current reading) each
+        // get their own, smaller card below rather than all four riding on one rectangle.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
             padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-        if (displayed != null) {
-            // Value and unit are two separate Text composables at two different sizes,
-            // not one string in one style -- exactly the pattern Accueil's hero already
-            // uses (see HomeScreen's own value+unit Row). Setting the unit in the much
-            // smaller `label` style rather than at the value's own 56sp is what keeps
-            // even the widest composed line ("224 bpm", "99999 pas") on one line at the
-            // narrowest supported width; see MetricHeaderWidthTest.
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    metric.formatValue(displayed.value),
-                    style = DETAIL_VALUE_STYLE,
-                    color = hue,
-                )
-                val unit = stringResource(metric.unitRes)
-                if (unit.isNotEmpty()) {
+            if (displayed != null) {
+                // Value and unit are two separate Text composables at two different sizes,
+                // not one string in one style -- exactly the pattern Accueil's hero already
+                // uses (see HomeScreen's own value+unit Row). Setting the unit in the much
+                // smaller `label` style rather than at the value's own 56sp is what keeps
+                // even the widest composed line ("224 bpm", "99999 pas") on one line at the
+                // narrowest supported width; see MetricHeaderWidthTest.
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        unit,
-                        style = HelionType.label,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        metric.formatValue(displayed.value),
+                        style = DETAIL_VALUE_STYLE,
+                        color = hue,
                     )
+                    val unit = stringResource(metric.unitRes)
+                    if (unit.isNotEmpty()) {
+                        Text(
+                            unit,
+                            style = HelionType.label,
+                            color = colors.textSecondary,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
                 }
+                Text(
+                    TIMESTAMP_FORMAT.format(Instant.ofEpochSecond(displayed.timestamp)),
+                    style = HelionType.bodySmall,
+                    color = colors.textSecondary,
+                )
             }
-            Text(
-                TIMESTAMP_FORMAT.format(Instant.ofEpochSecond(displayed.timestamp)),
-                style = HelionType.bodySmall,
-                color = colors.textSecondary,
-            )
+
+            RangeSelector(selected = range, onSelect = { range = it })
+
+            if (state != null && state.readings.isEmpty()) {
+                val emptyMessageRes = if (everHadData == false) R.string.no_data_never else R.string.no_data
+                Text(stringResource(emptyMessageRes), style = HelionType.body, color = colors.textSecondary)
+            } else if (state != null) {
+                ScrubbableChart(
+                    readings = state.chartReadings,
+                    metric = metric,
+                    lineColor = hue,
+                    baseline = monthBaseline,
+                    onScrub = { scrubbed = it },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
-        RangeSelector(selected = range, onSelect = { range = it })
-
-        if (state != null && state.readings.isEmpty()) {
-            val emptyMessageRes = if (everHadData == false) R.string.no_data_never else R.string.no_data
-            Text(stringResource(emptyMessageRes), style = HelionType.body, color = colors.textSecondary)
-        } else if (state != null) {
-            ScrubbableChart(
-                readings = state.chartReadings,
-                metric = metric,
-                lineColor = hue,
-                baseline = monthBaseline,
-                onScrub = { scrubbed = it },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
+        if (state != null) {
             state.stats?.let { stats ->
-                StatsRow(stats, metric)
+                HelionSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                ) {
+                    StatsRow(stats, metric)
+                }
             }
 
             state.latest?.let { latest ->
-                QualityRow(
-                    metricId = metric.id,
-                    personalBaseline = placeAgainstBaseline(latest.value, monthBaseline),
-                    reference = referenceIndicatorFor(metric.id, latest.value, container.stepsGoal.value),
-                )
+                HelionSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    QualityRow(
+                        metricId = metric.id,
+                        personalBaseline = placeAgainstBaseline(latest.value, monthBaseline),
+                        reference = referenceIndicatorFor(metric.id, latest.value, container.stepsGoal.value),
+                    )
+                    metric.noteRes?.let { noteRes ->
+                        Text(stringResource(noteRes), style = HelionType.bodySmall, color = colors.textTertiary)
+                    }
+                }
             }
-
-            metric.noteRes?.let { noteRes ->
-                Text(stringResource(noteRes), style = HelionType.bodySmall, color = colors.textTertiary)
-            }
-        }
         }
     }
 }

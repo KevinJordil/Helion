@@ -25,9 +25,10 @@ import ch.kevinjordil.helion.ui.theme.HelionType
 
 /**
  * One tile of Accueil's grid: label, latest value and unit, and the metric's own strand
- * of the day ribbon. Pairs of tiles now share one raised surface (see [HomeScreen]'s own
- * tile row) instead of sitting on bare ground; the tile itself stays a quiet, unbordered
- * column -- the boldness is spent once, on the hero.
+ * of the day ribbon. One metric is one idea, so each tile now sits on its own raised
+ * surface (see [HomeScreen]'s own tile row) rather than sharing a rectangle with its
+ * neighbour; the tile's own padding lives on that surface, not here, so this content
+ * column adds none of its own.
  */
 @Composable
 fun MetricTile(
@@ -42,8 +43,7 @@ fun MetricTile(
     val hue = colors.metricColor(metric)
     Column(
         modifier = modifier
-            .clickable(onClick = onClick, role = Role.Button)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
+            .clickable(onClick = onClick, role = Role.Button),
     ) {
         // No maxLines/ellipsis: labels are kept short in strings.xml specifically so they
         // fit at 320dp, but if a larger system font scale ever still doesn't have room,

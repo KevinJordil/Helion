@@ -258,19 +258,24 @@ fun HomeScreen(
                     )
                 }
                 items(tiles.chunked(2)) { pair ->
-                    // A pair of tiles now shares one raised surface instead of sitting on
-                    // bare ground -- see HelionSurface's own kdoc. The 4dp outer margin plus
-                    // the surface's own 12dp padding still add up to the historical 16dp
-                    // inset TileTextWidthTest measures each tile's own content width
-                    // against, so that budget is unchanged.
-                    HelionSurface(
+                    // Each metric is its own idea, so each tile now sits on its own raised
+                    // surface (see HelionSurface's own kdoc) rather than two unrelated
+                    // metrics sharing one rectangle; a row here only lays two of those
+                    // surfaces out side by side. The 4dp outer margin plus each surface's
+                    // own 12dp padding still add up to the historical 16dp inset
+                    // TileTextWidthTest measures each tile's own content width against, so
+                    // that budget is unchanged.
+                    Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-                        padding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            pair.forEach { metric ->
-                                val now = System.currentTimeMillis() / 1000
-                                val tileLatest = latestByMetricId[metric.id]?.value
+                        pair.forEach { metric ->
+                            val now = System.currentTimeMillis() / 1000
+                            val tileLatest = latestByMetricId[metric.id]?.value
+                            HelionSurface(
+                                modifier = Modifier.weight(1f),
+                                padding = androidx.compose.foundation.layout.PaddingValues(10.dp),
+                            ) {
                                 MetricTile(
                                     metric = metric,
                                     latestValue = tileLatest,
@@ -283,11 +288,11 @@ fun HomeScreen(
                                         placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
                                     },
                                     onClick = { onOpenMetric(metric.id) },
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.fillMaxWidth(),
                                 )
                             }
-                            if (pair.size == 1) Box(modifier = Modifier.weight(1f)) {}
                         }
+                        if (pair.size == 1) Box(modifier = Modifier.weight(1f)) {}
                     }
                 }
                 item { Spacer(Modifier.padding(bottom = 24.dp)) }
