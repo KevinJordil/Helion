@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.metric.Reading
+import ch.kevinjordil.helion.ui.metric.chartGridlines
 import ch.kevinjordil.helion.ui.metric.chartYRange
 import ch.kevinjordil.helion.ui.metric.scrubReading
 import ch.kevinjordil.helion.ui.ribbon.buildCategoryRibbon
@@ -372,6 +373,30 @@ private fun HeartRateCanvas(
         if (xSpan == null) return@Canvas
 
         fun xOf(t: Float): Float = ((t - minX) / xSpan * size.width).coerceIn(0f, size.width)
+
+        // A few round-valued bpm gridlines, the same frame-of-reference treatment
+        // MetricScreen's own chart gained -- see [chartGridlines]'s kdoc. No hour axis
+        // here: the hypnogram lanes directly beneath this panel already anchor the night
+        // in time (their own scrub cursor and chip, shared with this panel, show the exact
+        // clock time), so a second, separate time axis on this panel alone would repeat
+        // what the figure as a whole already states once, clearly, right below it.
+        run {
+            val gridRawMin = heartRateReadings.minOf { it.value }.toFloat()
+            val gridRawMax = heartRateReadings.maxOf { it.value }.toFloat()
+            val (gridMinY, gridMaxY) = chartYRange(gridRawMin, gridRawMax, zeroBased = false)
+            val gridYSpan = (gridMaxY - gridMinY).takeIf { it > 0f } ?: 1f
+            var lastLabelBottom = Float.NEGATIVE_INFINITY
+            chartGridlines(gridMinY, gridMaxY).forEach { value ->
+                val y = size.height - (value - gridMinY) / gridYSpan * size.height
+                drawLine(color = colors.divider, start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = 1f)
+                val label = textMeasurer.measure("${value.toInt()} $bpmUnit", HelionType.labelSmall.copy(color = colors.textTertiary))
+                val labelTop = (y - label.size.height - 2f).coerceAtLeast(0f)
+                if (labelTop >= lastLabelBottom) {
+                    drawText(label, topLeft = Offset(4f, labelTop))
+                    lastLabelBottom = labelTop + label.size.height
+                }
+            }
+        }
 
         // Each active overlay, normalised to its own range, drawn thin and dashed.
         overlays.forEach { overlay ->
