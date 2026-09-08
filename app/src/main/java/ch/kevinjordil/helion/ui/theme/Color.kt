@@ -45,6 +45,57 @@ data class HelionColors(
     val phaseLight: Color,
     val phaseRem: Color,
     val phaseDeep: Color,
+    val metricHues: List<Color>,
+)
+
+/**
+ * Eight hues, evenly spread around the wheel and ordered so no two neighbours resemble
+ * each other, validated against a colour-blindness simulator for both deuteranopia and
+ * tritanopia and checked for contrast against both [HelionColors.surface] values. One
+ * warning survives that validation: [teal] sits at only 2.85:1 against the light surface,
+ * below the usual text-contrast bar -- acceptable here only because a metric is never
+ * identified by hue alone, always alongside its (fully-contrasted) text label. Whichever
+ * hue a metric is given, see [ch.kevinjordil.helion.ui.metric.metricColor] for how that
+ * assignment is made and why it never depends on list order.
+ *
+ * These are mid-tones, used as-is in both [HelionDarkColors] and [HelionLightColors]: a
+ * theme that needs a lighter or darker step for a fill or a wash (e.g. the soft area under
+ * a detail chart's curve) derives it from one of these eight via alpha or a lightness
+ * shift, rather than inventing a ninth colour.
+ *
+ * [orange] sits close to [HelionColors.accentAmber], the app's one existing semantic
+ * colour ("this needs your attention"). Rather than let a metric's identity get read as an
+ * attention state, [orange] is deliberately assigned to skin temperature -- see
+ * [ch.kevinjordil.helion.ui.metric.metricColor]'s kdoc -- the one metric with no
+ * reference-axis comparison and the steadiest personal baseline, so it is the metric least
+ * likely to ever actually appear amber on its own screen.
+ */
+object MetricPalette {
+    val red = Color(0xFFC74A51)
+    val teal = Color(0xFF00A7B2)
+    val olive = Color(0xFF8D8D00)
+    val violet = Color(0xFF735CC7)
+    val orange = Color(0xFFD37900)
+    val blue = Color(0xFF0080D1)
+    val green = Color(0xFF008B45)
+    val magenta = Color(0xFFC562B2)
+}
+
+/**
+ * [MetricPalette]'s eight hues in the fixed order [ch.kevinjordil.helion.ui.metric.metricColor]
+ * indexes into -- heart rate, HRV, stress, SpO2, PAI, steps, skin temperature, respiratory
+ * rate. Kept as one list here, identical in both themes, so there is exactly one place to
+ * change any of these eight values.
+ */
+private val HELION_METRIC_HUES: List<Color> = listOf(
+    MetricPalette.red,
+    MetricPalette.teal,
+    MetricPalette.olive,
+    MetricPalette.violet,
+    MetricPalette.green,
+    MetricPalette.blue,
+    MetricPalette.orange,
+    MetricPalette.magenta,
 )
 
 /**
@@ -67,6 +118,7 @@ val HelionDarkColors = HelionColors(
     phaseLight = Color(0xFF6A5B99),
     phaseRem = Color(0xFF2FBFAE),
     phaseDeep = Color(0xFFB49CFF),
+    metricHues = HELION_METRIC_HUES,
 )
 
 /**
@@ -89,4 +141,5 @@ val HelionLightColors = HelionColors(
     phaseLight = Color(0xFFAF9BE0),
     phaseRem = Color(0xFF1C9C89),
     phaseDeep = Color(0xFF5A2FC9),
+    metricHues = HELION_METRIC_HUES,
 )
