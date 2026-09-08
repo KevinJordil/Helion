@@ -299,6 +299,11 @@
     <string name="sync_result_success_stale">Gadgetbridge n\'a pas pu être actualisé : %1$d minutes et %2$d points lus depuis son dernier export.</string>
     <string name="sync_result_failed">Échec de la synchronisation : %1$s</string>
 
+    <string name="source_last_background_sync">Dernière synchronisation en arrière-plan : %1$s</string>
+    <string name="source_last_background_sync_never">Aucune synchronisation en arrière-plan n\'a encore eu lieu.</string>
+    <string name="source_background_sync_battery_hint">Si cette date ne change jamais alors que l\'application est fermée, le téléphone la met sans doute en veille. Depuis la page ci-dessous : Batterie, puis \'Non restreinte\'.</string>
+    <string name="source_open_battery_settings">Ouvrir les paramètres</string>
+
     <string name="metric_description_heart_rate">Nombre de battements par minute. Le bracelet en enregistre une mesure par minute, pas en continu : les pics très brefs peuvent lui échapper.</string>
     <string name="metric_description_hrv">Variation des intervalles entre deux battements. Une variabilité plus élevée traduit en général une meilleure récupération. Très personnelle : seule son évolution chez toi a du sens, pas sa comparaison avec autrui. Le mode de calcul du bracelet n\'est pas documenté.</string>
     <string name="metric_description_stress">Indice propre à Amazfit, dérivé de la variabilité cardiaque, sur une échelle de 0 à 100. Utile pour suivre une tendance, mais sans équivalent chez les autres fabricants.</string>

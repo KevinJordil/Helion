@@ -327,6 +327,19 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
 }
 
 /**
+ * Adds `sync_state.lastBackgroundSyncAttempt` -- see [SyncState]'s own kdoc for why a
+ * background-only timestamp, distinct from `lastSyncAttempt`, is what actually answers "is
+ * periodic background sync running at all". A plain ADD COLUMN, nullable: the existing row
+ * (if any) simply has no recorded background pass yet, which is exactly correct -- this
+ * migration cannot retroactively know whether one ever ran.
+ */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `sync_state` ADD COLUMN `lastBackgroundSyncAttempt` INTEGER")
+    }
+}
+
+/**
  * Every migration this app ships, in order, as one list rather than an argument list spelled
  * out at the call site. A migration was once defined and simply left out of that argument
  * list; Room then refused to open an upgraded database and the app died on launch with
@@ -336,5 +349,5 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
 val HELION_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
-    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+    MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
 )

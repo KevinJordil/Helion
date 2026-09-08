@@ -28,7 +28,7 @@ class SyncWorker(
             return Result.retry()
         } ?: return Result.success()
 
-        return when (container.ingestor.ingest(path)) {
+        return when (container.ingestor.ingest(path, background = true)) {
             is IngestResult.Failed -> Result.retry()
             else -> Result.success()
         }

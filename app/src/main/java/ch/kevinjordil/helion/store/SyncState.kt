@@ -30,6 +30,17 @@ import androidx.room.Query
  * force, or only whatever a normal ingest pass's day-deep lookback has touched since the
  * thresholds last changed" -- which an ordinary pass's narrow window can never answer. Null
  * until the owner runs a full re-analysis for the first time.
+ *
+ * [lastBackgroundSyncAttempt] answers a question [lastSyncAttempt] alone cannot: not "did a
+ * pass run recently" (opening the app runs one every time, via
+ * [ch.kevinjordil.helion.ui.home.OpenSyncGate]) but "did the periodic
+ * [ch.kevinjordil.helion.source.SyncWorker] itself run recently, with the app not even
+ * open". Only [ch.kevinjordil.helion.source.Ingestor]'s `background = true` passes touch
+ * this column; every other caller (a manual "Sync now" tap, the opening sync, pull-to-refresh)
+ * leaves it exactly as it was. Without this split, "background sync seems not to run unless I
+ * open the app" was unanswerable from inside the app itself: every foreground open updated
+ * the one timestamp there was, making it look freshly synced regardless of whether the
+ * periodic worker had run at all.
  */
 @Entity(tableName = "sync_state")
 data class SyncState(
@@ -39,6 +50,7 @@ data class SyncState(
     val triggerFailureStreak: Int = 0,
     val lastTriggerAttempt: Long = 0,
     val lastFullDetectionRun: Long? = null,
+    val lastBackgroundSyncAttempt: Long? = null,
 )
 
 @Dao

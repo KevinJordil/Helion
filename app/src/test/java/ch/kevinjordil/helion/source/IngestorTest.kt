@@ -338,4 +338,64 @@ class IngestorTest {
         assertEquals(listOf(100L, 160L), storedMinutes())
         assertEquals(listOf(90L), storedPoints("hrv"))
     }
+
+    @Test
+    fun `a plain ingest never records a background sync attempt`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+
+        ingestor(reader).ingest("/tmp/export.db")
+
+        assertNull(db.syncState().get()!!.lastBackgroundSyncAttempt)
+    }
+
+    @Test
+    fun `a background ingest records its attempt time, distinct from lastSyncAttempt`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+
+        ingestor(reader).ingest("/tmp/export.db", background = true)
+
+        assertEquals(1_000L, db.syncState().get()!!.lastBackgroundSyncAttempt)
+        assertEquals(1_000L, db.syncState().get()!!.lastSyncAttempt)
+    }
+
+    @Test
+    fun `a failed background ingest still records the attempt`() = runTest {
+        val reader = object : ExportReader() {
+            override fun read(databasePath: String, since: Watermarks): RawSamples =
+                throw IllegalStateException("truncated export")
+        }
+
+        ingestor(reader).ingest("/tmp/export.db", background = true)
+
+        assertEquals(1_000L, db.syncState().get()!!.lastBackgroundSyncAttempt)
+    }
+
+    @Test
+    fun `a later foreground pass does not erase the last recorded background attempt`() = runTest {
+        // This is exactly the bug that would have defeated background-sync visibility on
+        // day one: opening the app runs a foreground pass almost every time (see
+        // OpenSyncGate), and a naive rewrite of the sync_state row would wipe out the one
+        // background timestamp the owner actually needs to see.
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+        val ing = ingestor(reader)
+        ing.ingest("/tmp/export.db", background = true)
+
+        ing.ingest("/tmp/export.db", force = true)
+
+        assertEquals(1_000L, db.syncState().get()!!.lastBackgroundSyncAttempt)
+    }
+
+    @Test
+    fun `a foreground pass does not erase a previously recorded full-reanalysis timestamp`() = runTest {
+        // Same read-modify-write hazard as the background timestamp above, pre-existing
+        // for this field: db.syncState().put() is a plain REPLACE of the whole row, so a
+        // pass that builds a fresh SyncState with lastFullDetectionRun at its default
+        // (null) silently erases whatever ArchiveReanalyzer had recorded there.
+        db.syncState().put(ch.kevinjordil.helion.store.SyncState(lastSyncAttempt = 0, lastError = null, lastFullDetectionRun = 500L))
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+
+        ingestor(reader).ingest("/tmp/export.db")
+
+        assertEquals(500L, db.syncState().get()!!.lastFullDetectionRun)
+    }
 }

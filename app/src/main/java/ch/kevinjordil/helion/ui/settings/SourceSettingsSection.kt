@@ -1,11 +1,14 @@
 package ch.kevinjordil.helion.ui.settings
 
 import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,9 +20,15 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val LAST_BACKGROUND_SYNC_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
 
 /**
  * Where the Gadgetbridge export file is chosen, and where a sync against it can be
@@ -27,6 +36,20 @@ import kotlinx.coroutines.withContext
  * screen was split out of one long scroll: same file picker, same persistable-permission
  * handling (see the picker callback's own comment below), same manual sync action and
  * result message.
+ *
+ * Also shows when the *background* worker itself last ran (see
+ * [ch.kevinjordil.helion.store.SyncState.lastBackgroundSyncAttempt]'s kdoc for why that is
+ * a different fact from "a sync ran recently" -- opening the app runs one every time) and,
+ * since the one thing this app cannot do anything about from inside itself is a phone that
+ * refuses to schedule it, a direct way to reach the per-app battery setting that -- on this
+ * owner's Samsung phone in particular -- is what silently starves it: "Mise en veille" or
+ * "Mise en veille profonde" put an infrequently-opened app's background work to sleep by
+ * default. [Settings.ACTION_APPLICATION_DETAILS_SETTINGS] is the one battery-related screen
+ * every Android build exposes through a stable, documented action; the OEM-specific
+ * "sleeping apps" list Samsung actually uses has no public entry point at all, so pointing at
+ * the app's own settings page -- one tap further to the battery section from there -- is the
+ * closest this code can get the owner without guessing at a vendor-specific Intent that the
+ * next One UI release could rename or remove outright.
  */
 @Composable
 fun SourceSettingsSection(container: AppContainer) {
@@ -38,6 +61,11 @@ fun SourceSettingsSection(container: AppContainer) {
     var syncing by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<Pair<Int, List<Any>>?>(null) }
     var pickRefused by remember { mutableStateOf(false) }
+    var lastBackgroundSync by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(Unit) {
+        lastBackgroundSync = container.database.syncState().get()?.lastBackgroundSyncAttempt
+    }
 
     val pickExportFile = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -114,5 +142,25 @@ fun SourceSettingsSection(container: AppContainer) {
 
     resultMessage?.let { (resId, args) ->
         Text(stringResource(resId, *args.toTypedArray()), style = HelionType.bodySmall, color = colors.textSecondary)
+    }
+
+    Text(
+        lastBackgroundSync?.let {
+            stringResource(R.string.source_last_background_sync, LAST_BACKGROUND_SYNC_FORMAT.format(Instant.ofEpochSecond(it)))
+        } ?: stringResource(R.string.source_last_background_sync_never),
+        style = HelionType.bodySmall,
+        color = colors.textTertiary,
+    )
+    Text(stringResource(R.string.source_background_sync_battery_hint), style = HelionType.bodySmall, color = colors.textSecondary)
+    Button(
+        onClick = {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", context.packageName, null)
+                },
+            )
+        },
+    ) {
+        Text(stringResource(R.string.source_open_battery_settings))
     }
 }

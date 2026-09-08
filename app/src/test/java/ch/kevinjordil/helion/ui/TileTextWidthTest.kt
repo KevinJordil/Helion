@@ -901,6 +901,58 @@ class ArchiveReanalysisWidthTest {
 }
 
 /**
+ * The background-sync status and battery guidance added to Réglages' source section
+ * (`SourceSettingsSection.kt`'s `SourceSettingsSection`): the last-background-sync line at
+ * its fixed-width `dd/MM/yyyy HH:mm` stamp and its never-yet form, the battery hint
+ * paragraph, and the button label that opens the app's own settings page. Same 280dp content
+ * width and `HelionType.bodySmall` prose style as [ArchiveReanalysisWidthTest].
+ */
+class SourceSyncStatusWidthTest {
+
+    private val rowWidthDp = 280f
+    private val fontScale = 1.3f
+
+    private val proseFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_regular.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun proseWidthDp(text: String, fontSizeSp: Float = 13f): Float {
+        val emPerChar = text.map { proseFont.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
+    }
+
+    @Test
+    fun `the last-background-sync line, in both its dated and never-yet form, fits within two lines`() {
+        val lines = listOf(
+            "Dernière synchronisation en arrière-plan : 31/12/2026 23:59",
+            "Aucune synchronisation en arrière-plan n'a encore eu lieu.",
+        )
+        lines.forEach { line ->
+            val width = proseWidthDp(line)
+            assertTrue("\"$line\" measured ${width}dp, two-line budget is ${rowWidthDp * 2}dp", width <= rowWidthDp * 2)
+        }
+    }
+
+    @Test
+    fun `the battery guidance paragraph fits within five lines`() {
+        val message =
+            "Si cette date ne change jamais alors que l'application est fermée, le téléphone la met sans doute en veille. " +
+                "Depuis la page ci-dessous : Batterie, puis 'Non restreinte'."
+        val width = proseWidthDp(message)
+        assertTrue("\"$message\" measured ${width}dp, five-line budget is ${rowWidthDp * 5}dp", width <= rowWidthDp * 5)
+    }
+
+    @Test
+    fun `the open-app-settings button label fits a full-width row`() {
+        val label = "Ouvrir les paramètres"
+        val width = proseWidthDp(label, fontSizeSp = 14f)
+        assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
+    }
+}
+
+/**
  * The calorie section added to the activity detail screen (`ActivityDetailScreen.kt`): its
  * uppercase section title (`HelionType.label`, same style [ActivityLabelWidthTest] and
  * [StravaLabelWidthTest] already check other short titles against), its two plain-language

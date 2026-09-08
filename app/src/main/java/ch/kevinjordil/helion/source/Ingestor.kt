@@ -113,12 +113,24 @@ class Ingestor(
      */
     var healthConnectExportTrigger: (() -> Unit)? = null
 
-    suspend fun ingest(databasePath: String?, force: Boolean = false, skipSyncRequest: Boolean = false): IngestResult {
+    /**
+     * [background] is true only for [ch.kevinjordil.helion.source.SyncWorker]'s own periodic
+     * calls -- see [ch.kevinjordil.helion.store.SyncState.lastBackgroundSyncAttempt]'s kdoc
+     * for why that one flag is what makes "is background sync actually running" answerable
+     * at all, distinct from every foreground caller (a manual tap, the opening sync,
+     * pull-to-refresh) that leaves it untouched.
+     */
+    suspend fun ingest(
+        databasePath: String?,
+        force: Boolean = false,
+        skipSyncRequest: Boolean = false,
+        background: Boolean = false,
+    ): IngestResult {
         if (databasePath == null) return IngestResult.NoSource
-        return passLock.withLock { runPass(databasePath, force, skipSyncRequest) }
+        return passLock.withLock { runPass(databasePath, force, skipSyncRequest, background) }
     }
 
-    private suspend fun runPass(databasePath: String, force: Boolean, skipSyncRequest: Boolean): IngestResult {
+    private suspend fun runPass(databasePath: String, force: Boolean, skipSyncRequest: Boolean, background: Boolean): IngestResult {
         val state = db.syncState().get()
         val streak = state?.triggerFailureStreak ?: 0
         val lastAttempt = state?.lastTriggerAttempt ?: 0
@@ -172,7 +184,30 @@ class Ingestor(
 
         // A timeout or a reported failure no longer short-circuits the read: whether or not
         // triggering worked, whatever export file is already on disk is read and ingested.
-        return readAndStore(databasePath, triggered, newStreak, newLastAttempt)
+        return readAndStore(databasePath, triggered, newStreak, newLastAttempt, background)
+    }
+
+    /**
+     * Builds the [SyncState] row a pass is about to write, carrying forward every field this
+     * particular pass has no opinion on rather than resetting it to its data-class default.
+     * [db.syncState().put] is a plain `REPLACE`, so any field left at its default here would
+     * silently erase whatever an earlier, unrelated pass had recorded -- exactly the bug
+     * [lastFullDetectionRun] had before this existed (a normal ingest pass wiped the owner's
+     * last full-reanalysis timestamp on every single run) and exactly the bug
+     * [lastBackgroundSyncAttempt] would inherit on day one if this were not fixed alongside
+     * it: the very first foreground pass after a background one would erase the timestamp
+     * this whole feature exists to keep.
+     */
+    private suspend fun nextSyncState(lastSyncAttempt: Long, lastError: String?, streak: Int, lastAttempt: Long, background: Boolean): SyncState {
+        val existing = db.syncState().get()
+        return SyncState(
+            lastSyncAttempt = lastSyncAttempt,
+            lastError = lastError,
+            triggerFailureStreak = streak,
+            lastTriggerAttempt = lastAttempt,
+            lastFullDetectionRun = existing?.lastFullDetectionRun,
+            lastBackgroundSyncAttempt = if (background) lastSyncAttempt else existing?.lastBackgroundSyncAttempt,
+        )
     }
 
     /**
@@ -192,20 +227,14 @@ class Ingestor(
         triggered: Boolean,
         streak: Int,
         lastAttempt: Long,
+        background: Boolean,
     ): IngestResult = try {
         val samples = reader.read(databasePath, watermarks())
         db.minuteSamples().upsertAll(samples.minutes)
         db.pointSamples().upsertAll(samples.points)
         db.sleepStageSegments().upsertAll(samples.stageSegments)
 
-        db.syncState().put(
-            SyncState(
-                lastSyncAttempt = now(),
-                lastError = null,
-                triggerFailureStreak = streak,
-                lastTriggerAttempt = lastAttempt,
-            ),
-        )
+        db.syncState().put(nextSyncState(now(), lastError = null, streak = streak, lastAttempt = lastAttempt, background = background))
         runDetectionOver(samples.minutes)
         runNotificationsOver()
         if (samples.minutes.isNotEmpty() || samples.points.isNotEmpty() || samples.stageSegments.isNotEmpty()) {
@@ -226,7 +255,7 @@ class Ingestor(
         // being reinterpreted as Failed and issuing a doomed write on a dead job.
         throw e
     } catch (e: Exception) {
-        fail(e.message ?: e::class.simpleName.orEmpty(), streak, lastAttempt)
+        fail(e.message ?: e::class.simpleName.orEmpty(), streak, lastAttempt, background)
     }
 
     /**
@@ -276,15 +305,8 @@ class Ingestor(
         if (posted) db.activities().markNotified(pending.map { it.id })
     }
 
-    private suspend fun fail(reason: String, streak: Int, lastAttempt: Long): IngestResult.Failed {
-        db.syncState().put(
-            SyncState(
-                lastSyncAttempt = now(),
-                lastError = reason,
-                triggerFailureStreak = streak,
-                lastTriggerAttempt = lastAttempt,
-            ),
-        )
+    private suspend fun fail(reason: String, streak: Int, lastAttempt: Long, background: Boolean): IngestResult.Failed {
+        db.syncState().put(nextSyncState(now(), lastError = reason, streak = streak, lastAttempt = lastAttempt, background = background))
         return IngestResult.Failed(reason)
     }
 
