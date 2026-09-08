@@ -64,6 +64,12 @@ private val RANGE_OPTIONS = listOf(
 /** The detail screen's own value: smaller than Accueil's hero, still the dominant element. */
 private val DETAIL_VALUE_STYLE = HelionType.hero.copy(fontSize = 56.sp, lineHeight = 60.sp)
 
+/** Height of the curve itself, unchanged from before the chart gained a frame of reference. */
+private val CHART_PLOT_HEIGHT = 180.dp
+
+/** A reserved strip below the curve for time-axis tick marks and labels -- see [ScrubbableChart]. */
+private val CHART_AXIS_HEIGHT = 18.dp
+
 /**
  * The metric detail destination, parameterised by [metric] -- a real navigation
  * destination, not local state, so the system back gesture works without any
@@ -184,6 +190,7 @@ fun MetricScreen(
                 readings = state.chartReadings,
                 metric = metric,
                 lineColor = colors.accentViolet,
+                baseline = monthBaseline,
                 onScrub = { scrubbed = it },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -333,6 +340,7 @@ private fun ScrubbableChart(
     readings: List<Reading>,
     metric: Metric,
     lineColor: Color,
+    baseline: Baseline?,
     onScrub: (Reading?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -345,7 +353,7 @@ private fun ScrubbableChart(
 
     Canvas(
         modifier = modifier
-            .height(180.dp)
+            .height(CHART_PLOT_HEIGHT + CHART_AXIS_HEIGHT)
             .onSizeChanged { size: IntSize -> canvasWidthPx = size.width.toFloat() }
             .pointerInput(readings) {
                 detectDragGestures(
@@ -373,6 +381,12 @@ private fun ScrubbableChart(
     ) {
         if (readings.isEmpty()) return@Canvas
 
+        // The bottom strip is reserved for time-axis labels: the curve itself is plotted
+        // only in [plotHeight], never the axis strip below it, so a label can never sit on
+        // top of the line it is annotating.
+        val axisHeightPx = CHART_AXIS_HEIGHT.toPx()
+        val plotHeight = (size.height - axisHeightPx).coerceAtLeast(0f)
+
         val minX = readings.first().timestamp.toFloat()
         val maxX = readings.last().timestamp.toFloat()
         val xSpan = (maxX - minX).takeIf { it > 0f }
@@ -387,7 +401,68 @@ private fun ScrubbableChart(
             if (xSpan == null) size.width / 2f else (t - minX) / xSpan * size.width
 
         fun yOf(v: Float): Float =
-            if (ySpan == null) size.height / 2f else size.height - (v - minY) / ySpan * size.height
+            if (ySpan == null) plotHeight / 2f else plotHeight - (v - minY) / ySpan * plotHeight
+
+        // The personal-baseline band: the range the owner's own recent history usually
+        // falls in (see PersonalBaseline.kt), drawn as a quiet wash behind everything else
+        // so "is this normal for me" is visible at a glance instead of only readable by
+        // scrubbing to the caption below the chart. Absent (baseline == null) whenever
+        // there is not yet enough history -- see [computeBaseline]'s own kdoc -- in which
+        // case nothing is drawn here at all, never a guessed band.
+        if (baseline != null) {
+            val bandTop = yOf((baseline.median + baseline.spread).toFloat())
+            val bandBottom = yOf((baseline.median - baseline.spread).toFloat())
+            drawRect(
+                color = lineColor.copy(alpha = 0.08f),
+                topLeft = Offset(0f, bandTop.coerceIn(0f, plotHeight)),
+                size = Size(size.width, (bandBottom - bandTop).coerceIn(0f, plotHeight)),
+            )
+        }
+
+        // A few round-valued horizontal gridlines, quiet structure rather than decoration:
+        // see [chartGridlines]'s own kdoc for why these land on round numbers instead of
+        // the data's exact extremes. Labels are skipped, not overlapped, whenever two land
+        // too close together vertically to both read cleanly.
+        var lastGridlineLabelBottom = Float.NEGATIVE_INFINITY
+        chartGridlines(minY, maxY).forEach { value ->
+            val y = yOf(value)
+            drawLine(
+                color = colors.divider,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1f,
+            )
+            val label = textMeasurer.measure(metric.formatValue(value.toDouble()), HelionType.labelSmall.copy(color = colors.textTertiary))
+            val labelTop = (y - label.size.height - 2f).coerceAtLeast(0f)
+            if (labelTop >= lastGridlineLabelBottom) {
+                drawText(label, topLeft = Offset(4f, labelTop))
+                lastGridlineLabelBottom = labelTop + label.size.height
+            }
+        }
+
+        // Time markers along the bottom strip, at boundaries appropriate to the span shown
+        // (see [chartTimeMarkers]'s own kdoc) rather than one per pixel of noise. Labels
+        // that would collide (a very narrow canvas, or an unusually dense mark set) are
+        // skipped rather than drawn overlapping.
+        if (xSpan != null) {
+            val spanSeconds = (maxX - minX).toLong()
+            var lastLabelRight = Float.NEGATIVE_INFINITY
+            chartTimeMarkers(minX.toLong(), maxX.toLong()).forEach { timestamp ->
+                val x = xOf(timestamp.toFloat())
+                drawLine(
+                    color = colors.divider,
+                    start = Offset(x, plotHeight),
+                    end = Offset(x, plotHeight + 4f),
+                    strokeWidth = 1f,
+                )
+                val label = textMeasurer.measure(formatAxisTimestamp(timestamp, spanSeconds), HelionType.labelSmall.copy(color = colors.textTertiary))
+                val labelLeft = (x - label.size.width / 2f).coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f))
+                if (labelLeft >= lastLabelRight) {
+                    drawText(label, topLeft = Offset(labelLeft, plotHeight + axisHeightPx - label.size.height))
+                    lastLabelRight = labelLeft + label.size.width
+                }
+            }
+        }
 
         if (readings.size == 1) {
             val r = readings.single()
@@ -411,7 +486,7 @@ private fun ScrubbableChart(
             drawLine(
                 color = colors.textSecondary,
                 start = Offset(pointX, 0f),
-                end = Offset(pointX, size.height),
+                end = Offset(pointX, plotHeight),
                 strokeWidth = 2f,
             )
             drawCircle(color = lineColor, radius = 7f, center = Offset(pointX, pointY))

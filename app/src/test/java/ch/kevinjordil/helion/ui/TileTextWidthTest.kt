@@ -1714,3 +1714,107 @@ class SettingsMenuWidthTest {
         }
     }
 }
+
+/**
+ * The axis labels the metric detail chart and Accueil's hero ribbon now draw straight onto
+ * a `Canvas` (see `ScrubbableChart` in `MetricScreen.kt` and `DayRibbon.kt`) -- gridline
+ * values (`Metric.formatValue`) and time-axis figures (`formatAxisTimestamp`, in
+ * `ChartScrub.kt`). Unlike every Compose `Text` this file otherwise measures, a canvas
+ * label has no layout system clipping or wrapping it for free: [drawText] paints exactly
+ * where it is told to, so an unexpectedly wide string is not just ugly, it is a genuine
+ * collision or an overflow past the edge. `ScrubbableChart` and `DayRibbon` both also clamp
+ * every label's left edge into the canvas and skip a label outright rather than draw it
+ * overlapping the previous one -- this test's job is to confirm the *typical* case has
+ * headroom to spare, not to fall back on that skip constantly.
+ *
+ * Budget for the metric detail chart: the same 280dp content width [MetricHeaderWidthTest]
+ * uses. Time markers land at most a few to a handful apart (see [chartTimeMarkers]'s own
+ * kdoc), so the tightest case Helion's own Range selector actually produces -- Semaine's
+ * full seven days, one mark per day -- is what is checked here, not the sparser five-mark
+ * Jour/Mois cases. A span wider than a week that still fell into the one-mark-per-day
+ * branch (up to ten days, an internal boundary [chartTimeMarkers] itself is tested against
+ * but which nothing in the UI ever actually requests) would justifiably start relying on
+ * [ScrubbableChart]'s own collision-skip more often; that is accepted, not a bug.
+ */
+class ChartAxisLabelWidthTest {
+
+    private val chartContentWidthDp = 280f
+    private val fontScale = 1.3f
+    private val fontSizeSp = 11f
+    private val letterSpacingSp = 1f
+
+    private val font: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
+    private fun widthDp(text: String): Float {
+        val emPerChar = text.map { font.advanceWidthEm(it) }
+        val glyphWidthSp = emPerChar.sum() * fontSizeSp
+        val letterSpacingTotalSp = letterSpacingSp * text.length
+        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    }
+
+    /** Every hour figure [formatAxisTimestamp] can produce for a day-long span: "0h".."23h". */
+    private fun hourLabels() = (0..23).map { "${it}h" }
+
+    /**
+     * A generous sample of the day/month figures a week actually shows: at most one month
+     * boundary crossing per seven-day window, so a two-digit day pairs with at most one
+     * two-digit month in that window, never two two-digit fields on both marks either side
+     * of the boundary at once except right at a year turnover ("31/12" next to "1/1") --
+     * see the dedicated test below for that one case.
+     */
+    private fun dateLabels() = listOf("1/1", "9/9", "15/6", "30/6", "28/2")
+
+    @Test
+    fun `every hour axis label fits comfortably within a day span's per-mark budget`() {
+        // Roughly five marks across the chart width -- see this class's own kdoc.
+        val perMarkBudget = chartContentWidthDp / 5f
+        hourLabels().forEach { label ->
+            val width = widthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, per-mark budget is ${perMarkBudget}dp", width <= perMarkBudget)
+        }
+    }
+
+    @Test
+    fun `every date axis label fits the tightest realistic per-mark budget, a mark every day across Semaine's seven days`() {
+        val perMarkBudget = chartContentWidthDp / 7f
+        dateLabels().forEach { label ->
+            val width = widthDp(label)
+            assertTrue("\"$label\" measured ${width}dp, per-mark budget is ${perMarkBudget}dp", width <= perMarkBudget)
+        }
+    }
+
+    /**
+     * "31/12" beside "1/1" -- the one week of the year with a two-digit day *and* a
+     * two-digit month on one mark right next to the year's shortest label on the other --
+     * measures over the per-mark budget above. This is exactly what [ScrubbableChart]'s and
+     * [ch.kevinjordil.helion.ui.ribbon.DayRibbon]'s own collision-skip exists for: rather
+     * than let two labels overlap, one is silently dropped for that one week of the year.
+     * Documented here as an accepted, deliberately-handled case, not a gap.
+     */
+    @Test
+    fun `the year-turnover date label does not fit the per-mark budget, which is why the collision-skip exists`() {
+        val perMarkBudget = chartContentWidthDp / 7f
+        val width = widthDp("31/12")
+        assertTrue(
+            "\"31/12\" measured ${width}dp, expected it to exceed the ${perMarkBudget}dp per-mark budget",
+            width > perMarkBudget,
+        )
+    }
+
+    @Test
+    fun `every metric's gridline value label fits the chart's own width with room to spare`() {
+        MetricCatalog.all.forEach { metric ->
+            val widest = widestMetricValues().getValue(metric.id)
+            val label = metric.formatValue(widest)
+            val width = widthDp(label)
+            assertTrue(
+                "\"$label\" for ${metric.id} measured ${width}dp, chart width is ${chartContentWidthDp}dp",
+                width <= chartContentWidthDp,
+            )
+        }
+    }
+}
