@@ -14,20 +14,40 @@ import androidx.compose.ui.graphics.Color
  * No third accent. Everything else in the UI is drawn from these neutrals.
  *
  * [phaseAwake], [phaseLight], [phaseRem] and [phaseDeep] are a scoped exception, used only
- * by Sommeil's phase ribbon and legend: distinguishing four sleep phases legibly needs more
- * than one hue, which [accentViolet]/[accentAmber] alone cannot give without either
+ * by Sommeil's hypnogram lanes and history bars: distinguishing sleep phases legibly needs
+ * more than one hue, which [accentViolet]/[accentAmber] alone cannot give without either
  * borrowing "live data" violet for something it does not mean or pressing "needs your
  * attention" amber into decorative service (see [accentAmber]'s kdoc -- it must not become
- * that). [phaseLight] and [phaseDeep] are two points on one violet ramp -- lighter/quieter
- * for light sleep, more saturated/prominent for deep -- so the depth-of-sleep phases still
- * read as one family related to (but visibly distinct from) [accentViolet]. [phaseRem] is a
- * separate, harmonious cool hue (teal) rather than a third violet step, since REM is not
- * "deeper" or "lighter" than the others, just different. [phaseAwake] is deliberately the
- * quietest of the four, close to [divider], because being awake briefly is the least
- * informative state on the chart. All four are chosen with distinct lightness, not just
- * distinct hue, so the phase legend still reads correctly for colour-vision deficiency or
- * in a grayscale screenshot -- the accompanying label is still what actually carries the
- * name, per [ch.kevinjordil.helion.ui.sleep.SleepScreen]'s legend.
+ * that).
+ *
+ * [phaseAwake], [phaseLight] and [phaseDeep] are three points on one blue ramp, because sleep
+ * *depth* is ordinal, not categorical -- awake, light and deep sit on a single axis, so one
+ * hue stepped by lightness reads as "how deep" without a legend, the way a heatmap reads
+ * without one. Each theme steps that ramp towards its own ground: on [HelionDarkColors]'
+ * dark ground, [phaseAwake] sits close to [divider] (dark, low-chroma, the quietest of the
+ * three -- being briefly awake is the least informative state on the chart) and [phaseDeep]
+ * is the lightest, most saturated step, the one that visibly pops off a dark background. On
+ * [HelionLightColors]' light ground the same ordinal logic runs the other way -- [phaseAwake]
+ * is the lightest, near-white step and [phaseDeep] the darkest, most saturated one -- because
+ * "recessive" and "prominent" are about contrast against *that* theme's own ground, not a
+ * fixed hex value; see [HelionLightColors]' own kdoc on why every pairing is tuned per theme
+ * rather than a tint of the dark one. [phaseRem] is not on this ramp at all -- REM is not
+ * "deeper" or "lighter" than the other three, just different -- so it keeps its own separate,
+ * harmonious cool hue (teal), far enough from the blue ramp in hue to stay distinct at a
+ * glance and from [accentAmber] and [MetricPalette.magenta] (the metric hue most likely to
+ * share a screen with it, as Sommeil's respiratory-rate overlay) to avoid either kind of
+ * mix-up.
+ *
+ * All four are chosen with distinct lightness, not just distinct hue, which matters twice
+ * over here: it is what makes the ramp itself read as "depth" at all, and it is also what
+ * keeps the phase legend legible for colour-vision deficiency or in a grayscale screenshot,
+ * where hue disappears but lightness does not -- tritanopia in particular flattens exactly
+ * the blue/yellow distinction this ramp leans on, so the lightness step between each pair is
+ * deliberately large enough to still separate them once hue is unreliable. The lane's own
+ * vertical position (see [ch.kevinjordil.helion.ui.sleep.NightChartSection]'s hypnogram) is
+ * the secondary channel that means this subtle a palette does not have to carry the reading
+ * alone; the accompanying label is what actually carries the name either way, per
+ * [ch.kevinjordil.helion.ui.sleep.SleepScreen]'s legend.
  */
 data class HelionColors(
     val ground: Color,
@@ -114,10 +134,10 @@ val HelionDarkColors = HelionColors(
     onAccentViolet = Color(0xFF10141C),
     accentAmber = Color(0xFFE8A23D),
     onAccentAmber = Color(0xFF10141C),
-    phaseAwake = Color(0xFF3D4454),
-    phaseLight = Color(0xFF6A5B99),
+    phaseAwake = Color(0xFF333A4C),
+    phaseLight = Color(0xFF4E72C9),
     phaseRem = Color(0xFF2FBFAE),
-    phaseDeep = Color(0xFFB49CFF),
+    phaseDeep = Color(0xFF9DBBFF),
     metricHues = HELION_METRIC_HUES,
 )
 
@@ -137,9 +157,9 @@ val HelionLightColors = HelionColors(
     onAccentViolet = Color(0xFFFFFFFF),
     accentAmber = Color(0xFFB0650C),
     onAccentAmber = Color(0xFFFFFFFF),
-    phaseAwake = Color(0xFFC7CBD8),
-    phaseLight = Color(0xFFAF9BE0),
+    phaseAwake = Color(0xFFCDD4E4),
+    phaseLight = Color(0xFF5B7FDA),
     phaseRem = Color(0xFF1C9C89),
-    phaseDeep = Color(0xFF5A2FC9),
+    phaseDeep = Color(0xFF2C4A9E),
     metricHues = HELION_METRIC_HUES,
 )
