@@ -94,7 +94,7 @@ class StaggeredSyncTest {
         )
         db.execSQL(
             "CREATE TABLE ${ExportSchema.TABLE_PAI} (" +
-                "${ExportSchema.COL_TIMESTAMP} INTEGER, ${ExportSchema.COL_PAI_TODAY} REAL)",
+                "${ExportSchema.COL_TIMESTAMP} INTEGER, ${ExportSchema.COL_PAI_TOTAL} REAL)",
         )
 
         db.beginTransaction()

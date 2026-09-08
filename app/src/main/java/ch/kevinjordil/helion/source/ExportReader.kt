@@ -221,7 +221,9 @@ open class ExportReader {
         private val POINT_SERIES = listOf(
             Series("stress", ExportSchema.TABLE_STRESS, ExportSchema.COL_STRESS, TimeUnit.MILLISECONDS),
             Series("spo2", ExportSchema.TABLE_SPO2, ExportSchema.COL_SPO2, TimeUnit.MILLISECONDS),
-            Series("pai", ExportSchema.TABLE_PAI, ExportSchema.COL_PAI_TODAY, TimeUnit.MILLISECONDS),
+            // See ExportSchema.COL_PAI_TOTAL's kdoc: the rolling weekly total is the
+            // meaningful PAI figure, not the day's own contribution.
+            Series("pai", ExportSchema.TABLE_PAI, ExportSchema.COL_PAI_TOTAL, TimeUnit.MILLISECONDS),
             Series("hrv", ExportSchema.TABLE_HRV, ExportSchema.COL_HRV_VALUE, TimeUnit.MILLISECONDS),
             Series("temperature", ExportSchema.TABLE_TEMPERATURE, ExportSchema.COL_TEMPERATURE, TimeUnit.MILLISECONDS),
             // Verified against a real export: TIMESTAMP on this table is Unix
