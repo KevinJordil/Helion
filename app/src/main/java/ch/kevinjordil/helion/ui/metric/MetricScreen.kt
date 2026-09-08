@@ -89,6 +89,7 @@ fun MetricScreen(
     modifier: Modifier = Modifier,
 ) {
     val colors = HelionThemeTokens.colors
+    val hue = colors.metricColor(metric)
     val reader = remember(container) { MetricReader(container.database) }
     var range by rememberSaveable { mutableStateOf(Range.DAY) }
     var uiState by remember(metric.id) { mutableStateOf<MetricUiState?>(null) }
@@ -161,7 +162,7 @@ fun MetricScreen(
                 Text(
                     metric.formatValue(displayed.value),
                     style = DETAIL_VALUE_STYLE,
-                    color = colors.accentViolet,
+                    color = hue,
                 )
                 val unit = stringResource(metric.unitRes)
                 if (unit.isNotEmpty()) {
@@ -189,7 +190,7 @@ fun MetricScreen(
             ScrubbableChart(
                 readings = state.chartReadings,
                 metric = metric,
-                lineColor = colors.accentViolet,
+                lineColor = hue,
                 baseline = monthBaseline,
                 onScrub = { scrubbed = it },
                 modifier = Modifier.fillMaxWidth(),
@@ -262,7 +263,7 @@ private fun StatsRow(stats: MetricStats, metric: Metric, modifier: Modifier = Mo
             stringResource(R.string.stat_average),
             metric.formatValue(stats.average),
             metric,
-            colors.accentViolet,
+            colors.metricColor(metric),
             modifier = Modifier.weight(1f),
         )
     }
@@ -476,6 +477,20 @@ private fun ScrubbableChart(
             val y = yOf(reading.value.toFloat())
             if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
+
+        // A soft fill under the curve, in the metric's own hue: this is where the
+        // detail screen carries the metric's colour identity most visibly, alongside
+        // [lineColor] on the curve itself. Traced from the same path as the stroke, then
+        // closed down to the plot's bottom edge, so it never disagrees with the line it
+        // sits under.
+        val fillPath = Path().apply {
+            addPath(path)
+            lineTo(xOf(readings.last().timestamp.toFloat()), plotHeight)
+            lineTo(xOf(readings.first().timestamp.toFloat()), plotHeight)
+            close()
+        }
+        drawPath(fillPath, color = lineColor.copy(alpha = 0.14f))
+
         drawPath(path, color = lineColor, style = Stroke(width = 4f))
 
         val markedReading = scrubbedReading
@@ -494,7 +509,7 @@ private fun ScrubbableChart(
 
             val valueText = "${metric.formatValue(markedReading.value)} $unit".trim()
             val timeText = TIMESTAMP_FORMAT.format(Instant.ofEpochSecond(markedReading.timestamp))
-            val valueLayout = textMeasurer.measure(valueText, HelionType.labelSmall.copy(color = colors.accentViolet))
+            val valueLayout = textMeasurer.measure(valueText, HelionType.labelSmall.copy(color = lineColor))
             val timeLayout = textMeasurer.measure(timeText, HelionType.labelSmall.copy(color = colors.textSecondary))
 
             val padding = 8f

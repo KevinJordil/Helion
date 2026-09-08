@@ -36,6 +36,7 @@ import ch.kevinjordil.helion.ui.metric.MetricReader
 import ch.kevinjordil.helion.ui.metric.Range
 import ch.kevinjordil.helion.ui.metric.Reading
 import ch.kevinjordil.helion.ui.metric.formatValue
+import ch.kevinjordil.helion.ui.metric.metricColor
 import ch.kevinjordil.helion.ui.minutesSinceLastSample
 import ch.kevinjordil.helion.ui.quality.PersonalBaseline
 import ch.kevinjordil.helion.ui.quality.computeBaseline
@@ -296,6 +297,7 @@ private fun HeroHeartRate(
 ) {
     val colors = HelionThemeTokens.colors
     val metric = MetricCatalog.byId(HEART_RATE_ID) ?: return
+    val hue = colors.metricColor(metric)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -311,7 +313,7 @@ private fun HeroHeartRate(
         // chart that gets an explicit time axis rather than only a bare shape.
         DayRibbon(
             bars = ribbonBars,
-            barColor = colors.accentViolet.copy(alpha = 0.35f),
+            barColor = hue.copy(alpha = 0.35f),
             modifier = Modifier.heroRibbonSize(),
             windowStart = windowStart,
             windowEnd = windowEnd,
@@ -320,7 +322,7 @@ private fun HeroHeartRate(
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
             if (latest != null) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(metric.formatValue(latest.value), style = HelionType.hero, color = colors.accentViolet)
+                    Text(metric.formatValue(latest.value), style = HelionType.hero, color = hue)
                     Text(
                         stringResource(metric.unitRes),
                         style = HelionType.label,

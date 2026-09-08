@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.ui.metric.Metric
 import ch.kevinjordil.helion.ui.metric.formatValue
+import ch.kevinjordil.helion.ui.metric.metricColor
 import ch.kevinjordil.helion.ui.quality.PersonalBaseline
 import ch.kevinjordil.helion.ui.quality.personalBaselineCompactMessage
 import ch.kevinjordil.helion.ui.ribbon.DayRibbon
@@ -37,6 +38,7 @@ fun MetricTile(
     modifier: Modifier = Modifier,
 ) {
     val colors = HelionThemeTokens.colors
+    val hue = colors.metricColor(metric)
     Column(
         modifier = modifier
             .clickable(onClick = onClick, role = Role.Button)
@@ -57,7 +59,7 @@ fun MetricTile(
             Text(
                 latestValue?.let { metric.formatValue(it) } ?: "—",
                 style = HelionType.valueMedium,
-                color = if (latestValue != null) colors.accentViolet else colors.textTertiary,
+                color = if (latestValue != null) hue else colors.textTertiary,
             )
             val unit = stringResource(metric.unitRes)
             if (unit.isNotEmpty()) {
@@ -66,7 +68,7 @@ fun MetricTile(
         }
         DayRibbon(
             bars = ribbonBars,
-            barColor = colors.accentViolet,
+            barColor = hue,
             modifier = Modifier.tileRibbonSize().padding(top = 8.dp),
         )
         personalBaseline?.let { baseline ->
