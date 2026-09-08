@@ -1,7 +1,6 @@
 package ch.kevinjordil.helion.ui.settings
 
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,6 +10,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.theme.HelionField
 
 /**
  * The daily step goal used as `steps`' reference axis (see [StepsGoal]'s own kdoc) --
@@ -22,8 +22,8 @@ import ch.kevinjordil.helion.R
 fun GoalsSettingsSection(container: AppContainer) {
     var stepsGoalText by remember { mutableStateOf(container.stepsGoal.value.toString()) }
 
-    SettingsFieldLabel(stringResource(R.string.steps_goal_label))
-    OutlinedTextField(
+    HelionField(
+        label = stringResource(R.string.steps_goal_label),
         value = stepsGoalText,
         onValueChange = { text ->
             stepsGoalText = text
@@ -33,6 +33,5 @@ fun GoalsSettingsSection(container: AppContainer) {
             text.toIntOrNull()?.takeIf { it > 0 }?.let { container.stepsGoal.value = it }
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        singleLine = true,
     )
 }

@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,6 +16,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.theme.HelionField
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.LocalDate
@@ -48,8 +48,8 @@ fun ProfileSettingsSection(container: AppContainer) {
     var weightText by remember { mutableStateOf(container.profile.weightKg?.toString().orEmpty()) }
     var selectedSex by remember { mutableStateOf(container.profile.sex) }
 
-    SettingsFieldLabel(stringResource(R.string.profile_date_of_birth_label))
-    OutlinedTextField(
+    HelionField(
+        label = stringResource(R.string.profile_date_of_birth_label),
         value = dateOfBirthText,
         onValueChange = { text ->
             dateOfBirthText = text
@@ -63,14 +63,13 @@ fun ProfileSettingsSection(container: AppContainer) {
                 parseDateOfBirth(text)?.let { container.profile.dateOfBirthEpochDay = it.toEpochDay() }
             }
         },
-        singleLine = true,
+        warning = if (dateOfBirthText.isNotBlank() && parseDateOfBirth(dateOfBirthText) == null) {
+            stringResource(R.string.profile_date_of_birth_invalid)
+        } else null,
     )
-    if (dateOfBirthText.isNotBlank() && parseDateOfBirth(dateOfBirthText) == null) {
-        SettingsWarning(stringResource(R.string.profile_date_of_birth_invalid))
-    }
 
-    SettingsFieldLabel(stringResource(R.string.profile_weight_label))
-    OutlinedTextField(
+    HelionField(
+        label = stringResource(R.string.profile_weight_label),
         value = weightText,
         onValueChange = { text ->
             weightText = text
@@ -81,7 +80,6 @@ fun ProfileSettingsSection(container: AppContainer) {
             }
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        singleLine = true,
     )
 
     SettingsFieldLabel(stringResource(R.string.profile_sex_label))

@@ -3,7 +3,6 @@ package ch.kevinjordil.helion.ui.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,6 +16,7 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.customserver.CustomServerUrlValidation
 import ch.kevinjordil.helion.customserver.validateCustomServerUrl
+import ch.kevinjordil.helion.ui.theme.HelionField
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 
@@ -47,8 +47,8 @@ fun CustomServerSettingsSection(container: AppContainer) {
 
     val validation = validateCustomServerUrl(urlText)
 
-    SettingsFieldLabel(stringResource(R.string.custom_server_url_label))
-    OutlinedTextField(
+    HelionField(
+        label = stringResource(R.string.custom_server_url_label),
         value = urlText,
         onValueChange = { text ->
             urlText = text
@@ -56,26 +56,24 @@ fun CustomServerSettingsSection(container: AppContainer) {
             // in-progress or malformed edit must never silently overwrite a working
             // address (same "save only once valid" rule the profile fields use). A blank
             // field explicitly clears a previously configured one.
-            when (val result = validateCustomServerUrl(text)) {
+            when (validateCustomServerUrl(text)) {
                 CustomServerUrlValidation.Blank -> config.serverUrl = null
                 is CustomServerUrlValidation.Valid -> config.serverUrl = text.trim()
                 CustomServerUrlValidation.Malformed -> Unit
             }
         },
-        singleLine = true,
+        warning = if (validation == CustomServerUrlValidation.Malformed) {
+            stringResource(R.string.custom_server_url_invalid)
+        } else null,
     )
-    if (validation == CustomServerUrlValidation.Malformed) {
-        SettingsWarning(stringResource(R.string.custom_server_url_invalid))
-    }
 
-    SettingsFieldLabel(stringResource(R.string.custom_server_token_label))
-    OutlinedTextField(
+    HelionField(
+        label = stringResource(R.string.custom_server_token_label),
         value = tokenText,
         onValueChange = { text ->
             tokenText = text
             config.token = text.ifBlank { null }
         },
-        singleLine = true,
     )
 
     Row(
@@ -92,8 +90,8 @@ fun CustomServerSettingsSection(container: AppContainer) {
         Text(stringResource(R.string.custom_server_allow_plain_http), style = HelionType.bodySmall, color = colors.textSecondary)
     }
 
-    SettingsFieldLabel(stringResource(R.string.recording_device_name_label))
-    OutlinedTextField(
+    HelionField(
+        label = stringResource(R.string.recording_device_name_label),
         value = deviceNameText,
         onValueChange = { text ->
             deviceNameText = text
@@ -102,7 +100,6 @@ fun CustomServerSettingsSection(container: AppContainer) {
             // RecordingDeviceName's own kdoc).
             container.recordingDeviceName.value = text
         },
-        singleLine = true,
     )
     Text(stringResource(R.string.recording_device_name_note), style = HelionType.bodySmall, color = colors.textSecondary)
 }
