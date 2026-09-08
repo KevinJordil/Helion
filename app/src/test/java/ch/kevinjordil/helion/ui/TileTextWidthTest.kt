@@ -48,35 +48,37 @@ class TileTextWidthTest {
 
     private val tileContentWidthDp = 136f
     private val fontScale = 1.3f
-    private val fontSizeSp = 12f
-    private val letterSpacingSp = 1.5f
 
-    private val font: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+    // Tile captions are sentence case, proportional [HelionType.label]/[HelionType.labelSmall]
+    // now, not the uppercase, letter-spaced mono [HelionType.label] this file used to measure
+    // -- see MetricTile.kt, which no longer calls `.uppercase()` at any of these call sites.
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
 
-    private fun widthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { font.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * fontSizeSp
-        val letterSpacingTotalSp = letterSpacingSp * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    private fun widthDp(text: String, fontSizeSp: Float): Float {
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
     }
 
+    /** [HelionType.labelSmall] (12sp): the personal-baseline compact caption -- see MetricTile.kt. */
     private fun compactCaptions() = listOf("Encore tôt", "Plus bas", "Habituel", "Plus haut")
 
+    /** [HelionType.label] (13sp): a tile's own metric name -- see MetricTile.kt. */
     private fun tileMetricLabels() = listOf("Pas", "Stress", "SpO2", "PAI", "VFC", "Température", "Respiration")
 
     // "Stades (estimé)" is a full-width section title on Sommeil, not a tile label, so it
     // is not measured against the tile budget here -- see [sleepPhaseLabels]'s callers.
+    // [HelionType.labelSmall] (12sp): a stage's own name, wherever it sits in a narrow
+    // column (NightChart's lane labels and stat captions) -- see NightChart.kt.
     private fun sleepPhaseLabels() = listOf("Profond", "Paradoxal", "Léger", "Éveil")
 
     @Test
     fun `every compact tile caption fits the tile's content width at a 1_3x font scale`() {
         compactCaptions().forEach { caption ->
-            val width = widthDp(caption)
+            val width = widthDp(caption, fontSizeSp = 12f)
             assertTrue("\"$caption\" measured ${width}dp, budget is ${tileContentWidthDp}dp", width <= tileContentWidthDp)
         }
     }
@@ -84,7 +86,7 @@ class TileTextWidthTest {
     @Test
     fun `every tile metric label fits the tile's content width at a 1_3x font scale`() {
         tileMetricLabels().forEach { label ->
-            val width = widthDp(label)
+            val width = widthDp(label, fontSizeSp = 13f)
             assertTrue("\"$label\" measured ${width}dp, budget is ${tileContentWidthDp}dp", width <= tileContentWidthDp)
         }
     }
@@ -92,7 +94,7 @@ class TileTextWidthTest {
     @Test
     fun `every sleep phase label fits the tile's content width at a 1_3x font scale`() {
         sleepPhaseLabels().forEach { label ->
-            val width = widthDp(label)
+            val width = widthDp(label, fontSizeSp = 12f)
             assertTrue("\"$label\" measured ${width}dp, budget is ${tileContentWidthDp}dp", width <= tileContentWidthDp)
         }
     }
@@ -100,7 +102,7 @@ class TileTextWidthTest {
     @Test
     fun `the full detail-screen sentence this bug was reported against does not fit -- the compact form earns its place`() {
         val fullSentence = "Plus haut que d'habitude"
-        val width = widthDp(fullSentence)
+        val width = widthDp(fullSentence, fontSizeSp = 12f)
         assertTrue(
             "expected \"$fullSentence\" ($width dp) to overflow the ${tileContentWidthDp}dp tile budget, " +
                 "which is exactly what was reported clipped",
@@ -137,6 +139,12 @@ class DurationTextWidthTest {
         TrueTypeFont.parse(file.readBytes())
     }
 
+    private val labelFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
+        check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
+        TrueTypeFont.parse(file.readBytes())
+    }
+
     private fun widthDp(text: String): Float {
         val emPerChar = text.map { font.advanceWidthEm(it) }
         val glyphWidthSp = emPerChar.sum() * fontSizeSp
@@ -147,26 +155,23 @@ class DurationTextWidthTest {
     /**
      * The three phase durations share one row across the screen (see `SleepPhaseBreakdown`),
      * so each gets a third of the content width minus the two 6dp gaps:
-     * `(280 - 2*6) / 3 = 89.3`dp. Measured at StatItem's own value size, not the hero
-     * duration's -- a third-width column is what the compact `"%dh%02d"` format exists for.
+     * `(280 - 2*6) / 3 = 89.3`dp. Measured at StatItem's own two styles: `valueMedium` (22sp
+     * mono) for the figure, `labelSmall` (12sp, sentence-case [ch.kevinjordil.helion.ui.theme.PlexSans],
+     * no letter-spacing) for its caption -- see Type.kt and StatItem.
      */
     @Test
     fun `each phase duration and label fits a third-width column`() {
         val columnWidthDp = (screenContentWidthDp - 2 * 6f) / 3f
-        // StatItem's own two styles: valueMedium 22sp for the figure, labelSmall 11sp with
-        // 1sp tracking for the uppercase label above it (see Type.kt and StatItem).
-        fun widthAt(text: String, sizeSp: Float, trackingSp: Float = 0f): Float =
-            (text.map { font.advanceWidthEm(it) }.sum() * sizeSp + trackingSp * text.length) * fontScale
 
         listOf("23h59", "8h07", "0h59").forEach { value ->
-            val width = widthAt(value, sizeSp = 22f)
+            val width = (value.map { font.advanceWidthEm(it) }.sum() * 22f) * fontScale
             assertTrue(
                 "value \"$value\" measured ${width}dp, a third-width column is ${columnWidthDp}dp",
                 width <= columnWidthDp,
             )
         }
-        listOf("PROFOND", "PARADOXAL", "LÉGER").forEach { label ->
-            val width = widthAt(label, sizeSp = 11f, trackingSp = 1f)
+        listOf("Profond", "Paradoxal", "Léger").forEach { label ->
+            val width = (label.map { labelFont.advanceWidthEm(it) }.sum() * 12f) * fontScale
             assertTrue(
                 "label \"$label\" measured ${width}dp, a third-width column is ${columnWidthDp}dp",
                 width <= columnWidthDp,
@@ -197,21 +202,20 @@ class HypnogramLaneLabelWidthTest {
 
     private val laneLabelWidthDp = 90f
     private val fontScale = 1.3f
-    private val fontSizeSp = 11f
-    private val letterSpacingSp = 1f
+    private val fontSizeSp = 12f
 
+    // Sentence case, proportional [ch.kevinjordil.helion.ui.theme.PlexSans] now -- NightChart.kt
+    // no longer calls `.uppercase()` on a lane label, and [HelionType.labelSmall] is no
+    // longer the tracked mono style this test used to measure.
     private val font: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
 
     private fun widthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { font.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * fontSizeSp
-        val letterSpacingTotalSp = letterSpacingSp * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        val emPerChar = text.map { font.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
     }
 
     @Test
@@ -282,8 +286,8 @@ class MetricHeaderWidthTest {
     private val fontScale = 1.3f
     private val valueFontSizeSp = 56f
     private val valueLetterSpacingSp = -1f
-    private val unitFontSizeSp = 12f
-    private val unitLetterSpacingSp = 1.5f
+    private val unitFontSizeSp = 13f
+    private val unitLetterSpacingSp = 0f
     private val spacingDp = 8f
 
     private val valueFont: TrueTypeFont by lazy {
@@ -292,8 +296,10 @@ class MetricHeaderWidthTest {
         TrueTypeFont.parse(file.readBytes())
     }
 
+    // The unit is [HelionType.label] now -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] -- not the tracked mono style it used to be.
     private val unitFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -341,8 +347,8 @@ class MetricStatsWidthTest {
     private val columnWidthDp = 88f
     private val fontScale = 1.3f
     private val valueFontSizeSp = 22f
-    private val unitFontSizeSp = 11f
-    private val unitLetterSpacingSp = 1f
+    private val unitFontSizeSp = 12f
+    private val unitLetterSpacingSp = 0f
 
     private val valueFont: TrueTypeFont by lazy {
         val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
@@ -350,8 +356,10 @@ class MetricStatsWidthTest {
         TrueTypeFont.parse(file.readBytes())
     }
 
+    // The unit is [HelionType.labelSmall] now -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] -- not the tracked mono style it used to be.
     private val unitFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -415,8 +423,10 @@ class SleepScreenWidthTest {
 
     private val fontScale = 1.3f
 
+    // [HelionType.label] -- sentence case, proportional [ch.kevinjordil.helion.ui.theme.PlexSans]
+    // now, not the tracked mono style this class used to measure.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -439,7 +449,7 @@ class SleepScreenWidthTest {
         val headerBudgetDp = 184f
         listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim").forEach { weekday ->
             val text = "$weekday 30/08"
-            val width = widthDp(text, labelFont, fontSizeSp = 12f, letterSpacingSp = 1.5f)
+            val width = widthDp(text, labelFont, fontSizeSp = 13f, letterSpacingSp = 0f)
             assertTrue("\"$text\" measured ${width}dp, budget is ${headerBudgetDp}dp", width <= headerBudgetDp)
         }
     }
@@ -490,7 +500,7 @@ class SleepScreenWidthTest {
     fun `respiratory min average and max fit their three-column row, value and unit each on their own line`() {
         val columnWidthDp = 88f
         val valueWidth = widthDp("99", valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
-        val unitWidth = widthDp("resp/min", labelFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+        val unitWidth = widthDp("resp/min", labelFont, fontSizeSp = 12f, letterSpacingSp = 0f)
         assertTrue("\"99\" measured ${valueWidth}dp, column is ${columnWidthDp}dp", valueWidth <= columnWidthDp)
         assertTrue("\"resp/min\" measured ${unitWidth}dp, column is ${columnWidthDp}dp", unitWidth <= columnWidthDp)
     }
@@ -499,7 +509,7 @@ class SleepScreenWidthTest {
     fun `the night chart's heart-rate min average and max fit their three-column row`() {
         val columnWidthDp = 88f
         val valueWidth = widthDp("224", valueFont, fontSizeSp = 22f, letterSpacingSp = 0f)
-        val unitWidth = widthDp("bpm", labelFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+        val unitWidth = widthDp("bpm", labelFont, fontSizeSp = 12f, letterSpacingSp = 0f)
         assertTrue("\"224\" measured ${valueWidth}dp, column is ${columnWidthDp}dp", valueWidth <= columnWidthDp)
         assertTrue("\"bpm\" measured ${unitWidth}dp, column is ${columnWidthDp}dp", unitWidth <= columnWidthDp)
     }
@@ -515,9 +525,9 @@ class SleepScreenWidthTest {
  * `HistoryRow` sets both the weekday+date and the duration in [HelionType.body] (IBM Plex
  * Sans regular, 15sp, no letter-spacing) rather than the mono value styles
  * [SleepScreenWidthTest] measures, so this measures against `ibmplexsans_regular.ttf`
- * instead. The row's own tag ("en cours"/"incomplet"/"estimé") stays in
- * [HelionType.labelSmall], the same mono style [SleepScreenWidthTest] already covers
- * elsewhere, measured here against the same duration column it now sits under.
+ * instead. The row's own tag ("en cours"/"incomplet"/"estimé") is set in
+ * [HelionType.labelSmall] -- sentence case, proportional now, not the tracked mono style it
+ * used to be -- measured here against the same duration column it sits under.
  */
 class SleepHistoryRowWidthTest {
 
@@ -529,8 +539,11 @@ class SleepHistoryRowWidthTest {
         TrueTypeFont.parse(file.readBytes())
     }
 
+    // [HelionType.labelSmall] -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now, not the tracked mono style this class
+    // used to measure.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -542,9 +555,7 @@ class SleepHistoryRowWidthTest {
 
     private fun tagWidthDp(text: String): Float {
         val emPerChar = text.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 11f
-        val letterSpacingTotalSp = 1f * text.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        return emPerChar.sum() * 12f * fontScale
     }
 
     @Test
@@ -586,8 +597,11 @@ class SleepAveragesWidthTest {
     private val rowWidthDp = 280f
     private val fontScale = 1.3f
 
-    private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+    // [HelionType.title] and [HelionType.label] are both sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now -- SleepScreen.kt no longer calls
+    // `.uppercase()` on either the section title or a window-selector option.
+    private val sansFont: TrueTypeFont by lazy {
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -598,12 +612,9 @@ class SleepAveragesWidthTest {
         TrueTypeFont.parse(file.readBytes())
     }
 
-    private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+    private fun sansWidthDp(text: String, fontSizeSp: Float): Float {
+        val emPerChar = text.map { sansFont.advanceWidthEm(it) }
+        return emPerChar.sum() * fontSizeSp * fontScale
     }
 
     private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
@@ -613,7 +624,7 @@ class SleepAveragesWidthTest {
 
     @Test
     fun `the averages section title fits a full-width row at a 1_3x font scale`() {
-        val width = labelWidthDp("Moyennes")
+        val width = sansWidthDp("Moyennes", fontSizeSp = 16f)
         assertTrue("\"Moyennes\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
     }
 
@@ -624,7 +635,7 @@ class SleepAveragesWidthTest {
         // three options) -- unlike a set of equal-weight columns, there is no per-label
         // budget to check individually; what must fit is the row as a whole.
         val labels = listOf("5", "7", "30", "Tout")
-        val totalWidth = labels.sumOf { labelWidthDp(it).toDouble() }.toFloat() + 3 * 20f
+        val totalWidth = labels.sumOf { sansWidthDp(it, fontSizeSp = 13f).toDouble() }.toFloat() + 3 * 20f
         assertTrue("selector row measured ${totalWidth}dp, budget is ${rowWidthDp}dp", totalWidth <= rowWidthDp)
     }
 
@@ -785,17 +796,20 @@ class ActivityLabelWidthTest {
     private val rowWidthDp = 280f
     private val fontScale = 1.3f
 
+    // [HelionType.label]/[HelionType.labelSmall] -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now, not the tracked mono uppercase style
+    // this class used to measure -- SportPicker.kt, ActivityListScreen.kt and
+    // SlotListScreen.kt no longer call `.uppercase()` at any of these call sites.
     private val mediumFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
 
     private fun widthDp(text: String, font: TrueTypeFont, fontSizeSp: Float, letterSpacingSp: Float): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { font.advanceWidthEm(it) }
+        val emPerChar = text.map { font.advanceWidthEm(it) }
         val glyphWidthSp = emPerChar.sum() * fontSizeSp
-        val letterSpacingTotalSp = letterSpacingSp * upper.length
+        val letterSpacingTotalSp = letterSpacingSp * text.length
         return (glyphWidthSp + letterSpacingTotalSp) * fontScale
     }
 
@@ -856,7 +870,7 @@ class ActivityLabelWidthTest {
     @Test
     fun `every activity status label fits a full-width row at a 1_3x font scale`() {
         activityStatusLabels().forEach { label ->
-            val width = widthDp(label, mediumFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+            val width = widthDp(label, mediumFont, fontSizeSp = 12f, letterSpacingSp = 0f)
             assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
         }
     }
@@ -864,7 +878,7 @@ class ActivityLabelWidthTest {
     @Test
     fun `every slot active-state label fits a full-width row at a 1_3x font scale`() {
         slotActiveLabels().forEach { label ->
-            val width = widthDp(label, mediumFont, fontSizeSp = 11f, letterSpacingSp = 1f)
+            val width = widthDp(label, mediumFont, fontSizeSp = 12f, letterSpacingSp = 0f)
             assertTrue("\"$label\" measured ${width}dp, budget is ${rowWidthDp}dp", width <= rowWidthDp)
         }
     }
@@ -1053,8 +1067,11 @@ class CalorieLabelWidthTest {
     private val rowWidthDp = 280f
     private val fontScale = 1.3f
 
+    // [HelionType.title] -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now, not the tracked mono uppercase style
+    // this class used to measure.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -1066,11 +1083,8 @@ class CalorieLabelWidthTest {
     }
 
     private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 16f * fontScale
     }
 
     private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
@@ -1124,8 +1138,11 @@ class CustomServerLabelWidthTest {
     private val rowWidthDp = 280f
     private val fontScale = 1.3f
 
+    // [HelionType.headline] -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now, not the tracked mono uppercase style
+    // this class used to measure.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -1137,11 +1154,8 @@ class CustomServerLabelWidthTest {
     }
 
     private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 22f * fontScale
     }
 
     private fun proseWidthDp(text: String): Float {
@@ -1275,8 +1289,11 @@ class HealthConnectLabelWidthTest {
     private val rowWidthDp = 280f
     private val fontScale = 1.3f
 
+    // [HelionType.headline] -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now, not the tracked mono uppercase style
+    // this class used to measure.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -1288,11 +1305,8 @@ class HealthConnectLabelWidthTest {
     }
 
     private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 22f * fontScale
     }
 
     private fun proseWidthDp(text: String): Float {
@@ -1367,8 +1381,11 @@ class ProfileFieldWidthTest {
     private val rowWidthDp = 280f
     private val fontScale = 1.3f
 
+    // [HelionType.headline] -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now, not the tracked mono uppercase style
+    // this class used to measure.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -1380,11 +1397,8 @@ class ProfileFieldWidthTest {
     }
 
     private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 22f * fontScale
     }
 
     private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
@@ -1437,8 +1451,11 @@ class NotificationLabelWidthTest {
     private val rowWidthDp = 280f
     private val fontScale = 1.3f
 
+    // [HelionType.headline] -- sentence case, proportional
+    // [ch.kevinjordil.helion.ui.theme.PlexSans] now, not the tracked mono uppercase style
+    // this class used to measure.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -1450,11 +1467,8 @@ class NotificationLabelWidthTest {
     }
 
     private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 22f * fontScale
     }
 
     private fun proseWidthDp(text: String, fontSizeSp: Float): Float {
@@ -1659,8 +1673,11 @@ class SettingsMenuWidthTest {
     private val entryRowWidthDp = 280f - 24f
     private val fontScale = 1.3f
 
+    // [HelionType.label] -- sentence case, proportional [ch.kevinjordil.helion.ui.theme.PlexSans]
+    // now, not the tracked mono uppercase style this class used to measure -- SettingsScreen.kt
+    // no longer calls `.uppercase()` on an entry's label.
     private val labelFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -1672,11 +1689,8 @@ class SettingsMenuWidthTest {
     }
 
     private fun labelWidthDp(text: String): Float {
-        val upper = text.uppercase()
-        val emPerChar = upper.map { labelFont.advanceWidthEm(it) }
-        val glyphWidthSp = emPerChar.sum() * 12f
-        val letterSpacingTotalSp = 1.5f * upper.length
-        return (glyphWidthSp + letterSpacingTotalSp) * fontScale
+        val emPerChar = text.map { labelFont.advanceWidthEm(it) }
+        return emPerChar.sum() * 13f * fontScale
     }
 
     private fun bodySmallWidthDp(text: String): Float {
@@ -1741,7 +1755,11 @@ class ChartAxisLabelWidthTest {
     private val chartContentWidthDp = 280f
     private val fontScale = 1.3f
     private val fontSizeSp = 11f
-    private val letterSpacingSp = 1f
+
+    // [HelionType.axisLabel]: a canvas-drawn numeral tick is still mono (see [PlexMono]'s own
+    // kdoc -- numerals only), but untracked now, unlike the old [HelionType.labelSmall] this
+    // class used to measure.
+    private val letterSpacingSp = 0f
 
     private val font: TrueTypeFont by lazy {
         val file = File("src/main/res/font/ibmplexmono_medium.ttf")
