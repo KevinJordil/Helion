@@ -368,6 +368,33 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
 }
 
 /**
+ * Discards every stored `pai` row. [ch.kevinjordil.helion.source.ExportReader] used to read
+ * `PAI_TODAY` -- the device's contribution for the day alone, near zero most of the day --
+ * into this series; it now reads `PAI_TOTAL`, the rolling seven-day score that is the
+ * figure actually meant by "PAI" (see [ch.kevinjordil.helion.source.ExportSchema
+ * .COL_PAI_TOTAL]'s kdoc). Every `pai` row already on a device therefore holds the wrong
+ * number, and a value correction, not a schema change, is what is needed.
+ *
+ * Transforming the stored numbers in place is not an option: `PAI_TODAY` and `PAI_TOTAL`
+ * are two different quantities, not a units conversion of each other, so there is no
+ * formula that recovers the total from a stored daily contribution alone. Deleting the
+ * `pai` rows instead resets that series' watermark to zero -- [Ingestor.watermarks] derives
+ * it from `db.pointSamples().latest("pai")`, which returns null once these rows are gone --
+ * so the very next sync pass reads the entire `pai` history straight from the export again,
+ * this time onto the corrected column. The export is the source of truth and stays on the
+ * device intact, so nothing is actually lost: the owner sees stale-until-next-sync PAI
+ * numbers for one pass, exactly like a fresh install's first ingest, not permanently wrong
+ * ones.
+ *
+ * Scoped to `series = 'pai'` alone: no other series' rows, and no other table, is touched.
+ */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DELETE FROM `point_sample` WHERE `series` = 'pai'")
+    }
+}
+
+/**
  * Every migration this app ships, in order, as one list rather than an argument list spelled
  * out at the call site. A migration was once defined and simply left out of that argument
  * list; Room then refused to open an upgraded database and the app died on launch with
@@ -378,5 +405,5 @@ val HELION_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
     MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
     MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-    MIGRATION_16_17,
+    MIGRATION_16_17, MIGRATION_17_18,
 )

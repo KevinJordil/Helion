@@ -82,7 +82,7 @@ class MigrationTest {
         seedVersion1Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
             .allowMainThreadQueries()
             .build()
 
@@ -311,7 +311,7 @@ class MigrationTest {
         seedVersion7Database()
 
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
             .allowMainThreadQueries()
             .build()
 
@@ -362,7 +362,7 @@ class MigrationTest {
     fun `a fresh install creates the current schema directly, no migration involved`() = runTest {
         context.deleteDatabase(dbName)
         val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
             .allowMainThreadQueries()
             .build()
 
@@ -473,7 +473,7 @@ class MigrationTest {
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                 MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                 MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-                MIGRATION_16_17,
+                MIGRATION_16_17, MIGRATION_17_18,
             )
             .allowMainThreadQueries()
             .build()
@@ -606,7 +606,7 @@ class MigrationTest {
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                 MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                 MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16,
-                MIGRATION_16_17,
+                MIGRATION_16_17, MIGRATION_17_18,
             )
             .allowMainThreadQueries()
             .build()
@@ -627,6 +627,113 @@ class MigrationTest {
             assertEquals(1L, activity.slotId)
             assertEquals("contexte de détection", activity.detectionContext)
             assertEquals(true, activity.notified)
+        } finally {
+            db.close()
+        }
+    }
+
+    /** Builds a database on disk exactly matching what a v17 install would have. */
+    private fun seedVersion17Database() {
+        context.deleteDatabase(dbName)
+        val db = SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(dbName), null)
+        db.use {
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `minute_sample` (`timestamp` INTEGER NOT NULL, " +
+                    "`steps` INTEGER, `intensity` INTEGER, `rawKind` INTEGER, `heartRate` INTEGER, " +
+                    "`sleepStage` INTEGER, PRIMARY KEY(`timestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `point_sample` (`series` TEXT NOT NULL, " +
+                    "`timestamp` INTEGER NOT NULL, `value` REAL NOT NULL, PRIMARY KEY(`series`, `timestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sync_state` (`id` INTEGER NOT NULL, " +
+                    "`lastSyncAttempt` INTEGER NOT NULL, `lastError` TEXT, `triggerFailureStreak` INTEGER NOT NULL, " +
+                    "`lastTriggerAttempt` INTEGER NOT NULL, `lastFullDetectionRun` INTEGER, " +
+                    "`lastBackgroundSyncAttempt` INTEGER, PRIMARY KEY(`id`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sleep_stage_segment` (`sessionEnd` INTEGER NOT NULL, " +
+                    "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, `stage` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`sessionEnd`, `startTimestamp`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `slot` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`label` TEXT NOT NULL, `dayOfWeek` TEXT NOT NULL, `startSecondOfDay` INTEGER NOT NULL, " +
+                    "`endSecondOfDay` INTEGER NOT NULL, `sport` TEXT NOT NULL, `active` INTEGER NOT NULL)",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `activity` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`startTimestamp` INTEGER NOT NULL, `endTimestamp` INTEGER NOT NULL, `sport` TEXT, " +
+                    "`title` TEXT, `notes` TEXT, `origin` TEXT NOT NULL, `status` TEXT NOT NULL, " +
+                    "`slotId` INTEGER, `detectionContext` TEXT, `notified` INTEGER NOT NULL, " +
+                    "`provisional` INTEGER NOT NULL, FOREIGN KEY(`slotId`) REFERENCES `slot`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE SET NULL )",
+            )
+            it.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_activity_startTimestamp_endTimestamp` " +
+                    "ON `activity` (`startTimestamp`, `endTimestamp`)",
+            )
+            it.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_status` ON `activity` (`status`)")
+            it.execSQL("CREATE INDEX IF NOT EXISTS `index_activity_slotId` ON `activity` (`slotId`)")
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `publication` (`activityId` INTEGER NOT NULL, " +
+                    "`target` TEXT NOT NULL, `remoteId` TEXT, `uploadId` TEXT, `state` TEXT NOT NULL, " +
+                    "`lastAttempt` INTEGER, `lastError` TEXT, `lastErrorDetail` TEXT, `lastMessage` TEXT, " +
+                    "PRIMARY KEY(`activityId`, `target`), FOREIGN KEY(`activityId`) REFERENCES " +
+                    "`activity`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `health_connect_export_state` (`id` INTEGER NOT NULL, " +
+                    "`heartRateWatermark` INTEGER NOT NULL, `hrvWatermark` INTEGER NOT NULL, " +
+                    "`spo2Watermark` INTEGER NOT NULL, `temperatureWatermark` INTEGER NOT NULL, " +
+                    "`respiratoryRateWatermark` INTEGER NOT NULL, `sleepSessionWatermark` INTEGER NOT NULL, " +
+                    "`lastRunAttempt` INTEGER, `lastError` TEXT, `sleepSessionsWritten` INTEGER NOT NULL, " +
+                    "`exerciseSessionsWritten` INTEGER NOT NULL, `heartRateRecordsWritten` INTEGER NOT NULL, " +
+                    "`stepsRecordsWritten` INTEGER NOT NULL, `hrvRecordsWritten` INTEGER NOT NULL, " +
+                    "`spo2RecordsWritten` INTEGER NOT NULL, `temperatureRecordsWritten` INTEGER NOT NULL, " +
+                    "`respiratoryRateRecordsWritten` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            it.execSQL(
+                "CREATE TABLE IF NOT EXISTS `notified_sleep_night` (`wokeAt` INTEGER NOT NULL, PRIMARY KEY(`wokeAt`))",
+            )
+            it.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            it.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) " +
+                    "VALUES(42, 'c59817536b6b7259894eb8a84b818af0')",
+            )
+
+            // A row wrongly carrying PAI_TODAY (near zero most of the day) under the "pai"
+            // series -- exactly what a device synced before the PAI_TOTAL fix has stored.
+            it.execSQL("INSERT INTO point_sample (series, timestamp, value) VALUES ('pai', 500, 0.0)")
+            it.execSQL("INSERT INTO point_sample (series, timestamp, value) VALUES ('pai', 600, 1.5)")
+            // A different series' row, which MIGRATION_17_18 must leave completely alone.
+            it.execSQL("INSERT INTO point_sample (series, timestamp, value) VALUES ('hrv', 500, 42.0)")
+            it.setVersion(17)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_17_18 discards every stored pai row and touches nothing else`() = runTest {
+        seedVersion17Database()
+
+        val db = Room.databaseBuilder(context, HelionDatabase::class.java, dbName)
+            .addMigrations(MIGRATION_17_18)
+            .allowMainThreadQueries()
+            .build()
+
+        try {
+            // The wrong PAI_TODAY-derived rows are gone: the next sync pass will re-read
+            // the whole series from the export onto the corrected PAI_TOTAL column,
+            // because the watermark this leaves behind (no row at all) reads as "nothing
+            // ingested yet" for this series alone.
+            assertEquals(0, db.pointSamples().between("pai", 0, Long.MAX_VALUE).size)
+
+            // A completely unrelated series survives untouched.
+            val hrv = db.pointSamples().between("hrv", 0, Long.MAX_VALUE)
+            assertEquals(1, hrv.size)
+            assertEquals(500L, hrv.first().timestamp)
+            assertEquals(42.0, hrv.first().value, 0.0)
         } finally {
             db.close()
         }
