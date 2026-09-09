@@ -46,6 +46,9 @@ import ch.kevinjordil.helion.ui.ribbon.RibbonBar
 import ch.kevinjordil.helion.ui.ribbon.buildRibbon
 import ch.kevinjordil.helion.ui.ribbon.heroRibbonSize
 import ch.kevinjordil.helion.ui.settings.SyncOutcome
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
+import ch.kevinjordil.helion.ui.theme.HelionContentInset
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
@@ -254,19 +257,24 @@ fun HomeScreen(
                         text,
                         style = HelionType.bodySmall,
                         color = if (isAmber) colors.accentAmber else colors.textSecondary,
-                        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = HelionContentInset, end = HelionContentInset, top = 4.dp, bottom = 8.dp),
                     )
                 }
                 items(tiles.chunked(2)) { pair ->
-                    // Each metric is its own idea, so each tile now sits on its own raised
+                    // Each metric is its own idea, so each tile sits on its own raised
                     // surface (see HelionSurface's own kdoc) rather than two unrelated
                     // metrics sharing one rectangle; a row here only lays two of those
-                    // surfaces out side by side. The 4dp outer margin plus each surface's
-                    // own 12dp padding still add up to the historical 16dp inset
-                    // TileTextWidthTest measures each tile's own content width against, so
-                    // that budget is unchanged.
+                    // surfaces out side by side. The row's own margin is
+                    // HelionScreenEdgeMargin and each surface pads by HelionSurfacePadding,
+                    // so a tile's text starts on HelionContentInset -- the same line as the
+                    // hero and the freshness line above it, which is what a tighter tile
+                    // padding used to break.
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = HelionScreenEdgeMargin, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         pair.forEach { metric ->
@@ -274,7 +282,6 @@ fun HomeScreen(
                             val tileLatest = latestByMetricId[metric.id]?.value
                             HelionSurface(
                                 modifier = Modifier.weight(1f),
-                                padding = androidx.compose.foundation.layout.PaddingValues(10.dp),
                             ) {
                                 MetricTile(
                                     metric = metric,
@@ -313,7 +320,11 @@ private fun HeroHeartRate(
     val colors = HelionThemeTokens.colors
     val metric = MetricCatalog.byId(HEART_RATE_ID) ?: return
     val hue = colors.metricColor(metric)
-    Box(
+    // Stacking the figure on top of the ribbon put the number, its unit and the ribbon's
+    // own hour labels in the same band: the digits sat across the tick marks and the axis
+    // crowded the caption underneath. They are laid out one after the other now -- figure,
+    // caption, then the ribbon with its axis -- which is also the order a tile uses.
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             // The most prominent element on the screen must not be the one dead tap
@@ -321,28 +332,24 @@ private fun HeroHeartRate(
             // with the same clickable mechanics (ripple via LocalIndication) and the
             // same Role.Button semantics for accessibility/switch access.
             .clickable(onClick = onClick, role = Role.Button)
-            .padding(bottom = 8.dp),
+            .padding(top = HelionCardSpacing, bottom = 8.dp),
     ) {
-        // Hour ticks along the bottom of the ribbon: the one piece of Accueil the owner
-        // sees before ever opening a metric, so it is the one place besides the detail
-        // chart that gets an explicit time axis rather than only a bare shape.
-        DayRibbon(
-            bars = ribbonBars,
-            barColor = hue.copy(alpha = 0.35f),
-            modifier = Modifier.heroRibbonSize(),
-            windowStart = windowStart,
-            windowEnd = windowEnd,
-            axisLabelColor = colors.textTertiary,
-        )
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = HelionContentInset)) {
             if (latest != null) {
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(metric.formatValue(latest.value), style = HelionType.hero, color = hue)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        metric.formatValue(latest.value),
+                        style = HelionType.hero,
+                        color = hue,
+                        modifier = Modifier.alignByBaseline(),
+                    )
+                    // On the shared baseline, not the top of the digits: a unit set beside
+                    // a figure belongs on that figure's own line.
                     Text(
                         stringResource(metric.unitRes),
                         style = HelionType.label,
                         color = colors.textSecondary,
-                        modifier = Modifier.padding(bottom = 16.dp),
+                        modifier = Modifier.alignByBaseline(),
                     )
                 }
                 // The absolute "Reçue à HH:MM" line used to sit here, right above the
@@ -362,6 +369,19 @@ private fun HeroHeartRate(
                 Text(stringResource(R.string.accueil_hero_no_reading), style = HelionType.body, color = colors.textSecondary)
             }
         }
+        // Hour ticks along the bottom of the ribbon: the one piece of Accueil the owner
+        // sees before ever opening a metric, so it is the one place besides the detail
+        // chart that gets an explicit time axis rather than only a bare shape.
+        DayRibbon(
+            bars = ribbonBars,
+            barColor = hue.copy(alpha = 0.35f),
+            modifier = Modifier
+                .heroRibbonSize()
+                .padding(start = HelionContentInset, end = HelionContentInset, top = 12.dp),
+            windowStart = windowStart,
+            windowEnd = windowEnd,
+            axisLabelColor = colors.textTertiary,
+        )
     }
 }
 

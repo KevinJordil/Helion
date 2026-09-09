@@ -53,6 +53,8 @@ fun MetricTile(
             style = HelionType.label,
             color = colors.textSecondary,
         )
+        // Baseline-aligned, not top-aligned: a Row's default puts the small unit against
+        // the top of the tall figure, so the unit floated above the number on every tile.
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -61,10 +63,16 @@ fun MetricTile(
                 latestValue?.let { metric.formatValue(it) } ?: "—",
                 style = HelionType.valueMedium,
                 color = if (latestValue != null) hue else colors.textTertiary,
+                modifier = Modifier.alignByBaseline(),
             )
             val unit = stringResource(metric.unitRes)
             if (unit.isNotEmpty()) {
-                Text(unit, style = HelionType.labelSmall, color = colors.textTertiary)
+                Text(
+                    unit,
+                    style = HelionType.labelSmall,
+                    color = colors.textTertiary,
+                    modifier = Modifier.alignByBaseline(),
+                )
             }
         }
         DayRibbon(

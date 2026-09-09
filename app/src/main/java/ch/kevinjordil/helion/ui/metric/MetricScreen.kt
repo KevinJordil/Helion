@@ -48,8 +48,12 @@ import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceIndicatorFor
 import ch.kevinjordil.helion.ui.quality.referenceMessage
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
+import ch.kevinjordil.helion.ui.theme.HelionStatItem
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
 import java.time.ZoneId
@@ -75,15 +79,13 @@ private val CHART_AXIS_HEIGHT = 18.dp
 
 /**
  * The root Column's own horizontal inset, now that the value/chart/stats cluster sits on a
- * raised [HelionSurface] rather than directly against the screen -- see [CARD_PADDING]. The
+ * raised [HelionSurface] rather than directly against the screen -- see [HelionSurfacePadding]. The
  * two add up to exactly the 20dp every width test in this file (and in `MetricStatsWidthTest`
  * etc.) still measures against, so none of their budgets change even though the visual result
  * does: a rounded, padded card in place of a bare column.
  */
-private val SCREEN_EDGE_MARGIN = 4.dp
 
-/** A card's own internal padding: [SCREEN_EDGE_MARGIN] plus this is the historical 20dp inset. */
-private val CARD_PADDING = 16.dp
+/** A card's own internal padding: [HelionScreenEdgeMargin] plus this is the historical 20dp inset. */
 
 /**
  * The metric detail destination, parameterised by [metric] -- a real navigation
@@ -135,18 +137,18 @@ fun MetricScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
         Text(
             stringResource(R.string.action_back),
             style = HelionType.label,
             color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = CARD_PADDING),
+            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = HelionSurfacePadding),
         )
 
         Column(
-            modifier = Modifier.padding(horizontal = CARD_PADDING),
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // No maxLines/ellipsis: this is a section header alone on its own line, so if it
@@ -179,8 +181,8 @@ fun MetricScreen(
         // get their own, smaller card below rather than all four riding on one rectangle.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
+            verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
         ) {
             if (displayed != null) {
                 // Value and unit are two separate Text composables at two different sizes,
@@ -189,11 +191,15 @@ fun MetricScreen(
                 // smaller `label` style rather than at the value's own 56sp is what keeps
                 // even the widest composed line ("224 bpm", "99999 pas") on one line at the
                 // narrowest supported width; see MetricHeaderWidthTest.
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // On the shared text baseline, not on the box bottom nudged up by a hand-
+                // tuned padding: the two styles have different descents, so "bottom plus a
+                // constant" left the unit sitting slightly below the figure's own baseline.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         metric.formatValue(displayed.value),
                         style = DETAIL_VALUE_STYLE,
                         color = hue,
+                        modifier = Modifier.alignByBaseline(),
                     )
                     val unit = stringResource(metric.unitRes)
                     if (unit.isNotEmpty()) {
@@ -201,7 +207,7 @@ fun MetricScreen(
                             unit,
                             style = HelionType.label,
                             color = colors.textSecondary,
-                            modifier = Modifier.padding(bottom = 8.dp),
+                            modifier = Modifier.alignByBaseline(),
                         )
                     }
                 }
@@ -233,7 +239,7 @@ fun MetricScreen(
             state.stats?.let { stats ->
                 HelionSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                    padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
                 ) {
                     StatsRow(stats, metric)
                 }
@@ -242,7 +248,7 @@ fun MetricScreen(
             state.latest?.let { latest ->
                 HelionSurface(
                     modifier = Modifier.fillMaxWidth(),
-                    padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                    padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     QualityRow(
@@ -280,8 +286,8 @@ private fun RangeSelector(selected: Range, onSelect: (Range) -> Unit, modifier: 
  * Three labelled figures side by side is the layout that collided: at a narrow width with a
  * long unit ("resp/min") or a wide value ("99999"), same-size min/max/average text in a
  * plain `SpaceBetween` row has no bound on how wide each figure can grow, so neighbours ran
- * into each other. Giving each [StatItem] an equal [Modifier.weight] fixes each one to its
- * own third of the row -- they can never collide -- and [StatItem] itself puts the unit on
+ * into each other. Giving each [HelionStatItem] an equal [Modifier.weight] fixes each one
+ * to its own third of the row -- they can never collide -- and it puts the unit on
  * its own line below the value rather than beside it, so the widest value alone (not
  * "value unit" together) is what has to fit that third. See MetricStatsWidthTest.
  */
@@ -289,42 +295,30 @@ private fun RangeSelector(selected: Range, onSelect: (Range) -> Unit, modifier: 
 private fun StatsRow(stats: MetricStats, metric: Metric, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StatItem(
+        HelionStatItem(
             stringResource(R.string.stat_min),
             metric.formatValue(stats.min),
-            metric,
-            colors.textPrimary,
-            modifier = Modifier.weight(1f),
+            Modifier.weight(1f),
+            unit = stringResource(metric.unitRes),
+            valueColor = colors.textPrimary,
         )
-        StatItem(
+        HelionStatItem(
             stringResource(R.string.stat_max),
             metric.formatValue(stats.max),
-            metric,
-            colors.textPrimary,
-            modifier = Modifier.weight(1f),
+            Modifier.weight(1f),
+            unit = stringResource(metric.unitRes),
+            valueColor = colors.textPrimary,
         )
-        StatItem(
+        HelionStatItem(
             stringResource(R.string.stat_average),
             metric.formatValue(stats.average),
-            metric,
-            colors.metricColor(metric),
-            modifier = Modifier.weight(1f),
+            Modifier.weight(1f),
+            unit = stringResource(metric.unitRes),
+            valueColor = colors.metricColor(metric),
         )
     }
 }
 
-@Composable
-private fun StatItem(label: String, value: String, metric: Metric, valueColor: Color, modifier: Modifier = Modifier) {
-    val colors = HelionThemeTokens.colors
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
-        Text(value, style = HelionType.valueMedium, color = valueColor)
-        val unit = stringResource(metric.unitRes)
-        if (unit.isNotEmpty()) {
-            Text(unit, style = HelionType.labelSmall, color = colors.textTertiary)
-        }
-    }
-}
 
 /**
  * The two quality axes for the currently displayed value: [personalBaseline] (always
