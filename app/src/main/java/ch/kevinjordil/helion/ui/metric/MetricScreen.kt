@@ -183,6 +183,9 @@ fun MetricScreen(
             modifier = Modifier.fillMaxWidth(),
             padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
+            // Washed in this metric's own hue, the same way its tile on Accueil is, so
+            // opening a tile lands on a card the eye recognises as the same object.
+            tint = hue,
         ) {
             if (displayed != null) {
                 // Value and unit are two separate Text composables at two different sizes,
@@ -299,6 +302,7 @@ private fun StatsRow(stats: MetricStats, metric: Metric, modifier: Modifier = Mo
             stringResource(R.string.stat_min),
             metric.formatValue(stats.min),
             Modifier.weight(1f),
+            centred = true,
             unit = stringResource(metric.unitRes),
             valueColor = colors.textPrimary,
         )
@@ -306,6 +310,7 @@ private fun StatsRow(stats: MetricStats, metric: Metric, modifier: Modifier = Mo
             stringResource(R.string.stat_max),
             metric.formatValue(stats.max),
             Modifier.weight(1f),
+            centred = true,
             unit = stringResource(metric.unitRes),
             valueColor = colors.textPrimary,
         )
@@ -313,6 +318,7 @@ private fun StatsRow(stats: MetricStats, metric: Metric, modifier: Modifier = Mo
             stringResource(R.string.stat_average),
             metric.formatValue(stats.average),
             Modifier.weight(1f),
+            centred = true,
             unit = stringResource(metric.unitRes),
             valueColor = colors.metricColor(metric),
         )

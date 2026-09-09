@@ -296,9 +296,9 @@ fun NightChartSection(
         val max = heartRateReadings.maxOf { it.value }
         val average = heartRateReadings.sumOf { it.value } / heartRateReadings.size
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HelionStatItem(stringResource(R.string.stat_min), "%.0f".format(min), Modifier.weight(1f), unit = bpmUnit)
-            HelionStatItem(stringResource(R.string.stat_max), "%.0f".format(max), Modifier.weight(1f), unit = bpmUnit)
-            HelionStatItem(stringResource(R.string.stat_average), "%.0f".format(average), Modifier.weight(1f), unit = bpmUnit, valueColor = colors.accentViolet)
+            HelionStatItem(stringResource(R.string.stat_min), "%.0f".format(min), Modifier.weight(1f), unit = bpmUnit, centred = true)
+            HelionStatItem(stringResource(R.string.stat_max), "%.0f".format(max), Modifier.weight(1f), unit = bpmUnit, centred = true)
+            HelionStatItem(stringResource(R.string.stat_average), "%.0f".format(average), Modifier.weight(1f), unit = bpmUnit, valueColor = colors.accentViolet, centred = true)
         }
 
         if (overlays.isNotEmpty()) {

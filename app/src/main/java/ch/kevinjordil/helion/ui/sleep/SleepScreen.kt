@@ -249,6 +249,9 @@ private fun SelectedNightCard(
             modifier = Modifier.fillMaxWidth(),
             padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(4.dp),
+            // The night's own card carries the same faint wash Accueil's tiles do, in the
+            // colour the whole screen is already keyed to.
+            tint = colors.accentViolet,
         ) {
             // The date is centred by giving it the row's spare width and centring inside
             // it, not by relying on the two icon buttons happening to be equally wide --
@@ -338,8 +341,8 @@ private fun SelectedNightCard(
             padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HelionStatItem(stringResource(R.string.sleep_fell_asleep), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)), Modifier.weight(1f))
-                HelionStatItem(stringResource(R.string.sleep_woke_at), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)), Modifier.weight(1f))
+                HelionStatItem(stringResource(R.string.sleep_fell_asleep), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)), Modifier.weight(1f), centred = true)
+                HelionStatItem(stringResource(R.string.sleep_woke_at), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)), Modifier.weight(1f), centred = true)
             }
         }
 
@@ -410,9 +413,9 @@ private fun SleepPhaseBreakdown(minutes: List<PhaseMinute>) {
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        HelionStatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
-        HelionStatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
-        HelionStatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.weight(1f))
+        HelionStatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f), centred = true)
+        HelionStatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f), centred = true)
+        HelionStatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.weight(1f), centred = true)
     }
 }
 
@@ -538,9 +541,9 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                HelionStatItem(stringResource(R.string.sleep_phase_deep), averagePhaseDurationText(averages.avgDeepMinutes), Modifier.weight(1f))
-                HelionStatItem(stringResource(R.string.sleep_phase_rem), averagePhaseDurationText(averages.avgRemMinutes), Modifier.weight(1f))
-                HelionStatItem(stringResource(R.string.sleep_phase_light), averagePhaseDurationText(averages.avgLightMinutes), Modifier.weight(1f))
+                HelionStatItem(stringResource(R.string.sleep_phase_deep), averagePhaseDurationText(averages.avgDeepMinutes), Modifier.weight(1f), centred = true)
+                HelionStatItem(stringResource(R.string.sleep_phase_rem), averagePhaseDurationText(averages.avgRemMinutes), Modifier.weight(1f), centred = true)
+                HelionStatItem(stringResource(R.string.sleep_phase_light), averagePhaseDurationText(averages.avgLightMinutes), Modifier.weight(1f), centred = true)
             }
             Text(
                 stringResource(R.string.sleep_average_stage_basis, averages.stageNights, averages.consideredNights),
