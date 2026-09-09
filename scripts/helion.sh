@@ -127,6 +127,17 @@ cmd_pull_export() {
     note "pulled to ${dest} (git-ignored: it holds personal health data)"
 }
 
+# Renders every screen off-screen and writes one PNG per screen. There is no emulator on
+# the dev machine (no /dev/kvm, no system image), so this is how the layout gets looked at.
+cmd_shots() {
+    local out="${1:-${REPO_ROOT}/build/shots}"
+    mkdir -p "${out}"
+    note "Rendering screens into ${out}"
+    (cd "${REPO_ROOT}" && ./gradlew --quiet :app:testDebugUnitTest \
+        --tests '*ScreenGallery*' -Phelion.shots="${out}") || die "render failed"
+    ls -1 "${out}"
+}
+
 cmd_schema() {
     local db="${1:-${REPO_ROOT}/Gadgetbridge.db}"
     [[ -f "${db}" ]] || die "no such file: ${db}"
@@ -159,6 +170,7 @@ Helion development helper.
   gb-check       Broadcast both Gadgetbridge intents and check the export really changed
   pull-export    Copy the device's Gadgetbridge export into the repo (git-ignored)
   schema [file]  Dump the populated tables and schema of an export database
+  shots [dir]    Render every screen to a PNG (no emulator needed)
 
 The JDK and Android SDK are located automatically; set JAVA_HOME or ANDROID_HOME to override.
 EOF
@@ -178,6 +190,7 @@ main() {
         gb-check)    cmd_gb_check ;;
         pull-export) cmd_pull_export ;;
         schema)      cmd_schema "$@" ;;
+        shots)       cmd_shots "$@" ;;
         -h|--help|help) usage ;;
         *)           echo "unknown command: ${command}" >&2; echo >&2; usage; exit 1 ;;
     esac

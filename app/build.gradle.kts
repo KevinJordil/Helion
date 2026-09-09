@@ -45,6 +45,12 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            all {
+                // Forwards -Phelion.shots=<dir> to the off-screen render bench
+                // (ScreenGallery), which stays skipped unless a directory is asked for.
+                val shotsDir = project.findProperty("helion.shots") as String?
+                if (shotsDir != null) it.systemProperty("helion.shots", shotsDir)
+            }
         }
     }
 }
@@ -69,6 +75,11 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.test.core)
+    // Off-screen Compose rendering: the only way to actually look at a screen on a machine
+    // with no emulator (no /dev/kvm, no system image). See ui/RenderScreenshots.
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 ksp {
