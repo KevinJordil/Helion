@@ -14,7 +14,7 @@ import org.junit.Test
 /**
  * Measures real glyph advance widths for the strings shown on Accueil's tiles -- the
  * narrowest, most crowded container in the app -- straight out of the actual .ttf file
- * this app ships (`res/font/ibmplexmono_medium.ttf`), by reading its `cmap` and `hmtx`
+ * this app ships (`res/font/ibmplexsans_medium.ttf`), by reading its `cmap` and `hmtx`
  * tables directly. This is how "verified, not asserted" is meant for a truncation report:
  * a real measurement against a real budget.
  *
@@ -136,7 +136,7 @@ class DurationTextWidthTest {
     private val letterSpacingSp = -1f
 
     private val font: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        val file = File("src/main/res/font/ibmplexsans_semibold.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -273,8 +273,8 @@ private fun unitFor(metricId: String): String = when (metricId) {
  * siblings only measure strings pulled straight from `strings.xml`, never text composed at
  * runtime from a formatted value plus a unit. MetricScreen's own header value is exactly
  * that composition (see `DETAIL_VALUE_STYLE`'s Row in `MetricScreen.kt`): a big value in
- * `DETAIL_VALUE_STYLE` (56sp, `ibmplexmono_semibold`) next to its unit in the much smaller
- * `label` style (12sp, `ibmplexmono_medium`), 8dp apart. This generates that composed text
+ * `DETAIL_VALUE_STYLE` (56sp, `ibmplexsans_semibold`) next to its unit in the much smaller
+ * `label` style (12sp, `ibmplexsans_medium`), 8dp apart. This generates that composed text
  * for every metric in [MetricCatalog] at its widest plausible value (see
  * [widestMetricValues]) and measures both pieces for real, the same glyph-table approach as
  * [TileTextWidthTest].
@@ -293,7 +293,7 @@ class MetricHeaderWidthTest {
     private val spacingDp = 8f
 
     private val valueFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        val file = File("src/main/res/font/ibmplexsans_semibold.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -337,7 +337,7 @@ class MetricHeaderWidthTest {
  * Same composed-string gap as [MetricHeaderWidthTest], for the min/max/average row
  * (`StatsRow`/`StatItem` in `MetricScreen.kt`). Each `StatItem` is an equal-weight column of
  * the row (three columns, 8dp apart) with the value (`valueMedium`, 22sp,
- * `ibmplexmono_semibold`) and its unit (`labelSmall`, 11sp, `ibmplexmono_medium`) stacked on
+ * `ibmplexsans_semibold`) and its unit (`labelSmall`, 11sp, `ibmplexsans_medium`) stacked on
  * separate lines rather than side by side, so what has to fit a column is the value alone
  * and the unit alone, not the two concatenated.
  *
@@ -353,7 +353,7 @@ class MetricStatsWidthTest {
     private val unitLetterSpacingSp = 0f
 
     private val valueFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        val file = File("src/main/res/font/ibmplexsans_semibold.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -434,7 +434,7 @@ class SleepScreenWidthTest {
     }
 
     private val valueFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        val file = File("src/main/res/font/ibmplexsans_semibold.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -908,7 +908,7 @@ class DayTimelineReadoutWidthTest {
     private val fontScale = 1.3f
 
     private val valueFont: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_semibold.ttf")
+        val file = File("src/main/res/font/ibmplexsans_semibold.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
@@ -1758,13 +1758,13 @@ class ChartAxisLabelWidthTest {
     private val fontScale = 1.3f
     private val fontSizeSp = 11f
 
-    // [HelionType.axisLabel]: a canvas-drawn numeral tick is still mono (see [PlexMono]'s own
-    // kdoc -- numerals only), but untracked now, unlike the old [HelionType.labelSmall] this
-    // class used to measure.
+    // [HelionType.axisLabel]: a canvas-drawn numeral tick, set in PlexSans like every other
+    // figure in the app, and untracked -- unlike the old [HelionType.labelSmall] this class
+    // used to measure.
     private val letterSpacingSp = 0f
 
     private val font: TrueTypeFont by lazy {
-        val file = File("src/main/res/font/ibmplexmono_medium.ttf")
+        val file = File("src/main/res/font/ibmplexsans_medium.ttf")
         check(file.exists()) { "expected to find ${file.absolutePath} from the module's working directory" }
         TrueTypeFont.parse(file.readBytes())
     }
