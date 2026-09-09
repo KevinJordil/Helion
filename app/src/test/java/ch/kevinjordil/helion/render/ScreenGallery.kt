@@ -177,17 +177,26 @@ class ScreenGallery {
                     sport = SportType.BADMINTON,
                 ),
             )
-            container.database.activities().upsert(
-                Activity(
-                    startTimestamp = now - 9000,
-                    endTimestamp = now - 3000,
-                    sport = SportType.BADMINTON,
-                    title = "Entraînement badminton",
-                    notes = null,
-                    origin = ActivityOrigin.SLOT,
-                    status = ActivityStatus.CANDIDATE,
-                ),
-            )
+            // A spread of categories, so the list shows what a real week looks like.
+            listOf(
+                Triple(SportType.BADMINTON, "Entraînement badminton", ActivityStatus.CANDIDATE),
+                Triple(SportType.RIDE, "Sortie vélo", ActivityStatus.CONFIRMED),
+                Triple(SportType.RUN, "Footing du matin", ActivityStatus.PUBLISHED),
+                Triple(SportType.SWIM, "Piscine", ActivityStatus.CONFIRMED),
+                Triple(SportType.WEIGHT_TRAINING, "Renforcement", ActivityStatus.CONFIRMED),
+            ).forEachIndexed { index, (sport, title, status) ->
+                container.database.activities().upsert(
+                    Activity(
+                        startTimestamp = now - 9000L - index * 7200L,
+                        endTimestamp = now - 3000L - index * 7200L,
+                        sport = sport,
+                        title = title,
+                        notes = null,
+                        origin = ActivityOrigin.SLOT,
+                        status = status,
+                    ),
+                )
+            }
         }
     }
 

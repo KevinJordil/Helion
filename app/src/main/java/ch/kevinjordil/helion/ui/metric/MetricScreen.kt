@@ -51,6 +51,7 @@ import ch.kevinjordil.helion.ui.quality.referenceMessage
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.HelionSurfaceTintAlphaSubdued
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionStatItem
@@ -184,8 +185,11 @@ fun MetricScreen(
             padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
             // Washed in this metric's own hue, the same way its tile on Accueil is, so
-            // opening a tile lands on a card the eye recognises as the same object.
+            // opening a tile lands on a card the eye recognises as the same object -- but
+            // at the subdued strength, because a card this size at a tile's strength reads
+            // as one big colour block rather than as a coloured card.
             tint = hue,
+            tintAlpha = HelionSurfaceTintAlphaSubdued,
         ) {
             if (displayed != null) {
                 // Value and unit are two separate Text composables at two different sizes,

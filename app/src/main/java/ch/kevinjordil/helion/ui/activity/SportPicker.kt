@@ -81,7 +81,9 @@ fun SportPicker(selected: SportType?, onSelect: (SportType) -> Unit, modifier: M
             Text(
                 selected?.let { stringResource(sportLabelRes(it)) } ?: stringResource(R.string.sport_none),
                 style = HelionType.label,
-                color = if (selected != null) colors.accentViolet else colors.textTertiary,
+                // In the sport's own colour, the same one its bar carries in the list,
+                // so a sport is one recognisable thing across the whole app.
+                color = colors.sportColorOrNull(selected) ?: colors.textTertiary,
             )
         }
 
@@ -115,7 +117,7 @@ fun SportPicker(selected: SportType?, onSelect: (SportType) -> Unit, modifier: M
                             Text(
                                 stringResource(sportLabelRes(sport)),
                                 style = HelionType.body,
-                                color = if (sport == selected) colors.accentViolet else colors.textPrimary,
+                                color = if (sport == selected) colors.sportColor(sport.category) else colors.textPrimary,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {

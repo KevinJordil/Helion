@@ -1,5 +1,13 @@
 package ch.kevinjordil.helion.ui.activity
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -147,18 +155,42 @@ private fun EmptyActivityList(onNewActivity: () -> Unit, modifier: Modifier = Mo
     }
 }
 
+/** The sport-colour bar down the left of an activity row. */
+private val SPORT_BAR_WIDTH = 4.dp
+
 @Composable
 private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     val attention = needsAttention(activity.status)
 
-    Column(
+    // The sport's own colour, carried as a bar down the left of the row rather than as a
+    // wash behind it: a list of activities is a list of different sports, so one tint per
+    // card would be a lie, and a full-card wash at this size reads as a slab anyway. The
+    // bar is what makes a racket evening tell itself apart from a ride at a glance.
+    val sportHue = colors.sportColorOrNull(activity.sport)
+
+    Row(
         modifier = modifier
             .fillMaxWidth()
+            // Intrinsic height, so the bar's fillMaxHeight has something to fill: in a Row
+            // with an unbounded height constraint it would resolve to zero and the bar
+            // would simply not be drawn.
+            .height(IntrinsicSize.Min)
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Box(
+            modifier = Modifier
+                .width(SPORT_BAR_WIDTH)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(SPORT_BAR_WIDTH / 2))
+                .background(sportHue ?: colors.divider),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // Weighted so a long title wraps within its own share of the row instead of
             // pushing the status label off the edge -- the status must always stay fully
@@ -190,6 +222,7 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
             style = HelionType.bodySmall,
             color = colors.textSecondary,
         )
+        }
     }
 }
 
