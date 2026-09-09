@@ -121,22 +121,20 @@ fun ActivityListScreen(
                                 modifier = Modifier.padding(start = HelionSurfacePadding, end = HelionSurfacePadding, bottom = 4.dp),
                             )
                         }
-                        item(key = "group:$date") {
-                            // A day's own activities now share one raised surface instead
-                            // of being separated by hairline dividers -- see HelionSurface's
-                            // own kdoc. HelionSurfacePadding here (not HelionSurface's own wider
-                            // default) is what keeps the total inset at the historical 20dp
-                            // ActivityLabelWidthTest measures against.
+                        // One card per activity, washed in its own sport's colour, rather
+                        // than one neutral card per day holding divider-separated rows. A
+                        // day is not one thing -- a ride and a badminton evening have
+                        // nothing to do with each other beyond falling on the same date --
+                        // and the day header already says which day these are. What the
+                        // shared card did buy was a compact list; the tinted cards are
+                        // what make this screen read as a sports app rather than a ledger.
+                        items(dayActivities, key = { "activity:${it.id}" }) { activity ->
                             HelionSurface(
                                 modifier = Modifier.fillMaxWidth(),
                                 padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
+                                tint = colors.sportColorOrNull(activity.sport),
                             ) {
-                                dayActivities.forEachIndexed { index, activity ->
-                                    ActivityRow(activity, onClick = { onOpenActivity(activity.id) })
-                                    if (index != dayActivities.lastIndex) {
-                                        androidx.compose.material3.HorizontalDivider(color = colors.divider.copy(alpha = 0.4f))
-                                    }
-                                }
+                                ActivityRow(activity, onClick = { onOpenActivity(activity.id) })
                             }
                         }
                     }
@@ -158,9 +156,6 @@ private fun EmptyActivityList(onNewActivity: () -> Unit, modifier: Modifier = Mo
     }
 }
 
-/** The sport-colour bar down the left of an activity row. */
-private val SPORT_BAR_WIDTH = 4.dp
-
 /** The disc the sport glyph sits on. */
 private val SPORT_DISC_SIZE = 40.dp
 
@@ -169,10 +164,9 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
     val colors = HelionThemeTokens.colors
     val attention = needsAttention(activity.status)
 
-    // The sport's own colour, carried as a bar down the left of the row rather than as a
-    // wash behind it: a list of activities is a list of different sports, so one tint per
-    // card would be a lie, and a full-card wash at this size reads as a slab anyway. The
-    // bar is what makes a racket evening tell itself apart from a ride at a glance.
+    // The sport's own colour: the card behind this row is already washed in it (see the
+    // list's own items block), and the glyph disc and the duration pick it up again so the
+    // row is readable as that sport even at a glance.
     val sportHue = colors.sportColorOrNull(activity.sport)
 
     Row(
@@ -186,13 +180,6 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
             .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .width(SPORT_BAR_WIDTH)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(SPORT_BAR_WIDTH / 2))
-                .background(sportHue ?: colors.divider),
-        )
         // The sport's glyph, on a disc washed in its own colour: the row is read by shape
         // and colour before any of its words are.
         Box(

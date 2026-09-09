@@ -249,6 +249,10 @@ private fun SelectedNightCard(
             modifier = Modifier.fillMaxWidth(),
             padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(4.dp),
+            // Now that this card holds only the headline and not the chart too, it can
+            // carry the screen's colour without becoming a slab -- see HelionSurface on why
+            // the tint is a gradient rather than a flat wash.
+            tint = colors.accentViolet,
         ) {
             // The date is centred by giving it the row's spare width and centring inside
             // it, not by relying on the two icon buttons happening to be equally wide --
@@ -321,13 +325,22 @@ private fun SelectedNightCard(
                 Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
             }
 
+        }
+
+        // The chart has its own card rather than riding along under the duration. Together
+        // they were a single surface running almost the whole screen, which read as one
+        // slab of background regardless of what colour it was: they are two different
+        // questions -- how long, and what the night looked like -- so they are two cards.
+        HelionSurface(
+            modifier = Modifier.fillMaxWidth(),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
+        ) {
             NightChartSection(
                 episode = episode,
                 showRespiratory = showRespiratoryOverlay,
                 onShowRespiratoryChange = onShowRespiratoryOverlayChange,
                 showMovement = showMovementOverlay,
                 onShowMovementChange = onShowMovementOverlayChange,
-                modifier = Modifier.padding(top = 16.dp),
             )
         }
 
