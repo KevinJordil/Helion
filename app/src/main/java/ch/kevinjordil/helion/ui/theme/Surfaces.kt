@@ -21,10 +21,10 @@ import androidx.compose.ui.unit.dp
  * rule. One radius across the whole app, not a different rounding per screen, is what keeps
  * this reading as one material rather than a patchwork.
  */
-val HelionCornerRadius: Dp = 20.dp
+val HelionCornerRadius: Dp = 26.dp
 
 /** A smaller radius for a compact inline surface (a chip, a pill) that the full card radius would swallow. */
-val HelionCornerRadiusSmall: Dp = 12.dp
+val HelionCornerRadiusSmall: Dp = 14.dp
 
 /**
  * The one content padding inside a [HelionSurface].

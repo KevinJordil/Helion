@@ -75,6 +75,18 @@ private const val HEART_RATE_ID = "heart_rate"
 private const val STEPS_ID = "steps"
 
 /**
+ * How many bars a day is cut into. Far fewer than the 48 half-hour buckets this used to
+ * draw: at that density a tile's strand was a rake of hairlines, which is what made the
+ * screen read as an instrument panel rather than as something pleasant to look at. Coarser
+ * bars still show the day's shape -- when he moved, when he slept -- which is all a tile's
+ * strand was ever for; the detail chart is where the actual resolution lives.
+ */
+private const val TILE_RIBBON_BUCKETS = 20
+
+/** The hero is far wider than a tile, so it can carry more bars at the same bar width. */
+private const val HERO_RIBBON_BUCKETS = 40
+
+/**
  * Accueil: heart rate as the hero, the other six catalog metrics as tiles, all sharing one
  * day ribbon. Three states replace the dashboard entirely -- see [HomeStatus] -- and a
  * fourth, quieter one (a failed refresh) overlays a banner without touching data already
@@ -242,6 +254,7 @@ fun HomeScreen(
                             dayReadingsByMetricId[HEART_RATE_ID].orEmpty(),
                             windowStart = heroWindowStart,
                             windowEnd = heroWindowEnd,
+                            bucketCount = HERO_RIBBON_BUCKETS,
                         ),
                         windowStart = heroWindowStart,
                         windowEnd = heroWindowEnd,
@@ -332,6 +345,7 @@ fun HomeScreen(
                                         dayReadingsByMetricId[metric.id].orEmpty(),
                                         windowStart = now - Range.DAY.seconds,
                                         windowEnd = now,
+                                        bucketCount = TILE_RIBBON_BUCKETS,
                                     ),
                                     personalBaseline = tileLatest?.let { value ->
                                         placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))

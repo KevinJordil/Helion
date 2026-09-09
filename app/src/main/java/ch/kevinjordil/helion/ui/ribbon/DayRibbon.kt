@@ -57,7 +57,13 @@ fun DayRibbon(
         val barBaseline = plotHeight
 
         if (bars.isNotEmpty()) {
-            val strokeWidth = (size.width / 96f).coerceIn(1.5f, 4f)
+            // Width derived from how many bars there actually are, so each one fills most
+            // of its own slot and the strand reads as a row of bars. It used to be a fixed
+            // hairline regardless of density, which at a tile's 48 buckets drew a rake of
+            // one-pixel ticks -- the single most instrument-like thing left in the app.
+            val slotWidth = size.width / bars.size
+            val strokeWidth = (slotWidth * BAR_SLOT_FILL)
+                .coerceIn(MIN_BAR_WIDTH.toPx(), MAX_BAR_WIDTH.toPx())
             bars.forEach { bar ->
                 val x = bar.xFraction * size.width
                 val barHeight = (minHeightFraction + bar.valueFraction * (1f - minHeightFraction)) * barAreaHeight
@@ -91,6 +97,19 @@ fun DayRibbon(
 }
 
 /** Preconfigured height for the small strand shown on a tile. */
+/** How much of its own slot a bar fills; the rest is the gap that makes them read as bars. */
+private const val BAR_SLOT_FILL = 0.62f
+
+/** Below this a bar stops looking like a bar, however many of them there are. */
+private val MIN_BAR_WIDTH = 3.dp
+
+/**
+ * And above this it stops looking like one too. A metric that produced a single bucket all
+ * day -- PAI on a quiet day, or steps early in the morning -- would otherwise get a bar as
+ * wide as its whole tile, which with a round cap draws as a disc rather than a bar.
+ */
+private val MAX_BAR_WIDTH = 10.dp
+
 fun Modifier.tileRibbonSize(): Modifier = this.fillMaxWidth().height(22.dp)
 
 /** Preconfigured height for the full-bleed ribbon behind the hero, including its hour axis. */
