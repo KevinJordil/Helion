@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -73,6 +74,9 @@ const val HelionSurfaceTintAlpha: Float = 0.24f
 /** The wash for a card whose own content is already colour-coded -- see [HelionSurfaceTintAlpha]. */
 const val HelionSurfaceTintAlphaSubdued: Float = 0.10f
 
+/** How much of a tint survives at the far corner of [HelionSurface]'s gradient. */
+private const val TINT_FADE: Float = 0.25f
+
 /**
  * One softly rounded, raised surface -- [HelionColors.surfaceRaised] clipped to
  * [HelionCornerRadius], with [HelionSurfacePadding] of breathing room inside it -- for
@@ -95,7 +99,24 @@ fun HelionSurface(
         modifier = modifier
             .clip(RoundedCornerShape(HelionCornerRadius))
             .background(colors.surfaceRaised)
-            .then(if (tint != null) Modifier.background(tint.copy(alpha = tintAlpha)) else Modifier)
+                        // A diagonal gradient rather than a flat wash: a single opaque colour over a
+            // large card reads as a slab, while a wash that fades across the card keeps the
+            // colour without the weight. On a small tile the two look nearly the same; on a
+            // big card the difference is the whole complaint.
+            .then(
+                if (tint != null) {
+                    Modifier.background(
+                        Brush.linearGradient(
+                            listOf(
+                                tint.copy(alpha = tintAlpha),
+                                tint.copy(alpha = tintAlpha * TINT_FADE),
+                            ),
+                        ),
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .padding(padding),
         verticalArrangement = verticalArrangement,
         content = content,
