@@ -43,7 +43,6 @@ import ch.kevinjordil.helion.ui.theme.HelionColors
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
-import ch.kevinjordil.helion.ui.theme.HelionSurfaceTintAlphaSubdued
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionStatItem
@@ -250,11 +249,6 @@ private fun SelectedNightCard(
             modifier = Modifier.fillMaxWidth(),
             padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            // A lighter wash than a tile's: this card holds the hypnogram, whose four
-            // stage colours are the information, and a full-strength violet ground was
-            // competing with them.
-            tint = colors.accentViolet,
-            tintAlpha = HelionSurfaceTintAlphaSubdued,
         ) {
             // The date is centred by giving it the row's spare width and centring inside
             // it, not by relying on the two icon buttons happening to be equally wide --
@@ -366,26 +360,30 @@ private fun SelectedNightCard(
             SleepPhaseSource.NotEstimable -> Unit
         }
 
-        // Awakening count and sleep efficiency describe different things about the night --
-        // one is an event count, the other a ratio -- so each gets its own surface rather
-        // than sharing one. Each keeps the full row width it had before (see
-        // SleepScreenWidthTest): "12 · 24 min" is a composed count-plus-duration phrase
-        // that does not fit a half-width column at this value size.
+        // The awakening count and the sleep efficiency are different kinds of measure -- an
+        // event count and a ratio -- but each is a single figure, and a whole card apiece
+        // for one figure was mostly empty space. They share one card as two columns of the
+        // same row: the row is what makes a set of them, the way the phase trio above
+        // already works. "12 · 24 min" is the widest thing that has to fit a half-width
+        // column here; SleepScreenWidthTest holds that bound.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
             padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
-            HelionStatItem(
-                stringResource(R.string.sleep_awakenings),
-                stringResource(R.string.sleep_awakenings_value, episode.awakenings, episode.awakeningsDurationMinutes),
-                Modifier.fillMaxWidth(),
-            )
-        }
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-        ) {
-            HelionStatItem(stringResource(R.string.sleep_efficiency), "${(episode.sleepEfficiency * 100).toInt()} %", Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HelionStatItem(
+                    stringResource(R.string.sleep_awakenings),
+                    stringResource(R.string.sleep_awakenings_value, episode.awakenings, episode.awakeningsDurationMinutes),
+                    Modifier.weight(1f),
+                    centred = true,
+                )
+                HelionStatItem(
+                    stringResource(R.string.sleep_efficiency),
+                    "${(episode.sleepEfficiency * 100).toInt()} %",
+                    Modifier.weight(1f),
+                    centred = true,
+                )
+            }
         }
     }
 }
@@ -530,14 +528,17 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 HelionStatItem(
                     stringResource(R.string.sleep_efficiency),
-                    averages.avgEfficiency?.let { "${'$'}{(it * 100).toInt()} %" } ?: stringResource(R.string.sleep_average_value_missing),
+                    averages.avgEfficiency?.let { "${(it * 100).toInt()} %" } ?: stringResource(R.string.sleep_average_value_missing),
                     Modifier.weight(1f),
                     centred = true,
                 )
                 HelionStatItem(
                     stringResource(R.string.metric_respiratory_rate),
-                    averages.avgRespiratoryRate?.let { "${'$'}{it.roundToInt()}" } ?: stringResource(R.string.sleep_average_value_missing),
+                    averages.avgRespiratoryRate?.let { "${it.roundToInt()}" } ?: stringResource(R.string.sleep_average_value_missing),
                     Modifier.weight(1f),
+                    // A bare "16" says nothing on its own -- this is the only figure in the
+                    // panel whose unit is not implied by its label.
+                    unit = stringResource(R.string.unit_breaths_per_minute),
                     centred = true,
                 )
             }

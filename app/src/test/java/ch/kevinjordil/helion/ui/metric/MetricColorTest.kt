@@ -33,7 +33,7 @@ class MetricColorTest {
         MetricCatalog.all.forEach { metric ->
             val darkSlot = HelionDarkColors.metricHues.indexOf(HelionDarkColors.metricColor(metric))
             val lightSlot = HelionLightColors.metricHues.indexOf(HelionLightColors.metricColor(metric))
-            assertEquals("slot for ${'$'}{metric.id}", darkSlot, lightSlot)
+            assertEquals("slot for ${metric.id}", darkSlot, lightSlot)
         }
     }
 
