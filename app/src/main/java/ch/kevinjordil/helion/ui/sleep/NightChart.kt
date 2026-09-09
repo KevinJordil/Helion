@@ -46,6 +46,7 @@ import ch.kevinjordil.helion.ui.metric.scrubReading
 import ch.kevinjordil.helion.ui.ribbon.buildCategoryRibbon
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionStatItem
+import ch.kevinjordil.helion.ui.theme.CHART_LINE_WIDTH
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
 import java.time.ZoneId
@@ -81,6 +82,9 @@ private val LANE_LABEL_WIDTH: Dp = 90.dp
 
 /** Half the difference between Material's 48dp checkbox touch target and its 20dp box. */
 private val CHECKBOX_TOUCH_TARGET_INSET: Dp = 14.dp
+
+/** How much a run of one sleep stage has its corners taken off. */
+private val LANE_CORNER: Dp = 4.dp
 
 /** Buckets an episode's own span into roughly ten-minute slices, clamped to a sane range for very short or very long episodes. */
 private const val EPISODE_BUCKET_MINUTES = 10
@@ -456,13 +460,21 @@ private fun HeartRateCanvas(
         drawPath(
             fillPath,
             brush = Brush.verticalGradient(
-                colors = listOf(lineColor.copy(alpha = 0.16f), lineColor.copy(alpha = 0f)),
+                colors = listOf(lineColor.copy(alpha = 0.32f), lineColor.copy(alpha = 0f)),
                 startY = 0f,
                 endY = size.height,
             ),
         )
 
-        drawPath(path, color = lineColor, style = Stroke(width = 4f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        drawPath(
+            path,
+            color = lineColor,
+            style = Stroke(
+                width = CHART_LINE_WIDTH.toPx(),
+                cap = StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round,
+            ),
+        )
 
         if (scrubFraction != null && scrubbedReading != null) {
             val pointX = xOf(scrubbedReading.timestamp.toFloat())
@@ -567,15 +579,36 @@ private fun HypnogramLaneCanvas(
             // Filled buckets, not centred strokes: a stroke narrower than the bucket
             // spacing leaves a gap between consecutive occupied buckets, which reads as
             // an interrupted stage. One bucket wide, plus a pixel so neighbours seam.
+            // Drawn one continuous run at a time, not one bucket at a time, so a run's two
+            // ends can be rounded while the buckets inside it stay welded together. Rounding
+            // each bucket instead would notch the band everywhere two buckets meet -- and
+            // the bands touching is the whole point of this lane (see the Column above).
             val bucketWidth = size.width / bars.size
-            bars.forEach { (xFraction, category) ->
-                if (category != lane) return@forEach
-                drawRect(
+            var runStart: Int? = null
+            fun flush(endExclusive: Int) {
+                val start = runStart ?: return
+                val left = bars[start].first * size.width
+                val right = bars[endExclusive - 1].first * size.width + bucketWidth + 1f
+                // A softened corner, not a pill: at half the lane's height a short run
+                // draws as a floating capsule and the band stops reading as one continuous
+                // night, which is the thing this lane exists to show.
+                val radius = LANE_CORNER.toPx().coerceAtMost((right - left) / 2f)
+                drawRoundRect(
                     color = laneColor,
-                    topLeft = Offset(xFraction * size.width, 0f),
-                    size = Size(bucketWidth + 1f, size.height),
+                    topLeft = Offset(left, 0f),
+                    size = Size(right - left, size.height),
+                    cornerRadius = CornerRadius(radius, radius),
                 )
+                runStart = null
             }
+            bars.forEachIndexed { index, (_, category) ->
+                if (category == lane) {
+                    if (runStart == null) runStart = index
+                } else {
+                    flush(index)
+                }
+            }
+            flush(bars.size)
         }
         if (scrubFraction != null) {
             val x = scrubFraction * size.width

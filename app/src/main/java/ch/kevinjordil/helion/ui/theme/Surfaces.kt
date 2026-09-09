@@ -59,6 +59,18 @@ val HelionContentInset: Dp = HelionScreenEdgeMargin + HelionSurfacePadding
 val HelionCardSpacing: Dp = 16.dp
 
 /**
+ * How thick a data line is drawn, in dp rather than raw pixels.
+ *
+ * It used to be a bare `4f` -- four *pixels*, which on a 3x screen is barely over a
+ * millimetre and reads as a hairline plot on an instrument. Set in dp it is the same weight
+ * on every screen, and heavy enough that a chart reads as a drawn shape rather than as a
+ * trace. Deliberately the one thing that changed about these charts: smoothing the curve
+ * would soften them far more, and would also invent values between the minutes actually
+ * recorded, which this app does not do.
+ */
+val CHART_LINE_WIDTH: Dp = 2.5.dp
+
+/**
  * How much of a [HelionSurface]'s own `tint` reaches the card. Enough that a card is
  * plainly that metric's colour rather than a grey card with a hint in it -- a fainter wash
  * read as pastel and washed-out -- and still far short of fighting the figure the card

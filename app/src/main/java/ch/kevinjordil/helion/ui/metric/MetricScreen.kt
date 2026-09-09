@@ -55,6 +55,7 @@ import ch.kevinjordil.helion.ui.theme.HelionSurfaceTintAlphaSubdued
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionStatItem
+import ch.kevinjordil.helion.ui.theme.CHART_LINE_WIDTH
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
 import java.time.ZoneId
@@ -540,13 +541,21 @@ private fun ScrubbableChart(
         drawPath(
             fillPath,
             brush = Brush.verticalGradient(
-                colors = listOf(lineColor.copy(alpha = 0.18f), lineColor.copy(alpha = 0f)),
+                colors = listOf(lineColor.copy(alpha = 0.32f), lineColor.copy(alpha = 0f)),
                 startY = 0f,
                 endY = plotHeight,
             ),
         )
 
-        drawPath(path, color = lineColor, style = Stroke(width = 4f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        drawPath(
+            path,
+            color = lineColor,
+            style = Stroke(
+                width = CHART_LINE_WIDTH.toPx(),
+                cap = StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round,
+            ),
+        )
 
         val markedReading = scrubbedReading
         if (scrubX != null && markedReading != null) {

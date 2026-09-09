@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,11 +111,14 @@ fun SettingsScreen(container: AppContainer, onOpenSection: (String) -> Unit, mod
 
 /**
  * One row of [SettingsScreen]'s list: the entry's own label, a short status/value preview
- * underneath, and a trailing ">" that marks it as opening something rather than acting
+ * underneath, and a trailing chevron that marks it as opening something rather than acting
  * directly -- the same distinction a button (acts now) and this row (navigates) need to keep
  * clear at a glance. Every entry uses this composable and nothing else, so label, value and
  * spacing can never diverge entry to entry.
  */
+/** The chevron that marks a settings row as opening a screen. */
+private val CHEVRON_SIZE = 18.dp
+
 @Composable
 private fun SettingsEntryRow(label: String, value: String, onClick: () -> Unit) {
     val colors = HelionThemeTokens.colors
@@ -127,7 +134,14 @@ private fun SettingsEntryRow(label: String, value: String, onClick: () -> Unit) 
             Text(label, style = HelionType.label, color = colors.textPrimary)
             Text(value, style = HelionType.bodySmall, color = colors.textSecondary)
         }
-        Text(">", style = HelionType.label, color = colors.textTertiary)
+        // A drawn chevron, not the ">" character: a literal greater-than sign is the one
+        // remaining piece of the app that looked typed into a terminal rather than laid out.
+        Icon(
+            Icons.Filled.ArrowForward,
+            contentDescription = null,
+            tint = colors.textTertiary,
+            modifier = Modifier.size(CHEVRON_SIZE),
+        )
     }
 }
 
