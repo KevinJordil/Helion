@@ -25,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -39,8 +40,12 @@ import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceForSleepDuration
 import ch.kevinjordil.helion.ui.quality.referenceMessage
 import ch.kevinjordil.helion.ui.theme.HelionColors
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
+import ch.kevinjordil.helion.ui.theme.HelionStatItem
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
 import java.time.LocalDate
@@ -75,13 +80,11 @@ private val SLEEP_DURATION_STYLE = HelionType.hero.copy(fontSize = 40.sp, lineHe
 /**
  * The root Column's own horizontal inset, now that the selected-night and averages cards sit
  * on raised [ch.kevinjordil.helion.ui.theme.HelionSurface]s rather than directly against it
- * -- see [CARD_PADDING] and this screen's own [SleepScreen] kdoc comment for why the two add
+ * -- see [HelionSurfacePadding] and this screen's own [SleepScreen] kdoc comment for why the two add
  * up to exactly the 20dp every Sommeil width test still measures against.
  */
-private val SCREEN_EDGE_MARGIN = 4.dp
 
-/** A card's own internal padding: [SCREEN_EDGE_MARGIN] plus this is the historical 20dp inset. */
-private val CARD_PADDING = 16.dp
+/** A card's own internal padding: [HelionScreenEdgeMargin] plus this is the historical 20dp inset. */
 
 /**
  * Sommeil: one selected night's full detail (the most recent by default), with
@@ -148,7 +151,7 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
     // Only a thin 4dp margin lives on the root Column now: the 20dp inset every width
     // budget in SleepScreenWidthTest/SleepAveragesWidthTest is built on has moved onto each
-    // card's own surface padding (see CARD_PADDING below) instead of sitting on the screen
+    // card's own surface padding (see HelionSurfacePadding below) instead of sitting on the screen
     // as a whole, so the total inset -- and every one of those tests' numbers -- is
     // unchanged even though the visual result (a rounded, padded card, not a bare column) is
     // not. The history list below the cards, which is not itself on a card, gets that same
@@ -156,8 +159,8 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
         // No page header here: the bottom navigation bar already names this destination
         // (icon + "Sommeil" label), so a second, purely decorative "SOMMEIL" line at the
@@ -175,7 +178,7 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
             .filter { (index, _) -> index != selectedIndex }
             .reversed()
 
-        LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
             item {
                 SelectedNightCard(
                     episode = selected,
@@ -205,11 +208,11 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
                         stringResource(R.string.sleep_history_title),
                         style = HelionType.title,
                         color = colors.textPrimary,
-                        modifier = Modifier.padding(start = CARD_PADDING, end = CARD_PADDING, top = 8.dp),
+                        modifier = Modifier.padding(start = HelionSurfacePadding, end = HelionSurfacePadding, top = 8.dp),
                     )
                 }
                 items(history, key = { (index, _) -> index }) { (index, episode) ->
-                    HistoryRow(episode, onClick = { selectedIndex = index }, modifier = Modifier.padding(horizontal = CARD_PADDING))
+                    HistoryRow(episode, onClick = { selectedIndex = index }, modifier = Modifier.padding(horizontal = HelionSurfacePadding))
                 }
             }
         }
@@ -241,16 +244,18 @@ private fun SelectedNightCard(
     // (bedtime+wake are the two ends of the same night; the three stages sum to the night's
     // duration), sized so the duration -- the answer to "how did he sleep" -- reads as the
     // most important figure on the screen.
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // The date is centred by giving it the row's spare width and centring inside
+            // it, not by relying on the two icon buttons happening to be equally wide --
+            // the day timeline's copy of this control relied on that and drifted left.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 IconButton(onClick = onPrevious, enabled = hasPrevious) {
                     Icon(
@@ -259,7 +264,13 @@ private fun SelectedNightCard(
                         tint = if (hasPrevious) colors.textSecondary else colors.textTertiary,
                     )
                 }
-                Text(weekdayDateText(episode.date, weekdays), style = HelionType.label, color = colors.textSecondary)
+                Text(
+                    weekdayDateText(episode.date, weekdays),
+                    style = HelionType.label,
+                    color = colors.textSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = onNext, enabled = hasNext) {
                     Icon(
                         Icons.Filled.ArrowForward,
@@ -324,11 +335,11 @@ private fun SelectedNightCard(
         // surface rather than each getting its own.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatItem(stringResource(R.string.sleep_fell_asleep), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)), Modifier.weight(1f))
-                StatItem(stringResource(R.string.sleep_woke_at), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)), Modifier.weight(1f))
+                HelionStatItem(stringResource(R.string.sleep_fell_asleep), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)), Modifier.weight(1f))
+                HelionStatItem(stringResource(R.string.sleep_woke_at), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)), Modifier.weight(1f))
             }
         }
 
@@ -340,11 +351,11 @@ private fun SelectedNightCard(
         when (phaseSource) {
             is SleepPhaseSource.Measured -> HelionSurface(
                 modifier = Modifier.fillMaxWidth(),
-                padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             ) { SleepPhaseBreakdown(phaseSource.minutes) }
             is SleepPhaseSource.Estimated -> HelionSurface(
                 modifier = Modifier.fillMaxWidth(),
-                padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             ) { SleepPhaseBreakdown(phaseSource.minutes) }
             SleepPhaseSource.NotEstimable -> Unit
         }
@@ -356,9 +367,9 @@ private fun SelectedNightCard(
         // that does not fit a half-width column at this value size.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
-            StatItem(
+            HelionStatItem(
                 stringResource(R.string.sleep_awakenings),
                 stringResource(R.string.sleep_awakenings_value, episode.awakenings, episode.awakeningsDurationMinutes),
                 Modifier.fillMaxWidth(),
@@ -366,9 +377,9 @@ private fun SelectedNightCard(
         }
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
-            StatItem(stringResource(R.string.sleep_efficiency), "${(episode.sleepEfficiency * 100).toInt()} %", Modifier.fillMaxWidth())
+            HelionStatItem(stringResource(R.string.sleep_efficiency), "${(episode.sleepEfficiency * 100).toInt()} %", Modifier.fillMaxWidth())
         }
     }
 }
@@ -399,9 +410,9 @@ private fun SleepPhaseBreakdown(minutes: List<PhaseMinute>) {
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        StatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
-        StatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
-        StatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.weight(1f))
+        HelionStatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f))
+        HelionStatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f))
+        HelionStatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.weight(1f))
     }
 }
 
@@ -434,14 +445,6 @@ private fun phaseDurationText(minutesInPhase: Int): String {
     return "%dh%02d".format(hours, minutes)
 }
 
-@Composable
-private fun StatItem(label: String, value: String, modifier: Modifier = Modifier) {
-    val colors = HelionThemeTokens.colors
-    Column(modifier = modifier) {
-        Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
-        Text(value, style = HelionType.valueMedium, color = colors.textPrimary)
-    }
-}
 
 /**
  * Sommeil's averages panel: a window selector -- the same visual pattern
@@ -466,9 +469,9 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
     // title does -- see HistoryRow's Text just below in this file. Each average below then
     // gets its own surface (or, for the three stages, one shared surface for the whole they
     // form together) instead of three unrelated averages sharing one row on one card.
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = CARD_PADDING),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
@@ -492,9 +495,9 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
 
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
-            StatItem(
+            HelionStatItem(
                 stringResource(R.string.sleep_average_duration_label),
                 averageDurationText(averages.avgDurationMinutes),
                 Modifier.fillMaxWidth(),
@@ -502,9 +505,9 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
         }
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
-            StatItem(
+            HelionStatItem(
                 stringResource(R.string.sleep_awakenings),
                 averages.avgAwakenings?.let {
                     stringResource(
@@ -518,9 +521,9 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
         }
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
         ) {
-            StatItem(
+            HelionStatItem(
                 stringResource(R.string.sleep_efficiency),
                 averages.avgEfficiency?.let { "${(it * 100).toInt()} %" } ?: stringResource(R.string.sleep_average_value_missing),
                 Modifier.fillMaxWidth(),
@@ -531,13 +534,13 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
         // surface -- the same rule SelectedNightCard's own phase breakdown follows.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                StatItem(stringResource(R.string.sleep_phase_deep), averagePhaseDurationText(averages.avgDeepMinutes), Modifier.weight(1f))
-                StatItem(stringResource(R.string.sleep_phase_rem), averagePhaseDurationText(averages.avgRemMinutes), Modifier.weight(1f))
-                StatItem(stringResource(R.string.sleep_phase_light), averagePhaseDurationText(averages.avgLightMinutes), Modifier.weight(1f))
+                HelionStatItem(stringResource(R.string.sleep_phase_deep), averagePhaseDurationText(averages.avgDeepMinutes), Modifier.weight(1f))
+                HelionStatItem(stringResource(R.string.sleep_phase_rem), averagePhaseDurationText(averages.avgRemMinutes), Modifier.weight(1f))
+                HelionStatItem(stringResource(R.string.sleep_phase_light), averagePhaseDurationText(averages.avgLightMinutes), Modifier.weight(1f))
             }
             Text(
                 stringResource(R.string.sleep_average_stage_basis, averages.stageNights, averages.consideredNights),
@@ -549,9 +552,9 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
         if (averages.avgRespiratoryRate != null) {
             HelionSurface(
                 modifier = Modifier.fillMaxWidth(),
-                padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             ) {
-                StatItem(
+                HelionStatItem(
                     stringResource(R.string.metric_respiratory_rate),
                     "${averages.avgRespiratoryRate.roundToInt()}",
                     Modifier.fillMaxWidth(),

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Checkbox
@@ -44,6 +45,7 @@ import ch.kevinjordil.helion.ui.metric.chartYRange
 import ch.kevinjordil.helion.ui.metric.scrubReading
 import ch.kevinjordil.helion.ui.ribbon.buildCategoryRibbon
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
+import ch.kevinjordil.helion.ui.theme.HelionStatItem
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
 import java.time.ZoneId
@@ -76,6 +78,9 @@ private val HYPNOGRAM_LANE_HEIGHT = 30.dp
  * `HypnogramLaneLabelWidthTest`.
  */
 private val LANE_LABEL_WIDTH: Dp = 90.dp
+
+/** Half the difference between Material's 48dp checkbox touch target and its 20dp box. */
+private val CHECKBOX_TOUCH_TARGET_INSET: Dp = 14.dp
 
 /** Buckets an episode's own span into roughly ten-minute slices, clamped to a sane range for very short or very long episodes. */
 private const val EPISODE_BUCKET_MINUTES = 10
@@ -201,7 +206,12 @@ fun NightChartSection(
 
         if (showHypnogram) {
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(LANE_LABEL_WIDTH))
+                // The lane-label column, kept occupied rather than left as a bare spacer:
+                // the curve has to start where the lanes below it start, and an empty 90dp
+                // gutter beside it reads as a mistake rather than as alignment.
+                Box(modifier = Modifier.width(LANE_LABEL_WIDTH)) {
+                    Text(bpmUnit, style = HelionType.labelSmall, color = colors.textTertiary)
+                }
                 HeartRateCanvas(
                     heartRateReadings = heartRateReadings,
                     overlays = overlays.values.toList(),
@@ -286,9 +296,9 @@ fun NightChartSection(
         val max = heartRateReadings.maxOf { it.value }
         val average = heartRateReadings.sumOf { it.value } / heartRateReadings.size
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NightStatItem(stringResource(R.string.stat_min), "%.0f".format(min), bpmUnit, colors.textPrimary, Modifier.weight(1f))
-            NightStatItem(stringResource(R.string.stat_max), "%.0f".format(max), bpmUnit, colors.textPrimary, Modifier.weight(1f))
-            NightStatItem(stringResource(R.string.stat_average), "%.0f".format(average), bpmUnit, colors.accentViolet, Modifier.weight(1f))
+            HelionStatItem(stringResource(R.string.stat_min), "%.0f".format(min), Modifier.weight(1f), unit = bpmUnit)
+            HelionStatItem(stringResource(R.string.stat_max), "%.0f".format(max), Modifier.weight(1f), unit = bpmUnit)
+            HelionStatItem(stringResource(R.string.stat_average), "%.0f".format(average), Modifier.weight(1f), unit = bpmUnit, valueColor = colors.accentViolet)
         }
 
         if (overlays.isNotEmpty()) {
@@ -300,7 +310,13 @@ fun NightChartSection(
 @Composable
 private fun OverlayCheckbox(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, color: Color) {
     val colors = HelionThemeTokens.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // Material centres the 20dp box in a 48dp touch target, so left as-is the box starts
+    // 14dp right of everything else in the card. The offset puts the box back on the card's
+    // own left-hand line while keeping the full-size touch target.
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.offset(x = -CHECKBOX_TOUCH_TARGET_INSET),
+    ) {
         Checkbox(
             checked = checked,
             onCheckedChange = onCheckedChange,
@@ -310,15 +326,6 @@ private fun OverlayCheckbox(label: String, checked: Boolean, onCheckedChange: (B
     }
 }
 
-@Composable
-private fun NightStatItem(label: String, value: String, unit: String, valueColor: Color, modifier: Modifier = Modifier) {
-    val colors = HelionThemeTokens.colors
-    Column(modifier = modifier) {
-        Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
-        Text(value, style = HelionType.valueMedium, color = valueColor)
-        Text(unit, style = HelionType.labelSmall, color = colors.textTertiary)
-    }
-}
 
 /**
  * The heart-rate panel: the line itself on its own bpm-scaled axis (see [chartYRange]),
