@@ -36,7 +36,10 @@ import ch.kevinjordil.helion.store.Slot
 import ch.kevinjordil.helion.store.SportType
 import ch.kevinjordil.helion.ui.theme.HelionField
 import ch.kevinjordil.helion.ui.theme.HelionFieldLabel
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import ch.kevinjordil.helion.ui.theme.HelionWarning
@@ -49,7 +52,6 @@ import kotlinx.coroutines.launch
 private val SLOT_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /** A card's own internal padding, the same rhythm every other screen's cards use. */
-private val CARD_PADDING = 16.dp
 
 private fun parseSlotTime(text: String): Int? = try {
     LocalTime.parse(text.trim(), SLOT_TIME_FORMAT).toSecondOfDay()
@@ -130,18 +132,18 @@ fun SlotEditScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 4.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
         Text(
             stringResource(R.string.action_back),
             style = HelionType.label,
             color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = CARD_PADDING),
+            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = HelionSurfacePadding),
         )
 
         if (loaded) {
-            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
                 HelionField(
                     label = stringResource(R.string.slot_label_field),
                     value = labelText,
@@ -152,7 +154,7 @@ fun SlotEditScreen(
                 )
             }
 
-            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
                 HelionFieldLabel(stringResource(R.string.sport_picker_label))
                 SportPicker(
                     selected = sport,
@@ -164,7 +166,7 @@ fun SlotEditScreen(
                 )
             }
 
-            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
                 HelionFieldLabel(stringResource(R.string.slot_day_label))
                 DayOfWeekPicker(
                     selected = dayOfWeek,
@@ -181,8 +183,8 @@ fun SlotEditScreen(
             // and Sommeil's own bedtime/wake row use.
             HelionSurface(
                 modifier = Modifier.fillMaxWidth(),
-                padding = PaddingValues(CARD_PADDING),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                padding = PaddingValues(HelionSurfacePadding),
+                verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     HelionField(
@@ -217,7 +219,7 @@ fun SlotEditScreen(
                 }
             }
 
-            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.slot_active_label), style = HelionType.bodySmall, color = colors.textSecondary)
                     Switch(
@@ -232,7 +234,7 @@ fun SlotEditScreen(
 
             // Create/delete are actions, not measures, so they stay a plain button on the
             // page like every other action button in the app rather than riding on a card.
-            Row(modifier = Modifier.padding(horizontal = CARD_PADDING)) {
+            Row(modifier = Modifier.padding(horizontal = HelionSurfacePadding)) {
                 if (slotId == null) {
                     Button(
                         enabled = labelText.isNotBlank() && !timeError,

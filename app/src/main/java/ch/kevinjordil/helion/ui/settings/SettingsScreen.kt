@@ -19,22 +19,23 @@ import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.BuildConfig
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 
 /**
  * The root Column's own horizontal inset on both [SettingsScreen] and [SettingsSectionScreen],
  * now that the entry list and each sub-screen's own fields sit on a raised [HelionSurface]
- * rather than directly against the screen. [SCREEN_EDGE_MARGIN] plus [CARD_PADDING] still add
+ * rather than directly against the screen. [HelionScreenEdgeMargin] plus [HelionSurfacePadding] still add
  * up to the historical 20dp inset every Réglages width test in `TileTextWidthTest.kt` (e.g.
  * `SettingsMenuWidthTest`, `CustomServerLabelWidthTest`, `ProfileFieldWidthTest`) measures
  * against, so none of their budgets change even though every sub-screen is now presented on a
  * card instead of a bare column -- and since every one of the eight sections is rendered
  * through this one [SettingsSectionScreen], fixing the frame here fixes all eight at once.
  */
-private val SCREEN_EDGE_MARGIN = 4.dp
-private val CARD_PADDING = 16.dp
 
 /**
  * Réglages' eight top-level entries -- what used to be one long, unevenly-presented scroll
@@ -78,19 +79,19 @@ fun SettingsScreen(container: AppContainer, onOpenSection: (String) -> Unit, mod
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
         Text(
             stringResource(R.string.tab_settings),
             style = HelionType.headline,
             color = colors.textPrimary,
-            modifier = Modifier.padding(horizontal = CARD_PADDING),
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
         )
 
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             SettingsSection.entries.forEach { section ->
@@ -189,10 +190,10 @@ fun SettingsSectionScreen(container: AppContainer, sectionId: String, onBack: ()
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        SettingsBackLink(onBack, modifier = Modifier.padding(horizontal = CARD_PADDING))
+        SettingsBackLink(onBack, modifier = Modifier.padding(horizontal = HelionSurfacePadding))
 
         if (section == null) {
             LaunchedEffect(sectionId) { onBack() }
@@ -203,13 +204,13 @@ fun SettingsSectionScreen(container: AppContainer, sectionId: String, onBack: ()
             stringResource(section.titleRes),
             style = HelionType.headline,
             color = colors.textPrimary,
-            modifier = Modifier.padding(horizontal = CARD_PADDING),
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
         )
 
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
+            verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
         ) {
             when (section) {
                 SettingsSection.SOURCE -> SourceSettingsSection(container)

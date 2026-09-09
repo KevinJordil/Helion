@@ -25,11 +25,36 @@ val HelionCornerRadius: Dp = 20.dp
 val HelionCornerRadiusSmall: Dp = 12.dp
 
 /**
- * Generous default content padding for [HelionSurface]: this is spacing standing in for the
- * hairline rules and bare columns the instrument-panel-era screens used to separate content,
- * so it is deliberately roomier than the 12-16dp paddings scattered through the older screens.
+ * The one content padding inside a [HelionSurface].
+ *
+ * Its exact value matters: [HelionScreenEdgeMargin] plus this is the distance from the
+ * screen edge at which every piece of text in the app starts. A screen's own headings sit
+ * at that same distance directly, so a card whose padding differs puts its content off the
+ * app's single left-hand line -- which is precisely how Accueil's tiles ended up 6dp out
+ * from the hero above them.
  */
-val HelionSurfacePadding: Dp = 20.dp
+val HelionSurfacePadding: Dp = 16.dp
+
+/**
+ * The gap between a card's outer edge and the screen's. Small on purpose: cards are nearly
+ * full-bleed, and the breathing room lives inside them ([HelionSurfacePadding]) rather than
+ * around them.
+ */
+val HelionScreenEdgeMargin: Dp = 4.dp
+
+/**
+ * The distance from the screen edge to any text, in or out of a card. Screen headings,
+ * back links and section titles -- everything that is not inside a [HelionSurface] -- use
+ * this, so they land on the same line as the card content below them.
+ */
+val HelionContentInset: Dp = HelionScreenEdgeMargin + HelionSurfacePadding
+
+/**
+ * The vertical gap between two cards, and between a screen's heading block and its first
+ * card. One rhythm for the whole app: the activity screens used 12dp, the list and settings
+ * screens 16dp and Sommeil 24dp, which read as three different apps.
+ */
+val HelionCardSpacing: Dp = 16.dp
 
 /**
  * One softly rounded, raised surface -- [HelionColors.surfaceRaised] clipped to

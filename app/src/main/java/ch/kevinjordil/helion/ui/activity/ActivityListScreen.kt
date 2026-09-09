@@ -24,7 +24,10 @@ import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.store.Activity
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -37,11 +40,9 @@ private val ROW_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd
 
 /**
  * The root Column's own horizontal inset, now that each day's group of activities sits on a
- * raised [HelionSurface] -- see [CARD_PADDING]. The two still add up to the historical 20dp
+ * raised [HelionSurface] -- see [HelionSurfacePadding]. The two still add up to the historical 20dp
  * inset [ActivityLabelWidthTest] measures against.
  */
-private val SCREEN_EDGE_MARGIN = 4.dp
-private val CARD_PADDING = 16.dp
 
 /**
  * Activités: every recorded [Activity], grouped by the calendar day it starts on (most
@@ -71,11 +72,11 @@ fun ActivityListScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = CARD_PADDING),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(stringResource(R.string.tab_activities), style = HelionType.headline, color = colors.textPrimary)
@@ -87,37 +88,37 @@ fun ActivityListScreen(
             )
         }
 
-        Button(onClick = onNewActivity, modifier = Modifier.padding(horizontal = CARD_PADDING)) {
+        Button(onClick = onNewActivity, modifier = Modifier.padding(horizontal = HelionSurfacePadding)) {
             Text(stringResource(R.string.activity_new_action))
         }
 
         when {
             loaded == null -> Unit
 
-            loaded.isEmpty() -> EmptyActivityList(onNewActivity, modifier = Modifier.padding(horizontal = CARD_PADDING))
+            loaded.isEmpty() -> EmptyActivityList(onNewActivity, modifier = Modifier.padding(horizontal = HelionSurfacePadding))
 
             else -> {
                 val weekdayAbbreviations = stringArrayResource(R.array.weekday_short).toList()
                 val groups = remember(loaded) { groupByDay(loaded) }
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
                     groups.forEach { (date, dayActivities) ->
                         item(key = "header:$date") {
                             Text(
                                 dayHeaderText(date, weekdayAbbreviations),
                                 style = HelionType.label,
                                 color = colors.textTertiary,
-                                modifier = Modifier.padding(start = CARD_PADDING, end = CARD_PADDING, bottom = 4.dp),
+                                modifier = Modifier.padding(start = HelionSurfacePadding, end = HelionSurfacePadding, bottom = 4.dp),
                             )
                         }
                         item(key = "group:$date") {
                             // A day's own activities now share one raised surface instead
                             // of being separated by hairline dividers -- see HelionSurface's
-                            // own kdoc. CARD_PADDING here (not HelionSurface's own wider
+                            // own kdoc. HelionSurfacePadding here (not HelionSurface's own wider
                             // default) is what keeps the total inset at the historical 20dp
                             // ActivityLabelWidthTest measures against.
                             HelionSurface(
                                 modifier = Modifier.fillMaxWidth(),
-                                padding = androidx.compose.foundation.layout.PaddingValues(CARD_PADDING),
+                                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
                             ) {
                                 dayActivities.forEachIndexed { index, activity ->
                                     ActivityRow(activity, onClick = { onOpenActivity(activity.id) })
