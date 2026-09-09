@@ -58,12 +58,20 @@ val HelionContentInset: Dp = HelionScreenEdgeMargin + HelionSurfacePadding
 val HelionCardSpacing: Dp = 16.dp
 
 /**
- * How much of a [HelionSurface]'s own `tint` reaches the card. Low on purpose: enough that
- * eight tiles read as eight different things at a glance and the screen has colour in it,
- * far too little to fight the figure the card exists to show, or to move any text off its
- * contrast footing -- the tint sits under the text, never on it.
+ * How much of a [HelionSurface]'s own `tint` reaches the card. Enough that a card is
+ * plainly that metric's colour rather than a grey card with a hint in it -- a fainter wash
+ * read as pastel and washed-out -- and still far short of fighting the figure the card
+ * exists to show. The tint sits under the text, never on it, so no label's contrast moves
+ * with it.
+ *
+ * A card whose content already carries its own colours -- the night card, whose hypnogram
+ * encodes four stages by hue -- passes a smaller value: there the wash has nothing to
+ * identify and everything to interfere with. See [HelionSurfaceTintAlphaSubdued].
  */
-const val HelionSurfaceTintAlpha: Float = 0.13f
+const val HelionSurfaceTintAlpha: Float = 0.24f
+
+/** The wash for a card whose own content is already colour-coded -- see [HelionSurfaceTintAlpha]. */
+const val HelionSurfaceTintAlphaSubdued: Float = 0.10f
 
 /**
  * One softly rounded, raised surface -- [HelionColors.surfaceRaised] clipped to
@@ -79,6 +87,7 @@ fun HelionSurface(
     padding: PaddingValues = PaddingValues(HelionSurfacePadding),
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     tint: Color? = null,
+    tintAlpha: Float = HelionSurfaceTintAlpha,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = HelionThemeTokens.colors
@@ -86,7 +95,7 @@ fun HelionSurface(
         modifier = modifier
             .clip(RoundedCornerShape(HelionCornerRadius))
             .background(colors.surfaceRaised)
-            .then(if (tint != null) Modifier.background(tint.copy(alpha = HelionSurfaceTintAlpha)) else Modifier)
+            .then(if (tint != null) Modifier.background(tint.copy(alpha = tintAlpha)) else Modifier)
             .padding(padding),
         verticalArrangement = verticalArrangement,
         content = content,

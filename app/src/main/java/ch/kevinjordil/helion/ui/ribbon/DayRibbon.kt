@@ -91,7 +91,11 @@ fun DayRibbon(
 }
 
 /** Preconfigured height for the small strand shown on a tile. */
-fun Modifier.tileRibbonSize(): Modifier = this.fillMaxWidth().height(28.dp)
+fun Modifier.tileRibbonSize(): Modifier = this.fillMaxWidth().height(22.dp)
 
 /** Preconfigured height for the full-bleed ribbon behind the hero, including its hour axis. */
-fun Modifier.heroRibbonSize(): Modifier = this.fillMaxWidth().height(120.dp + AXIS_HEIGHT)
+// Tall enough that the reserved text strip (see DayRibbon's topReservedFraction) can hold
+// the hero figure without the bars growing into it: the figure is ~92dp of type, so a
+// shorter plot puts the digits back among the ticks. The screenful Accueil has to fit is
+// bought from the tiles, not from here.
+fun Modifier.heroRibbonSize(): Modifier = this.fillMaxWidth().height(124.dp + AXIS_HEIGHT)

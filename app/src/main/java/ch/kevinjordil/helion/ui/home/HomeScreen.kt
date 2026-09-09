@@ -63,7 +63,7 @@ private const val SYNC_FINISH_TIMEOUT_MILLIS = 25_000L
  * The share of the hero ribbon's plot height kept clear at the top for the figure drawn
  * over it. Bars grow into the rest, so the number never lands in them.
  */
-private const val HERO_TEXT_STRIP_FRACTION = 0.62f
+private const val HERO_TEXT_STRIP_FRACTION = 0.72f
 
 private const val HEART_RATE_ID = "heart_rate"
 
@@ -282,7 +282,7 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = HelionScreenEdgeMargin, vertical = 4.dp),
+                            .padding(horizontal = HelionScreenEdgeMargin, vertical = 3.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         pair.forEach { metric ->
@@ -294,7 +294,7 @@ fun HomeScreen(
                                 // Horizontal padding stays on the app's left-hand line;
                                 // only the vertical is trimmed, which is what buys the
                                 // whole set of tiles a single screenful.
-                                padding = PaddingValues(horizontal = HelionSurfacePadding, vertical = 12.dp),
+                                padding = PaddingValues(horizontal = HelionSurfacePadding, vertical = 10.dp),
                             ) {
                                 MetricTile(
                                     metric = metric,
