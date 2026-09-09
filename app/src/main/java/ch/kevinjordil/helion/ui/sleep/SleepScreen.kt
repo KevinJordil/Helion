@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -502,7 +503,13 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
                 return@Column
             }
             Text(
-                stringResource(R.string.sleep_average_nights_basis, averages.consideredNights, averages.totalNights),
+                // A plural, not a format string: a single night read as "1 nuits sur 1".
+                pluralStringResource(
+                    R.plurals.sleep_average_nights_basis,
+                    averages.consideredNights,
+                    averages.consideredNights,
+                    averages.totalNights,
+                ),
                 style = HelionType.bodySmall,
                 color = colors.textTertiary,
             )
@@ -550,8 +557,9 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
                     averages.avgRespiratoryRate?.let { "${it.roundToInt()}" } ?: stringResource(R.string.sleep_average_value_missing),
                     Modifier.weight(1f),
                     // A bare "16" says nothing on its own -- this is the only figure in the
-                    // panel whose unit is not implied by its label.
-                    unit = stringResource(R.string.unit_breaths_per_minute),
+                    // panel whose unit is not implied by its label. Dropped when there is no
+                    // value: "resp/min" under a dash is a unit for nothing.
+                    unit = averages.avgRespiratoryRate?.let { stringResource(R.string.unit_breaths_per_minute) },
                     centred = true,
                 )
             }
@@ -576,18 +584,6 @@ private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverag
             )
         }
 
-        if (averages.avgRespiratoryRate != null) {
-            HelionSurface(
-                modifier = Modifier.fillMaxWidth(),
-                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-            ) {
-                HelionStatItem(
-                    stringResource(R.string.metric_respiratory_rate),
-                    "${averages.avgRespiratoryRate.roundToInt()}",
-                    Modifier.fillMaxWidth(),
-                )
-            }
-        }
     }
 }
 

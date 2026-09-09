@@ -227,7 +227,7 @@ class ScreenGallery {
         rule.waitForIdle()
     }
 
-    private fun shoot(name: String, content: @Composable () -> Unit) {
+    private fun shoot(name: String, heightPx: Int = 2340, content: @Composable () -> Unit) {
         rule.setContent {
             HelionTheme {
                 Box(modifier = Modifier.fillMaxSize().background(HelionThemeTokens.colors.ground)) { content() }
@@ -238,7 +238,6 @@ class ScreenGallery {
         // fires, so the view tree is measured, laid out and drawn straight into a bitmap.
         val view: View = rule.activity.window.decorView
         val widthPx = 1080
-        val heightPx = 2340
         view.measure(
             View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY),
@@ -259,6 +258,9 @@ class ScreenGallery {
     }
 
     @Test fun sommeil() { seed(); shoot("sommeil") { SleepScreen(container) } }
+
+    /** The whole screen at once, so the averages panel below the fold can be checked too. */
+    @Test fun sommeilEntier() { seed(); shoot("sommeil-entier", heightPx = 4600) { SleepScreen(container) } }
 
     @Test fun metrique() {
         seed()
