@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,6 +57,7 @@ import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /** How long Accueil's pull-to-refresh waits for Gadgetbridge's sync-finish broadcast. */
@@ -66,6 +70,9 @@ private const val SYNC_FINISH_TIMEOUT_MILLIS = 25_000L
 private const val HERO_TEXT_STRIP_FRACTION = 0.72f
 
 private const val HEART_RATE_ID = "heart_rate"
+
+/** The one metric with a goal to measure a day against -- see [ch.kevinjordil.helion.ui.settings.StepsGoal]. */
+private const val STEPS_ID = "steps"
 
 /**
  * Accueil: heart rate as the hero, the other six catalog metrics as tiles, all sharing one
@@ -222,6 +229,8 @@ fun HomeScreen(
         ) {
             val newestSample = latestByMetricId.values.filterNotNull().maxOfOrNull { it.timestamp }
             val tiles = MetricCatalog.all.filter { it.id != HEART_RATE_ID }
+            // Read once per pass rather than per tile: it is a SharedPreferences value.
+            val stepsGoal = container.stepsGoal.value
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {
@@ -282,6 +291,11 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // Intrinsic height so the two tiles in a row are the same
+                            // height whatever they hold: only `steps` carries a goal
+                            // track, and without this its card stood taller than its
+                            // neighbour and the grid stopped looking like a grid.
+                            .height(IntrinsicSize.Min)
                             .padding(horizontal = HelionScreenEdgeMargin, vertical = 3.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -289,16 +303,31 @@ fun HomeScreen(
                             val now = System.currentTimeMillis() / 1000
                             val tileLatest = latestByMetricId[metric.id]?.value
                             HelionSurface(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
                                 tint = colors.metricColor(metric),
                                 // Horizontal padding stays on the app's left-hand line;
                                 // only the vertical is trimmed, which is what buys the
                                 // whole set of tiles a single screenful.
                                 padding = PaddingValues(horizontal = HelionSurfacePadding, vertical = 10.dp),
                             ) {
+                                // Only `steps` has a goal today, and it is the only tile
+                                // that gets a track; see MetricTile's own kdoc.
+                                val goalFraction = if (metric.id == STEPS_ID) {
+                                    goalProgressFraction(tileLatest, stepsGoal)
+                                } else {
+                                    null
+                                }
                                 MetricTile(
                                     metric = metric,
                                     latestValue = tileLatest,
+                                    goalProgress = goalFraction,
+                                    goalCaption = goalFraction?.let {
+                                        stringResource(
+                                            R.string.goal_progress_caption,
+                                            (it * 100).roundToInt(),
+                                            stepsGoal,
+                                        )
+                                    },
                                     ribbonBars = buildRibbon(
                                         dayReadingsByMetricId[metric.id].orEmpty(),
                                         windowStart = now - Range.DAY.seconds,
