@@ -22,6 +22,12 @@ data class MinuteSample(
     val sleepStage: Int?,
 )
 
+/** [MinuteSampleDao.heartRateSummary]'s result; both fields are null for a window with no readings. */
+data class HeartRateSummary(
+    val maxHeartRate: Int?,
+    val averageHeartRate: Double?,
+)
+
 @Dao
 interface MinuteSampleDao {
 
@@ -34,6 +40,19 @@ interface MinuteSampleDao {
 
     @Query("SELECT MAX(timestamp) FROM minute_sample")
     suspend fun latestTimestamp(): Long?
+
+    /**
+     * Peak and mean heart rate across one window, computed in SQLite rather than by loading
+     * the window's minutes into memory: badge computation asks this for every activity in
+     * the archive at once (see [ch.kevinjordil.helion.activity.computeBadges]), and the
+     * samples themselves are never needed there. Both columns are null when the window
+     * holds no heart-rate reading at all.
+     */
+    @Query(
+        "SELECT MAX(heartRate) AS maxHeartRate, AVG(heartRate) AS averageHeartRate " +
+            "FROM minute_sample WHERE timestamp BETWEEN :from AND :to AND heartRate IS NOT NULL",
+    )
+    suspend fun heartRateSummary(from: Long, to: Long): HeartRateSummary
 
     /**
      * Null only when the archive is completely empty -- what
