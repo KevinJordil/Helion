@@ -99,6 +99,23 @@ object MetricPalette {
     val blue = Color(0xFF0080D1)
     val green = Color(0xFF008B45)
     val magenta = Color(0xFFC562B2)
+
+    /**
+     * The same eight hues raised for a dark ground. [MetricPalette]'s own values are tuned
+     * to carry against white; on the near-black ground they read as muted and heavy, which
+     * is what made a sports app look sombre. These are the same eight hues at a lightness
+     * and chroma that carry against [HelionDarkColors.ground] instead.
+     */
+    object OnDark {
+        val red = Color(0xFFFF5F6B)
+        val teal = Color(0xFF2ED3C6)
+        val olive = Color(0xFFC3DC3F)
+        val violet = Color(0xFFA78BFA)
+        val orange = Color(0xFFFF9F43)
+        val blue = Color(0xFF3FBEF7)
+        val green = Color(0xFF34D399)
+        val magenta = Color(0xFFF472B6)
+    }
 }
 
 /**
@@ -118,27 +135,44 @@ private val HELION_METRIC_HUES: List<Color> = listOf(
     MetricPalette.magenta,
 )
 
+/** [HELION_METRIC_HUES] in the same fixed order, raised for the dark ground. */
+private val HELION_METRIC_HUES_ON_DARK: List<Color> = listOf(
+    MetricPalette.OnDark.red,
+    MetricPalette.OnDark.teal,
+    MetricPalette.OnDark.olive,
+    MetricPalette.OnDark.violet,
+    MetricPalette.OnDark.green,
+    MetricPalette.OnDark.blue,
+    MetricPalette.OnDark.orange,
+    MetricPalette.OnDark.magenta,
+)
+
 /**
- * Dark graphite-blue ground. The default theme: he opens this at 7am in bed as often as
- * he opens it in daylight, so both palettes are tuned for that, not just this one.
+ * Deep blue ground. The default theme: he opens this at 7am in bed as often as he opens it
+ * in daylight, so both palettes are tuned for that, not just this one.
+ *
+ * Dark, deliberately, but not black: a near-black ground with muted hues on it read as
+ * sombre, which is the wrong register for an app about sport. The ground carries a real
+ * blue, the surfaces step up from it in the same hue, and the eight metric colours come
+ * from [MetricPalette.OnDark] rather than the light theme's deeper set.
  */
 val HelionDarkColors = HelionColors(
-    ground = Color(0xFF10141C),
-    surface = Color(0xFF171C26),
-    surfaceRaised = Color(0xFF1F2530),
-    textPrimary = Color(0xFFF2F4F8),
-    textSecondary = Color(0xFFA9B1C0),
-    textTertiary = Color(0xFF6B7385),
-    divider = Color(0xFF2A3140),
-    accentViolet = Color(0xFF8B6CFF),
-    onAccentViolet = Color(0xFF10141C),
-    accentAmber = Color(0xFFE8A23D),
-    onAccentAmber = Color(0xFF10141C),
-    phaseAwake = Color(0xFF5A6480),
-    phaseLight = Color(0xFF4E72C9),
-    phaseRem = Color(0xFF2FBFAE),
-    phaseDeep = Color(0xFF9DBBFF),
-    metricHues = HELION_METRIC_HUES,
+    ground = Color(0xFF121828),
+    surface = Color(0xFF1A2133),
+    surfaceRaised = Color(0xFF232C42),
+    textPrimary = Color(0xFFF4F6FB),
+    textSecondary = Color(0xFFB3BCD0),
+    textTertiary = Color(0xFF7C87A0),
+    divider = Color(0xFF333E58),
+    accentViolet = Color(0xFF9B7BFF),
+    onAccentViolet = Color(0xFF121828),
+    accentAmber = Color(0xFFF5B342),
+    onAccentAmber = Color(0xFF121828),
+    phaseAwake = Color(0xFF6B7694),
+    phaseLight = Color(0xFF5B84E0),
+    phaseRem = Color(0xFF2FD3BE),
+    phaseDeep = Color(0xFFA9C4FF),
+    metricHues = HELION_METRIC_HUES_ON_DARK,
 )
 
 /**

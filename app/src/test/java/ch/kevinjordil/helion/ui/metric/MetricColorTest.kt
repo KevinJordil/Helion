@@ -16,15 +16,24 @@ class MetricColorTest {
     }
 
     @Test
-    fun `no two metrics share a colour`() {
-        val colors = MetricCatalog.all.map { HelionDarkColors.metricColor(it) }
-        assertEquals(colors.size, colors.toSet().size)
+    fun `no two metrics share a colour, in either theme`() {
+        listOf(HelionDarkColors, HelionLightColors).forEach { theme ->
+            val colors = MetricCatalog.all.map { theme.metricColor(it) }
+            assertEquals(colors.size, colors.toSet().size)
+        }
     }
 
     @Test
-    fun `a metric's colour is the same in both themes`() {
+    fun `a metric keeps its slot in the palette across both themes`() {
+        // The two themes no longer share RGB values -- the light theme's hues are tuned to
+        // carry against white and read as muted and heavy on the dark ground, so the dark
+        // theme has its own raised set (MetricPalette.OnDark). What must not vary is which
+        // hue a metric gets: heart rate is the red one in both, steps the blue one in both.
+        // So this asserts the slot, not the value.
         MetricCatalog.all.forEach { metric ->
-            assertEquals(HelionDarkColors.metricColor(metric), HelionLightColors.metricColor(metric))
+            val darkSlot = HelionDarkColors.metricHues.indexOf(HelionDarkColors.metricColor(metric))
+            val lightSlot = HelionLightColors.metricHues.indexOf(HelionLightColors.metricColor(metric))
+            assertEquals("slot for ${'$'}{metric.id}", darkSlot, lightSlot)
         }
     }
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -57,6 +58,14 @@ val HelionContentInset: Dp = HelionScreenEdgeMargin + HelionSurfacePadding
 val HelionCardSpacing: Dp = 16.dp
 
 /**
+ * How much of a [HelionSurface]'s own `tint` reaches the card. Low on purpose: enough that
+ * eight tiles read as eight different things at a glance and the screen has colour in it,
+ * far too little to fight the figure the card exists to show, or to move any text off its
+ * contrast footing -- the tint sits under the text, never on it.
+ */
+const val HelionSurfaceTintAlpha: Float = 0.13f
+
+/**
  * One softly rounded, raised surface -- [HelionColors.surfaceRaised] clipped to
  * [HelionCornerRadius], with [HelionSurfacePadding] of breathing room inside it -- for
  * grouping a card's worth of related content. This is the app's answer to "surfaces, not
@@ -69,6 +78,7 @@ fun HelionSurface(
     modifier: Modifier = Modifier,
     padding: PaddingValues = PaddingValues(HelionSurfacePadding),
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    tint: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = HelionThemeTokens.colors
@@ -76,6 +86,7 @@ fun HelionSurface(
         modifier = modifier
             .clip(RoundedCornerShape(HelionCornerRadius))
             .background(colors.surfaceRaised)
+            .then(if (tint != null) Modifier.background(tint.copy(alpha = HelionSurfaceTintAlpha)) else Modifier)
             .padding(padding),
         verticalArrangement = verticalArrangement,
         content = content,
