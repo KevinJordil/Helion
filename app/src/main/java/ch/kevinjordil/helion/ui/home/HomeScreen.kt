@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
+import ch.kevinjordil.helion.ui.metric.TileStrand
 import ch.kevinjordil.helion.ui.metric.MetricReader
 import ch.kevinjordil.helion.ui.metric.Range
 import ch.kevinjordil.helion.ui.metric.Reading
@@ -85,6 +86,11 @@ private const val TILE_RIBBON_BUCKETS = 20
 
 /** The hero is far wider than a tile, so it can carry more bars at the same bar width. */
 private const val HERO_RIBBON_BUCKETS = 40
+
+/** One bar per day for a [TileStrand.WEEK] metric: night to night is the shape that means something. */
+private const val WEEK_RIBBON_BUCKETS = 7
+
+private const val WEEK_SECONDS = 7L * 24 * 3600
 
 /**
  * Accueil: heart rate as the hero, the other six catalog metrics as tiles, all sharing one
@@ -341,12 +347,28 @@ fun HomeScreen(
                                             stepsGoal,
                                         )
                                     },
-                                    ribbonBars = buildRibbon(
-                                        dayReadingsByMetricId[metric.id].orEmpty(),
-                                        windowStart = now - Range.DAY.seconds,
-                                        windowEnd = now,
-                                        bucketCount = TILE_RIBBON_BUCKETS,
-                                    ),
+                                    // The strand's window follows the metric's own rhythm
+                                    // rather than always being "today" -- see TileStrand.
+                                    ribbonBars = when (metric.tileStrand) {
+                                        TileStrand.NONE -> emptyList()
+                                        TileStrand.DAY -> buildRibbon(
+                                            dayReadingsByMetricId[metric.id].orEmpty(),
+                                            windowStart = now - Range.DAY.seconds,
+                                            windowEnd = now,
+                                            bucketCount = TILE_RIBBON_BUCKETS,
+                                        )
+                                        TileStrand.WEEK -> buildRibbon(
+                                            monthReadingsByMetricId[metric.id].orEmpty(),
+                                            windowStart = now - WEEK_SECONDS,
+                                            windowEnd = now,
+                                            bucketCount = WEEK_RIBBON_BUCKETS,
+                                        )
+                                    },
+                                    strandCaption = if (metric.tileStrand == TileStrand.WEEK) {
+                                        stringResource(R.string.tile_strand_week)
+                                    } else {
+                                        null
+                                    },
                                     personalBaseline = tileLatest?.let { value ->
                                         placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
                                     },

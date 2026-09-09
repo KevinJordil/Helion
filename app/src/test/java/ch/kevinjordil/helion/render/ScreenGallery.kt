@@ -106,7 +106,7 @@ class ScreenGallery {
                 val busy = offset in 900..1000
                 MinuteSample(
                     timestamp = ts,
-                    steps = if (busy) 40 else 3,
+                    steps = if (busy) 120 else 40,
                     intensity = if (busy) 60 else 5,
                     rawKind = 1,
                     heartRate = if (busy) 138 + (offset % 11) else 58 + (offset % 7),
@@ -131,15 +131,14 @@ class ScreenGallery {
             }
             container.database.minuteSamples().upsertAll(minutes + nightMinutes)
 
-            val series = mapOf(
+            // Sampled through the day, the way the watch reports them.
+            val daytimeSeries = mapOf(
                 "stress" to (28.0 to 4.0),
                 "spo2" to (97.0 to 1.0),
                 "pai" to (219.3 to 2.0),
-                "hrv" to (46.5 to 3.0),
                 "temperature" to (33.4 to 0.3),
-                "respiratory_rate" to (14.0 to 1.0),
             )
-            series.forEach { (name, spec) ->
+            daytimeSeries.forEach { (name, spec) ->
                 val (base, spread) = spec
                 container.database.pointSamples().upsertAll(
                     (0 until 48).map { i ->
@@ -147,6 +146,21 @@ class ScreenGallery {
                             series = name,
                             timestamp = now - (48 - i) * 1800L,
                             value = base + ((i % 5) - 2) * spread,
+                        )
+                    },
+                )
+            }
+            // Recorded once a night, not through the day -- which is exactly why these two
+            // get a week-long strand on their tile rather than a day-long one.
+            val nightlySeries = mapOf("hrv" to (46.5 to 3.0), "respiratory_rate" to (14.0 to 1.0))
+            nightlySeries.forEach { (name, spec) ->
+                val (base, spread) = spec
+                container.database.pointSamples().upsertAll(
+                    (0 until 14).map { night ->
+                        PointSample(
+                            series = name,
+                            timestamp = now - night * 86_400L - 25_000L,
+                            value = base + ((night % 5) - 2) * spread,
                         )
                     },
                 )

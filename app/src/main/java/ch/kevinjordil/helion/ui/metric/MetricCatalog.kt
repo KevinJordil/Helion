@@ -39,6 +39,29 @@ val MetricSource.aggregation: Aggregation
  * what the metric actually measures, shown on its detail screen. Wording is fixed and
  * must not be paraphrased -- it was reviewed and approved as written.
  */
+/**
+ * What a tile draws under its figure, which is a property of how often the metric is
+ * actually measured rather than a styling choice.
+ *
+ * A strand is a picture of *when* readings arrived across a window, so a window that does
+ * not match the metric's own rhythm produces a picture of nothing: a day-long strand for a
+ * value recorded once a day is a single mark, and for one recorded only during sleep it is
+ * a clump at one end with three-quarters of the width empty.
+ */
+enum class TileStrand {
+    /** Sampled through the waking day: a 24-hour strand is a real shape. */
+    DAY,
+
+    /**
+     * Recorded a handful of times a day, or only while asleep. One mark per day over a
+     * week is the shape that means something for these -- night to night, not hour to hour.
+     */
+    WEEK,
+
+    /** Nothing to draw: the tile says what it has to say some other way (steps, its goal). */
+    NONE,
+}
+
 data class Metric(
     val id: String,
     val labelRes: Int,
@@ -48,6 +71,7 @@ data class Metric(
     val plausibleRange: ClosedFloatingPointRange<Double>? = null,
     val noteRes: Int? = null,
     val descriptionRes: Int? = null,
+    val tileStrand: TileStrand = TileStrand.DAY,
 )
 
 object MetricCatalog {
@@ -97,6 +121,10 @@ object MetricCatalog {
             source = MetricSource.STEPS,
             noteRes = R.string.steps_daily_total_note,
             descriptionRes = R.string.metric_description_steps,
+            // Aggregated to one reading per day (see MetricReader), so a day-long strand
+            // could only ever be a single mark. The goal track says far more, and says it
+            // about the same figure.
+            tileStrand = TileStrand.NONE,
         ),
         Metric(
             "stress", R.string.metric_stress, R.string.unit_none, MetricSource.POINT_SERIES,
@@ -113,6 +141,9 @@ object MetricCatalog {
         Metric(
             "hrv", R.string.metric_hrv, R.string.unit_ms, MetricSource.POINT_SERIES, decimals = 1,
             descriptionRes = R.string.metric_description_hrv,
+            // Measured at rest, in practice mostly overnight: across a waking day the
+            // strand is empty for most of its width.
+            tileStrand = TileStrand.WEEK,
         ),
         Metric(
             id = "temperature",
@@ -130,6 +161,8 @@ object MetricCatalog {
             unitRes = R.string.unit_breaths_per_minute,
             source = MetricSource.POINT_SERIES,
             descriptionRes = R.string.metric_description_respiratory_rate,
+            // Only measured during sleep -- see this metric's own description.
+            tileStrand = TileStrand.WEEK,
         ),
     )
 

@@ -48,6 +48,7 @@ fun MetricTile(
     modifier: Modifier = Modifier,
     goalProgress: Float? = null,
     goalCaption: String? = null,
+    strandCaption: String? = null,
 ) {
     val colors = HelionThemeTokens.colors
     val hue = colors.metricColor(metric)
@@ -85,11 +86,25 @@ fun MetricTile(
                 )
             }
         }
-        DayRibbon(
-            bars = ribbonBars,
-            barColor = hue,
-            modifier = Modifier.tileRibbonSize().padding(top = 8.dp),
-        )
+        // No strand at all rather than an empty one: a metric that has nothing to draw
+        // here (see TileStrand.NONE) must not reserve a band of blank space either.
+        if (ribbonBars.isNotEmpty()) {
+            DayRibbon(
+                bars = ribbonBars,
+                barColor = hue,
+                modifier = Modifier.tileRibbonSize().padding(top = 8.dp),
+            )
+            // Named whenever the strand is not simply "today": without this a week of
+            // nightly readings looks exactly like a day of hourly ones.
+            strandCaption?.let {
+                Text(
+                    it,
+                    style = HelionType.labelSmall,
+                    color = colors.textTertiary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
         // A goal is the one thing on a tile that has a target to be measured against, so it
         // is the one thing that gets a track rather than only a figure -- the pattern every
         // measurement app uses for exactly this, and the only reading in Helion that has a
