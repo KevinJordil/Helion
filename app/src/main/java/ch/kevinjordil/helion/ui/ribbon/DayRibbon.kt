@@ -43,12 +43,18 @@ fun DayRibbon(
     windowStart: Long? = null,
     windowEnd: Long? = null,
     axisLabelColor: Color = barColor,
+    topReservedFraction: Float = 0f,
 ) {
     val textMeasurer = rememberTextMeasurer()
     Canvas(modifier = modifier) {
         val showAxis = windowStart != null && windowEnd != null && windowEnd > windowStart
         val axisHeightPx = if (showAxis) AXIS_HEIGHT.toPx() else 0f
-        val barAreaHeight = (size.height - axisHeightPx).coerceAtLeast(0f)
+        // The band the bars may occupy. [topReservedFraction] hands the strip above it to
+        // the caller -- the hero draws its figure there, so the number never lands in the
+        // bars however tall the day's peak is.
+        val plotHeight = (size.height - axisHeightPx).coerceAtLeast(0f)
+        val barAreaHeight = plotHeight * (1f - topReservedFraction.coerceIn(0f, 0.9f))
+        val barBaseline = plotHeight
 
         if (bars.isNotEmpty()) {
             val strokeWidth = (size.width / 96f).coerceIn(1.5f, 4f)
@@ -57,8 +63,8 @@ fun DayRibbon(
                 val barHeight = (minHeightFraction + bar.valueFraction * (1f - minHeightFraction)) * barAreaHeight
                 drawLine(
                     color = barColor,
-                    start = Offset(x, barAreaHeight),
-                    end = Offset(x, barAreaHeight - barHeight),
+                    start = Offset(x, barBaseline),
+                    end = Offset(x, barBaseline - barHeight),
                     strokeWidth = strokeWidth,
                     cap = StrokeCap.Round,
                 )

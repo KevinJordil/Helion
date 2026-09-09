@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,12 +51,19 @@ import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionContentInset
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import kotlinx.coroutines.launch
 
 /** How long Accueil's pull-to-refresh waits for Gadgetbridge's sync-finish broadcast. */
 private const val SYNC_FINISH_TIMEOUT_MILLIS = 25_000L
+
+/**
+ * The share of the hero ribbon's plot height kept clear at the top for the figure drawn
+ * over it. Bars grow into the rest, so the number never lands in them.
+ */
+private const val HERO_TEXT_STRIP_FRACTION = 0.62f
 
 private const val HEART_RATE_ID = "heart_rate"
 
@@ -282,6 +290,11 @@ fun HomeScreen(
                             val tileLatest = latestByMetricId[metric.id]?.value
                             HelionSurface(
                                 modifier = Modifier.weight(1f),
+                                tint = colors.metricColor(metric),
+                                // Horizontal padding stays on the app's left-hand line;
+                                // only the vertical is trimmed, which is what buys the
+                                // whole set of tiles a single screenful.
+                                padding = PaddingValues(horizontal = HelionSurfacePadding, vertical = 12.dp),
                             ) {
                                 MetricTile(
                                     metric = metric,
@@ -320,11 +333,16 @@ private fun HeroHeartRate(
     val colors = HelionThemeTokens.colors
     val metric = MetricCatalog.byId(HEART_RATE_ID) ?: return
     val hue = colors.metricColor(metric)
-    // Stacking the figure on top of the ribbon put the number, its unit and the ribbon's
-    // own hour labels in the same band: the digits sat across the tick marks and the axis
-    // crowded the caption underneath. They are laid out one after the other now -- figure,
-    // caption, then the ribbon with its axis -- which is also the order a tile uses.
-    Column(
+    // The figure sits on the ribbon, which is what the owner wants to see: the day's shape
+    // behind the number it belongs to, and one screenful of Accueil rather than two. The
+    // collision that made this unreadable before was vertical, not conceptual -- the text
+    // block and the bars were fighting for the same band -- so the ribbon reserves a top
+    // strip (see heroTextStrip) that the bars never grow into, and the text sits in it.
+    // Only the figure is drawn over the ribbon. The baseline caption used to ride along
+    // with it and landed on the ribbon's own hour labels; it belongs under the whole thing,
+    // beside the freshness line, which is where the rest of Accueil's prose lives.
+    Column {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             // The most prominent element on the screen must not be the one dead tap
@@ -332,9 +350,20 @@ private fun HeroHeartRate(
             // with the same clickable mechanics (ripple via LocalIndication) and the
             // same Role.Button semantics for accessibility/switch access.
             .clickable(onClick = onClick, role = Role.Button)
-            .padding(top = HelionCardSpacing, bottom = 8.dp),
+            .padding(bottom = 4.dp),
     ) {
-        Column(modifier = Modifier.padding(horizontal = HelionContentInset)) {
+        DayRibbon(
+            bars = ribbonBars,
+            barColor = hue.copy(alpha = 0.45f),
+            modifier = Modifier
+                .heroRibbonSize()
+                .padding(start = HelionContentInset, end = HelionContentInset),
+            windowStart = windowStart,
+            windowEnd = windowEnd,
+            axisLabelColor = colors.textTertiary,
+            topReservedFraction = HERO_TEXT_STRIP_FRACTION,
+        )
+        Column(modifier = Modifier.padding(horizontal = HelionContentInset, vertical = 8.dp)) {
             if (latest != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -352,36 +381,20 @@ private fun HeroHeartRate(
                         modifier = Modifier.alignByBaseline(),
                     )
                 }
-                // The absolute "Reçue à HH:MM" line used to sit here, right above the
-                // freshness line below the hero -- two ways of saying the same "how fresh"
-                // fact. Only the personal-baseline caption, genuinely distinct
-                // information, stays on this card; see the freshness item's own comment
-                // for the full account of the four-line report this was.
-                personalBaseline?.let { baseline ->
-                    val (messageRes, isAmber) = personalBaselineMessage(baseline)
-                    Text(
-                        stringResource(messageRes),
-                        style = HelionType.bodySmall,
-                        color = if (isAmber) colors.accentAmber else colors.textSecondary,
-                    )
-                }
             } else {
                 Text(stringResource(R.string.accueil_hero_no_reading), style = HelionType.body, color = colors.textSecondary)
             }
         }
-        // Hour ticks along the bottom of the ribbon: the one piece of Accueil the owner
-        // sees before ever opening a metric, so it is the one place besides the detail
-        // chart that gets an explicit time axis rather than only a bare shape.
-        DayRibbon(
-            bars = ribbonBars,
-            barColor = hue.copy(alpha = 0.35f),
-            modifier = Modifier
-                .heroRibbonSize()
-                .padding(start = HelionContentInset, end = HelionContentInset, top = 12.dp),
-            windowStart = windowStart,
-            windowEnd = windowEnd,
-            axisLabelColor = colors.textTertiary,
-        )
+    }
+        personalBaseline?.let { baseline ->
+            val (messageRes, isAmber) = personalBaselineMessage(baseline)
+            Text(
+                stringResource(messageRes),
+                style = HelionType.bodySmall,
+                color = if (isAmber) colors.accentAmber else colors.textSecondary,
+                modifier = Modifier.padding(horizontal = HelionContentInset),
+            )
+        }
     }
 }
 
