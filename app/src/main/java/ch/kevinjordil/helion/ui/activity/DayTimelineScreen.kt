@@ -30,7 +30,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -53,7 +55,13 @@ import ch.kevinjordil.helion.ui.metric.Reading
 import ch.kevinjordil.helion.ui.metric.chartYRange
 import ch.kevinjordil.helion.ui.theme.HelionField
 import ch.kevinjordil.helion.ui.theme.HelionFieldLabel
+import androidx.compose.ui.text.rememberTextMeasurer
+import ch.kevinjordil.helion.ui.metric.chartTimeMarkers
+import ch.kevinjordil.helion.ui.metric.formatAxisTimestamp
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -62,16 +70,17 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
+/** Room under the plot for the hour labels, matching the ribbon's own axis strip. */
+private val AXIS_HEIGHT = 16.dp
+
 private val TIMELINE_CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val TIMELINE_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
 /**
  * The root Column's own horizontal inset, matching every other screen's own width tests:
- * [SCREEN_EDGE_MARGIN] plus [CARD_PADDING] is the historical 20dp inset
+ * [HelionScreenEdgeMargin] plus [HelionSurfacePadding] is the historical 20dp inset
  * `DayTimelineReadoutWidthTest` measures the chart card's content against.
  */
-private val SCREEN_EDGE_MARGIN = 4.dp
-private val CARD_PADDING = 16.dp
 
 /**
  * A chosen day's heart rate and movement intensity, scrubbable by dragging out a range
@@ -110,27 +119,30 @@ fun DayTimelineScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
         Text(
             stringResource(R.string.action_back),
             style = HelionType.label,
             color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = CARD_PADDING),
+            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = HelionSurfacePadding),
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = CARD_PADDING),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { date = date.minusDays(1) }) {
                 Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.day_timeline_previous_day))
             }
+            // Centred, the same way Sommeil's night navigator centres its own date: the
+            // two controls are the same control and looked like two different ones.
             Text(
                 TIMELINE_DATE_FORMAT.format(date),
                 style = HelionType.label,
                 color = colors.textPrimary,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { date = date.plusDays(1) }) {
@@ -144,7 +156,7 @@ fun DayTimelineScreen(
         if (state != null) {
             HelionSurface(
                 modifier = Modifier.fillMaxWidth(),
-                padding = PaddingValues(CARD_PADDING),
+                padding = PaddingValues(HelionSurfacePadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(stringResource(R.string.day_timeline_selection_hint), style = HelionType.bodySmall, color = colors.textSecondary)
@@ -158,6 +170,7 @@ fun DayTimelineScreen(
                         onSelectionChange = { selection = it },
                         heartRateColor = colors.accentViolet,
                         movementColor = colors.textSecondary,
+                        axisLabelColor = colors.textTertiary,
                         modifier = Modifier.fillMaxWidth().height(180.dp),
                     )
 
@@ -173,12 +186,12 @@ fun DayTimelineScreen(
             }
         }
 
-        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
             HelionFieldLabel(stringResource(R.string.sport_picker_label))
             SportPicker(selected = sport, onSelect = { sport = it }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
         }
 
-        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
             HelionField(
                 label = stringResource(R.string.activity_title_label),
                 value = titleText,
@@ -206,7 +219,7 @@ fun DayTimelineScreen(
                     onActivityCreated(id)
                 }
             },
-            modifier = Modifier.padding(horizontal = CARD_PADDING),
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
         ) {
             Text(stringResource(R.string.day_timeline_create_action))
         }
@@ -262,10 +275,12 @@ private fun DayTimelineCanvas(
     onSelectionChange: (TimelineSelection?) -> Unit,
     heartRateColor: Color,
     movementColor: Color,
+    axisLabelColor: Color,
     modifier: Modifier = Modifier,
 ) {
     var canvasWidthPx by remember { mutableStateOf(0f) }
     var anchorFraction by remember { mutableStateOf<Float?>(null) }
+    val textMeasurer = rememberTextMeasurer()
 
     Canvas(
         modifier = modifier
@@ -291,6 +306,11 @@ private fun DayTimelineCanvas(
             },
     ) {
         val windowSpan = (state.windowEnd - state.windowStart).toFloat().takeIf { it > 0f } ?: return@Canvas
+        // An hour axis, like the metric chart and Accueil's ribbon have: without one this
+        // was the only chart in the app the owner had to guess the times on, and dragging a
+        // range out of it is exactly the task that needs them.
+        val axisHeightPx = AXIS_HEIGHT.toPx()
+        val plotHeight = (size.height - axisHeightPx).coerceAtLeast(0f)
 
         fun xOf(timestamp: Long): Float = ((timestamp - state.windowStart) / windowSpan * size.width).coerceIn(0f, size.width)
 
@@ -300,14 +320,28 @@ private fun DayTimelineCanvas(
             drawRect(
                 color = heartRateColor.copy(alpha = 0.18f),
                 topLeft = Offset(left, 0f),
-                size = Size((right - left).coerceAtLeast(0f), size.height),
+                size = Size((right - left).coerceAtLeast(0f), plotHeight),
             )
-            drawLine(heartRateColor, Offset(left, 0f), Offset(left, size.height), strokeWidth = 3f)
-            drawLine(heartRateColor, Offset(right, 0f), Offset(right, size.height), strokeWidth = 3f)
+            drawLine(heartRateColor, Offset(left, 0f), Offset(left, plotHeight), strokeWidth = 3f)
+            drawLine(heartRateColor, Offset(right, 0f), Offset(right, plotHeight), strokeWidth = 3f)
         }
 
-        drawSeries(state.movement, xOf = ::xOf, height = size.height, color = movementColor, strokeWidth = 2.5f, dashed = true)
-        drawSeries(state.heartRate, xOf = ::xOf, height = size.height, color = heartRateColor, strokeWidth = 3.5f, dashed = false)
+        drawSeries(state.movement, xOf = ::xOf, height = plotHeight, color = movementColor, strokeWidth = 2.5f, dashed = true)
+        drawSeries(state.heartRate, xOf = ::xOf, height = plotHeight, color = heartRateColor, strokeWidth = 3.5f, dashed = false)
+
+        var lastLabelRight = Float.NEGATIVE_INFINITY
+        chartTimeMarkers(state.windowStart, state.windowEnd).forEach { timestamp ->
+            val label = textMeasurer.measure(
+                formatAxisTimestamp(timestamp, state.windowEnd - state.windowStart),
+                HelionType.axisLabel.copy(color = axisLabelColor),
+            )
+            val labelLeft = (xOf(timestamp) - label.size.width / 2f)
+                .coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f))
+            if (labelLeft >= lastLabelRight) {
+                drawText(label, topLeft = Offset(labelLeft, size.height - label.size.height))
+                lastLabelRight = labelLeft + label.size.width
+            }
+        }
     }
 }
 

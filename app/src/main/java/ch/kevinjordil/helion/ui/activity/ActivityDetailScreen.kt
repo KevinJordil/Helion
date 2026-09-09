@@ -36,7 +36,10 @@ import ch.kevinjordil.helion.store.PublicationState
 import ch.kevinjordil.helion.store.PublicationTarget
 import ch.kevinjordil.helion.ui.theme.HelionField
 import ch.kevinjordil.helion.ui.theme.HelionFieldLabel
+import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import ch.kevinjordil.helion.ui.theme.HelionWarning
@@ -47,15 +50,13 @@ import kotlinx.coroutines.withContext
 
 /**
  * The root Column's own horizontal inset, matching the pattern every other screen's own
- * width tests are built on (Sommeil's `SCREEN_EDGE_MARGIN`, the metric detail's own):
- * [SCREEN_EDGE_MARGIN] plus [CARD_PADDING] is the historical 20dp inset
+ * width tests are built on (Sommeil's `HelionScreenEdgeMargin`, the metric detail's own):
+ * [HelionScreenEdgeMargin] plus [HelionSurfacePadding] is the historical 20dp inset
  * `ActivityLabelWidthTest` and `NoTextClippingTest` measure this screen's content against, so
  * moving each field onto its own card does not change either budget.
  */
-private val SCREEN_EDGE_MARGIN = 4.dp
 
-/** A card's own internal padding: [SCREEN_EDGE_MARGIN] plus this is the historical 20dp inset. */
-private val CARD_PADDING = 16.dp
+/** A card's own internal padding: [HelionScreenEdgeMargin] plus this is the historical 20dp inset. */
 
 /**
  * One activity, fully editable: title, sport, notes, start and end, plus delete and the
@@ -134,7 +135,7 @@ fun ActivityDetailScreen(
     val current = activity
 
     if (current == null) {
-        Column(modifier = modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
             BackLink(onBack)
             if (loadedOnce) {
                 Text(stringResource(R.string.activity_not_found), style = HelionType.body, color = colors.textSecondary)
@@ -177,13 +178,13 @@ fun ActivityDetailScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = SCREEN_EDGE_MARGIN, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        BackLink(onBack, modifier = Modifier.padding(horizontal = CARD_PADDING))
+        BackLink(onBack, modifier = Modifier.padding(horizontal = HelionSurfacePadding))
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = CARD_PADDING),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(stringResource(R.string.activity_detail_title), style = HelionType.headline, color = colors.textPrimary)
@@ -194,7 +195,7 @@ fun ActivityDetailScreen(
             )
         }
 
-        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
             HelionField(
                 label = stringResource(R.string.activity_title_label),
                 value = titleText,
@@ -205,7 +206,7 @@ fun ActivityDetailScreen(
             )
         }
 
-        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
             HelionFieldLabel(stringResource(R.string.sport_picker_label))
             SportPicker(
                 selected = current.sport,
@@ -218,8 +219,8 @@ fun ActivityDetailScreen(
         // own bedtime/wake row uses, so they share one card rather than each getting its own.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = PaddingValues(CARD_PADDING),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            padding = PaddingValues(HelionSurfacePadding),
+            verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
         ) {
             HelionField(
                 label = stringResource(R.string.activity_start_label),
@@ -244,7 +245,7 @@ fun ActivityDetailScreen(
         }
 
         current.detectionContext?.takeIf { it.isNotBlank() }?.let { detectionContext ->
-            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
                 HelionFieldLabel(stringResource(R.string.activity_detection_context_label))
                 Text(
                     detectionContext,
@@ -255,7 +256,7 @@ fun ActivityDetailScreen(
             }
         }
 
-        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
             HelionField(
                 label = stringResource(R.string.activity_notes_label),
                 value = notesText,
@@ -270,7 +271,7 @@ fun ActivityDetailScreen(
         // Status transitions and delete are actions, not measures, so -- like every other
         // action button in the app (Réglages' own Button calls, the empty-state action) --
         // they stay plain buttons on the page rather than riding on a card of their own.
-        Row(modifier = Modifier.padding(horizontal = CARD_PADDING), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.padding(horizontal = HelionSurfacePadding), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             when (current.status) {
                 ActivityStatus.CANDIDATE -> {
                     Button(onClick = { save(current.copy(status = ActivityStatus.CONFIRMED)) }) {
@@ -296,12 +297,12 @@ fun ActivityDetailScreen(
         // still there either way, but distance is the first line of defense.
         OutlinedButton(
             onClick = { showDeleteConfirm = true },
-            modifier = Modifier.padding(horizontal = CARD_PADDING),
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
         ) {
             Text(stringResource(R.string.activity_action_delete))
         }
 
-        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(CARD_PADDING)) {
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
             Text(stringResource(R.string.calorie_section_title), style = HelionType.title, color = colors.textPrimary)
             when (val estimate = calorieEstimate) {
                 null -> Unit // still loading -- nothing to say yet, rather than a flash of "no data"
@@ -337,7 +338,7 @@ fun ActivityDetailScreen(
         // rather than hiding behind the button alone.
         HelionSurface(
             modifier = Modifier.fillMaxWidth(),
-            padding = PaddingValues(CARD_PADDING),
+            padding = PaddingValues(HelionSurfacePadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.custom_server_section_title), style = HelionType.title, color = colors.textPrimary)

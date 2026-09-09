@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,14 +66,24 @@ fun SportPicker(selected: SportType?, onSelect: (SportType) -> Unit, modifier: M
     var query by rememberSaveable { mutableStateOf("") }
 
     Column(modifier = modifier) {
-        Text(
-            selected?.let { stringResource(sportLabelRes(it)) } ?: stringResource(R.string.sport_none),
-            style = HelionType.label,
-            color = if (selected != null) colors.accentViolet else colors.textTertiary,
+        // Set in the same bordered container a text field uses, for two reasons: it is an
+        // input like the ones above and below it, so it should look like one; and its text
+        // then starts on the same left-hand line as theirs, instead of sitting flush with
+        // the card edge while every field's text sat 16dp in.
+        Box(
             modifier = Modifier
+                .fillMaxWidth()
+                .clip(OutlinedTextFieldDefaults.shape)
+                .border(1.dp, colors.divider, OutlinedTextFieldDefaults.shape)
                 .clickable { expanded = !expanded }
-                .padding(vertical = 4.dp),
-        )
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+        ) {
+            Text(
+                selected?.let { stringResource(sportLabelRes(it)) } ?: stringResource(R.string.sport_none),
+                style = HelionType.label,
+                color = if (selected != null) colors.accentViolet else colors.textTertiary,
+            )
+        }
 
         if (expanded) {
             OutlinedTextField(
