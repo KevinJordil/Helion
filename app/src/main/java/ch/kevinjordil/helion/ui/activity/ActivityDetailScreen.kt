@@ -29,6 +29,8 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.calorie.ActivityCalorieEstimate
 import ch.kevinjordil.helion.calorie.estimateActivityCalories
+import ch.kevinjordil.helion.activity.ActivityBadge
+import ch.kevinjordil.helion.activity.ActivityBadgeReader
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.Publication
@@ -94,6 +96,10 @@ fun ActivityDetailScreen(
     var customServerPublication by remember(activityId) { mutableStateOf<Publication?>(null) }
     var sendingToCustomServer by remember(activityId) { mutableStateOf(false) }
     var calorieEstimate by remember(activityId) { mutableStateOf<ActivityCalorieEstimate?>(null) }
+    // Recomputed whenever this activity changes, not once on open: confirming a candidate
+    // is exactly what makes it eligible for a record (see computeBadges), so the badges
+    // must appear on the same screen that did the confirming.
+    var badges by remember(activityId) { mutableStateOf<List<ActivityBadge>>(emptyList()) }
 
     suspend fun reloadCustomServerPublication() {
         customServerPublication = container.database.publications().get(activityId, PublicationTarget.CUSTOM_SERVER)
@@ -110,6 +116,15 @@ fun ActivityDetailScreen(
             calorieEstimate = estimateActivityCalories(container.profile, loaded.startTimestamp, zone, samples)
         }
         loadedOnce = true
+    }
+
+    // Keyed on the activity itself rather than on its id: a record depends on this
+    // activity's status, sport and duration, all of which this screen can change, and a
+    // badge that only appeared on the next visit would look like a bug.
+    val badgeReader = remember(container) { ActivityBadgeReader(container.database) }
+    LaunchedEffect(activity) {
+        val current = activity
+        badges = if (current == null) emptyList() else badgeReader.loadBadges()[current.id].orEmpty()
     }
 
     fun sendToCustomServer() {
@@ -193,6 +208,21 @@ fun ActivityDetailScreen(
                 style = HelionType.label,
                 color = if (needsAttention(current.status)) colors.accentAmber else colors.textTertiary,
             )
+        }
+
+        // Above the fields, not buried under them: a record is the one thing on this screen
+        // the owner did not come here to edit, and it is the reason to look at an old
+        // activity at all. Absent entirely when there is nothing to show -- an empty
+        // "Distinctions" card would tell him he has failed at something.
+        if (badges.isNotEmpty()) {
+            HelionSurface(
+                modifier = Modifier.fillMaxWidth(),
+                padding = PaddingValues(HelionSurfacePadding),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HelionFieldLabel(stringResource(R.string.badge_section_title))
+                BadgeChips(badges)
+            }
         }
 
         HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {

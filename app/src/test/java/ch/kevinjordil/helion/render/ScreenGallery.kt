@@ -179,7 +179,7 @@ class ScreenGallery {
             )
             // A spread of categories, so the list shows what a real week looks like.
             listOf(
-                Triple(SportType.BADMINTON, "Entraînement badminton", ActivityStatus.CANDIDATE),
+                Triple(SportType.BADMINTON, "Entraînement badminton", ActivityStatus.CONFIRMED),
                 Triple(SportType.RIDE, "Sortie vélo", ActivityStatus.CONFIRMED),
                 Triple(SportType.RUN, "Footing du matin", ActivityStatus.PUBLISHED),
                 Triple(SportType.SWIM, "Piscine", ActivityStatus.CONFIRMED),

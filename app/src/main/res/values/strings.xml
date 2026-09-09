@@ -99,6 +99,15 @@
     <string name="activity_status_dismissed">Ignorée</string>
 
     <string name="activity_new_action">Nouvelle activité</string>
+
+    <!-- Badges earned by an activity, relative to the whole archive. -->
+    <string name="badge_section_title">Distinctions</string>
+    <string name="badge_first_in_sport">Première fois en %1$s</string>
+    <string name="badge_milestone">%1$de activité</string>
+    <string name="badge_longest_ever">Ta plus longue séance</string>
+    <string name="badge_longest_in_sport">Ta plus longue séance en %1$s</string>
+    <string name="badge_max_heart_rate">Fréquence cardiaque la plus haute</string>
+    <string name="badge_highest_intensity">Séance la plus intense</string>
     <string name="activity_manage_slots">Séances récurrentes</string>
     <string name="activity_reanalyze_action">Réanalyser tout l\'historique</string>
     <string name="activity_reanalyzing">Réanalyse en cours…</string>

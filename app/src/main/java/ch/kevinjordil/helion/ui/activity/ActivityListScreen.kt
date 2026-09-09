@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -158,6 +161,9 @@ private fun EmptyActivityList(onNewActivity: () -> Unit, modifier: Modifier = Mo
 /** The sport-colour bar down the left of an activity row. */
 private val SPORT_BAR_WIDTH = 4.dp
 
+/** The disc the sport glyph sits on. */
+private val SPORT_DISC_SIZE = 40.dp
+
 @Composable
 private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
@@ -187,6 +193,17 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
                 .clip(RoundedCornerShape(SPORT_BAR_WIDTH / 2))
                 .background(sportHue ?: colors.divider),
         )
+        // The sport's glyph, on a disc washed in its own colour: the row is read by shape
+        // and colour before any of its words are.
+        Box(
+            modifier = Modifier
+                .size(SPORT_DISC_SIZE)
+                .clip(CircleShape)
+                .background((sportHue ?: colors.divider).copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(sportEmoji(activity.sport), style = HelionType.body)
+        }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -209,19 +226,30 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
                 color = if (attention) colors.accentAmber else colors.textTertiary,
             )
         }
-        // One composed string, not three Texts in a Row: three side-by-side, unweighted
-        // Texts can overflow the row's own bounds at a narrow width or a large font scale
-        // (exactly the clipping shape reported before). A single Text with no
-        // maxLines/ellipsis wraps instead, the same "never clips" pattern the rest of the
-        // app already uses for free-form copy.
+        // The duration is what the owner scans this list for, so it is set as a figure and
+        // leads; the sport and the clock range follow as context. Still one composed Text
+        // rather than three side by side: three unweighted Texts in a Row can overflow the
+        // row's bounds at a narrow width or a large font scale (exactly the clipping shape
+        // reported before), while one Text with no maxLines/ellipsis wraps instead.
         val range = "${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.startTimestamp))}" +
             "–${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.endTimestamp))}"
-        Text(
-            "${sportOrNoneLabel(activity.sport)} · $range · " +
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
                 activityDurationText(activity.endTimestamp - activity.startTimestamp),
-            style = HelionType.bodySmall,
-            color = colors.textSecondary,
-        )
+                style = HelionType.valueMedium,
+                color = sportHue ?: colors.textPrimary,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Text(
+                "${sportOrNoneLabel(activity.sport)} · $range",
+                style = HelionType.bodySmall,
+                color = colors.textSecondary,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
         }
     }
 }
