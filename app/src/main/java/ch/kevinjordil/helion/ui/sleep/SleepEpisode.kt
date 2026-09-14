@@ -225,7 +225,16 @@ fun segmentSleepEpisodes(
         val totalSpanMinutes = (wokeAt - fellAsleepAt) / CADENCE_SECONDS + 1
         val durationAsleepMinutes = building.asleepSamples.size.toLong()
         val startHour = Instant.ofEpochSecond(fellAsleepAt).atZone(zone).hour
-        val withinWindow = thresholds.isWithinNightWindow(startHour)
+        // The middle of the episode, not only its start. An unusually early bedtime -- a
+        // long, exhausted sleep beginning mid-afternoon -- starts far outside the night
+        // window while lying almost entirely inside it, and keying the decision on the
+        // start hour alone filed a fourteen-hour sleep ending at 06:09 as a nap, which
+        // then never appeared on Sommeil at all. Checking the midpoint as well is purely
+        // additive: an episode the start hour already accepts stays a night, so nothing
+        // that used to be classified correctly changes.
+        val midpointHour = Instant.ofEpochSecond((fellAsleepAt + wokeAt) / 2).atZone(zone).hour
+        val withinWindow = thresholds.isWithinNightWindow(startHour) ||
+            thresholds.isWithinNightWindow(midpointHour)
         val kind = when {
             !withinWindow -> SleepEpisodeKind.NAP
             isInProgress -> SleepEpisodeKind.NIGHT

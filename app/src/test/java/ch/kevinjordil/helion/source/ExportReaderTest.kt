@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -219,6 +220,40 @@ class ExportReaderTest {
         val result = ExportReader().read(buildExport(), Watermarks(minutes = 1700000000))
         assertEquals(2, result.minutes.size)
         assertTrue(result.minutes.all { it.timestamp > 1700000000 })
+    }
+
+    @Test
+    fun `a minute with the no-data byte in every column carries no measurement`() {
+        // Observed on a real export: ten consecutive minutes where SLEEP, HEART_RATE and
+        // STEPS were all 255. Read literally that is 255 steps a minute spent asleep -- it
+        // added 2550 phantom steps to one day and welded an afternoon onto the night that
+        // followed. Nothing is believed from such a row.
+        val file = File.createTempFile("export", ".db")
+        file.delete()
+        val db = SQLiteDatabase.openOrCreateDatabase(file, null)
+        db.execSQL(
+            "CREATE TABLE ${ExportSchema.TABLE_MINUTE} (" +
+                "${ExportSchema.COL_TIMESTAMP} INTEGER, ${ExportSchema.COL_STEPS} INTEGER, " +
+                "${ExportSchema.COL_RAW_INTENSITY} INTEGER, ${ExportSchema.COL_RAW_KIND} INTEGER, " +
+                "${ExportSchema.COL_HEART_RATE} INTEGER, ${ExportSchema.COL_SLEEP} INTEGER)",
+        )
+        // One unmeasured minute, then a genuine asleep minute with real step and rate values.
+        db.execSQL("INSERT INTO ${ExportSchema.TABLE_MINUTE} VALUES (1700000000, 255, 0, 255, 255, 255)")
+        db.execSQL("INSERT INTO ${ExportSchema.TABLE_MINUTE} VALUES (1700000060, 12, 0, 1, 54, 255)")
+        db.close()
+
+        val result = ExportReader().read(file.absolutePath, Watermarks())
+
+        val unmeasured = result.minutes.single { it.timestamp == 1700000000L }
+        assertNull(unmeasured.steps)
+        assertNull(unmeasured.heartRate)
+        assertNull(unmeasured.sleepStage)
+
+        // A real asleep minute is untouched: SLEEP 255 on its own is an ordinary stage value.
+        val real = result.minutes.single { it.timestamp == 1700000060L }
+        assertEquals(12, real.steps)
+        assertEquals(54, real.heartRate)
+        assertEquals(SleepStage.ASLEEP, real.sleepStage)
     }
 
     @Test

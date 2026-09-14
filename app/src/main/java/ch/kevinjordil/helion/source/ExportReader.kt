@@ -47,13 +47,25 @@ open class ExportReader {
                 "ORDER BY ${ExportSchema.COL_TIMESTAMP}",
             since,
         ) { cursor ->
+            val steps = cursor.intOrNull(1)
+            val rawHeartRate = cursor.intOrNull(4)
+            val sleep = cursor.getInt(5)
+            // A minute the device recorded nothing for at all: every field carries the
+            // 0xFF no-data byte at once. Read literally it is a minute of 255 steps spent
+            // asleep, and on a real export those ten minutes added 2550 phantom steps to a
+            // day and stitched an afternoon onto the following night. A real minute never
+            // looks like this -- 255 steps is more than four a second sustained for a
+            // minute, and it has never co-occurred with an unreadable heart rate on a
+            // genuine row -- so the whole row is taken as unmeasured rather than believed.
+            val unmeasured = sleep == NO_DATA_BYTE && rawHeartRate == NO_DATA_BYTE && steps == NO_DATA_BYTE
             MinuteSample(
                 timestamp = cursor.getLong(0),
-                steps = cursor.intOrNull(1),
+                steps = if (unmeasured) null else steps,
                 intensity = cursor.intOrNull(2),
                 rawKind = cursor.intOrNull(3),
-                heartRate = cursor.intOrNull(4)?.takeIf { it in VALID_HEART_RATE },
-                sleepStage = sleepStageOf(sleep = cursor.getInt(5)),
+                heartRate = rawHeartRate?.takeIf { it in VALID_HEART_RATE },
+                // Null, not AWAKE: the minute is unknown, not observed to be awake.
+                sleepStage = if (unmeasured) null else sleepStageOf(sleep = sleep),
             )
         }
 
@@ -214,6 +226,9 @@ open class ExportReader {
          * (see MetricCatalog's heart_rate entry).
          */
         private val VALID_HEART_RATE = 10..224
+
+        /** The 0xFF byte this device writes into every column of a minute it did not measure. */
+        private const val NO_DATA_BYTE = 255
 
         /** See [decodeSession]'s kdoc for why this is a fixed offset, not a per-row guess. */
         private const val SECONDS_PER_DAY = 86_400L

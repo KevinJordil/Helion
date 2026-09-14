@@ -113,6 +113,21 @@ class SleepEpisodeTest {
     }
 
     @Test
+    fun `a very early bedtime running through the night is a night, not a nap`() {
+        // An exhausted sleep that began at 15:50 and ended at 06:09 the next morning: it
+        // starts nowhere near the night window, but it lies almost entirely inside it.
+        // Classifying by start hour alone filed a fourteen-hour sleep as a nap, and Sommeil
+        // shows nights only, so the night vanished from the screen entirely.
+        val start = 15L * 60 + 50
+        val wake = 24L * 60 + 6 * 60 + 9
+        val minutes = asleepRun(start, wake) + awakeRun(wake + 1, wake + 5)
+        val episodes = segmentSleepEpisodes(minutes, zurich, now = ts(wake + 5), thresholds)
+
+        assertEquals(1, episodes.size)
+        assertEquals(SleepEpisodeKind.NIGHT, episodes.single().kind)
+    }
+
+    @Test
     fun `a short episode starting inside the night window is still a nap`() {
         // Started at a plausible bedtime but only lasted 45 minutes: not a night. Confirmed
         // AWAKE readings afterwards establish this episode has actually ended, so the
