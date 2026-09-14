@@ -1,6 +1,8 @@
 package ch.kevinjordil.helion.ui.theme
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -21,7 +23,7 @@ import androidx.compose.ui.unit.dp
  * rule. One radius across the whole app, not a different rounding per screen, is what keeps
  * this reading as one material rather than a patchwork.
  */
-val HelionCornerRadius: Dp = 26.dp
+val HelionCornerRadius: Dp = 22.dp
 
 /** A smaller radius for a compact inline surface (a chip, a pill) that the full card radius would swallow. */
 val HelionCornerRadiusSmall: Dp = 14.dp
@@ -38,11 +40,9 @@ val HelionCornerRadiusSmall: Dp = 14.dp
 val HelionSurfacePadding: Dp = 16.dp
 
 /**
- * The gap between a card's outer edge and the screen's. Small on purpose: cards are nearly
- * full-bleed, and the breathing room lives inside them ([HelionSurfacePadding]) rather than
- * around them.
+ * The outer gutter separates cards from the display edge, including on compact phones.
  */
-val HelionScreenEdgeMargin: Dp = 4.dp
+val HelionScreenEdgeMargin: Dp = 12.dp
 
 /**
  * The distance from the screen edge to any text, in or out of a card. Screen headings,
@@ -71,17 +71,13 @@ val HelionCardSpacing: Dp = 16.dp
 val CHART_LINE_WIDTH: Dp = 2.5.dp
 
 /**
- * How much of a [HelionSurface]'s own `tint` reaches the card. Enough that a card is
- * plainly that metric's colour rather than a grey card with a hint in it -- a fainter wash
- * read as pastel and washed-out -- and still far short of fighting the figure the card
- * exists to show. The tint sits under the text, never on it, so no label's contrast moves
- * with it.
+ * A restrained wash identifies a metric while keeping its value the strongest accent.
  *
  * A card whose content already carries its own colours -- the night card, whose hypnogram
  * encodes four stages by hue -- passes a smaller value: there the wash has nothing to
  * identify and everything to interfere with. See [HelionSurfaceTintAlphaSubdued].
  */
-const val HelionSurfaceTintAlpha: Float = 0.24f
+const val HelionSurfaceTintAlpha: Float = 0.12f
 
 /** The wash for a card whose own content is already colour-coded -- see [HelionSurfaceTintAlpha]. */
 const val HelionSurfaceTintAlphaSubdued: Float = 0.10f
@@ -90,7 +86,7 @@ const val HelionSurfaceTintAlphaSubdued: Float = 0.10f
 private const val TINT_FADE: Float = 0.25f
 
 /**
- * One softly rounded, raised surface -- [HelionColors.surfaceRaised] clipped to
+ * One softly rounded surface -- [HelionColors.surface] clipped to
  * [HelionCornerRadius], with [HelionSurfacePadding] of breathing room inside it -- for
  * grouping a card's worth of related content. This is the app's answer to "surfaces, not
  * rules": a screen that used to separate its sections with a divider and tight padding
@@ -107,11 +103,15 @@ fun HelionSurface(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = HelionThemeTokens.colors
+    val dark = isSystemInDarkTheme()
+    // The stronger wash and longer fade keep dark cards colourful across their width.
+    val effectiveTintAlpha = if (dark) (tintAlpha * 2.5f).coerceAtMost(0.5f) else tintAlpha
+    val fade = if (dark) 0.55f else TINT_FADE
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(HelionCornerRadius))
-            .background(colors.surfaceRaised)
-                        // A diagonal gradient rather than a flat wash: a single opaque colour over a
+            .background(colors.surface)
+            // A diagonal gradient rather than a flat wash: a single opaque colour over a
             // large card reads as a slab, while a wash that fades across the card keeps the
             // colour without the weight. On a small tile the two look nearly the same; on a
             // big card the difference is the whole complaint.
@@ -120,8 +120,8 @@ fun HelionSurface(
                     Modifier.background(
                         Brush.linearGradient(
                             listOf(
-                                tint.copy(alpha = tintAlpha),
-                                tint.copy(alpha = tintAlpha * TINT_FADE),
+                                tint.copy(alpha = effectiveTintAlpha),
+                                tint.copy(alpha = effectiveTintAlpha * fade),
                             ),
                         ),
                     )
@@ -129,6 +129,7 @@ fun HelionSurface(
                     Modifier
                 },
             )
+            .border(1.dp, (tint ?: colors.divider).copy(alpha = if (dark) 0.35f else 0.45f), RoundedCornerShape(HelionCornerRadius))
             .padding(padding),
         verticalArrangement = verticalArrangement,
         content = content,

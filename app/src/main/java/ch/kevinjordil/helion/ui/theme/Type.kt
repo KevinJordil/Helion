@@ -90,9 +90,9 @@ object HelionType {
      */
     val headline: TextStyle = TextStyle(
         fontFamily = PlexSans,
-        fontWeight = FontWeight.Medium,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
     )
 
     /** A section title: sentence case, [PlexSans], one clear step above a caption. */

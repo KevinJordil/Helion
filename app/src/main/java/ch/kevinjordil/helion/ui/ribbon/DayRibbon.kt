@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -15,13 +16,10 @@ import ch.kevinjordil.helion.ui.metric.chartTimeMarkers
 import ch.kevinjordil.helion.ui.metric.formatAxisTimestamp
 import ch.kevinjordil.helion.ui.theme.HelionType
 
-/** Height reserved for hour ticks and labels when [DayRibbon] is asked to draw them. */
-private val AXIS_HEIGHT = 14.dp
-
 /**
  * Helion's signature element: a 24-hour band built from [RibbonBar]s (see
  * [buildRibbon]). The same composable is used at all three scales the design calls for --
- * full-bleed behind the hero, a small strand on a tile, and the axis of the detail screen
+ * inside the heart-rate card, a small strand on a tile, and the axis of the detail screen
  * -- only [modifier] (size) and [barColor] change, so every metric visibly shares the same
  * spine and the dashboard reads as one day rather than seven unrelated numbers.
  *
@@ -46,9 +44,11 @@ fun DayRibbon(
     topReservedFraction: Float = 0f,
 ) {
     val textMeasurer = rememberTextMeasurer()
+    // Reserve the scaled text height plus a gap, including when Android enlarges fonts.
+    val axisHeight = with(LocalDensity.current) { HelionType.axisLabel.lineHeight.toDp() } + 6.dp
     Canvas(modifier = modifier) {
         val showAxis = windowStart != null && windowEnd != null && windowEnd > windowStart
-        val axisHeightPx = if (showAxis) AXIS_HEIGHT.toPx() else 0f
+        val axisHeightPx = if (showAxis) axisHeight.toPx() else 0f
         // The band the bars may occupy. [topReservedFraction] hands the strip above it to
         // the caller -- the hero draws its figure there, so the number never lands in the
         // bars however tall the day's peak is.
@@ -111,10 +111,3 @@ private val MIN_BAR_WIDTH = 3.dp
 private val MAX_BAR_WIDTH = 10.dp
 
 fun Modifier.tileRibbonSize(): Modifier = this.fillMaxWidth().height(22.dp)
-
-/** Preconfigured height for the full-bleed ribbon behind the hero, including its hour axis. */
-// Tall enough that the reserved text strip (see DayRibbon's topReservedFraction) can hold
-// the hero figure without the bars growing into it: the figure is ~92dp of type, so a
-// shorter plot puts the digits back among the ticks. The screenful Accueil has to fit is
-// bought from the tiles, not from here.
-fun Modifier.heroRibbonSize(): Modifier = this.fillMaxWidth().height(124.dp + AXIS_HEIGHT)

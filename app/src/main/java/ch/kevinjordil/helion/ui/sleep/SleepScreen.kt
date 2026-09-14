@@ -26,10 +26,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.AppContainer
@@ -41,13 +41,13 @@ import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.quality.referenceForSleepDuration
 import ch.kevinjordil.helion.ui.quality.referenceMessage
-import ch.kevinjordil.helion.ui.theme.HelionColors
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
+import ch.kevinjordil.helion.ui.theme.HelionColors
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
+import ch.kevinjordil.helion.ui.theme.HelionStatItem
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
-import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
-import ch.kevinjordil.helion.ui.theme.HelionStatItem
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
 import java.time.LocalDate
@@ -167,22 +167,16 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
     val loaded = nights ?: return
 
-    // Only a thin 4dp margin lives on the root Column now: the 20dp inset every width
-    // budget in SleepScreenWidthTest/SleepAveragesWidthTest is built on has moved onto each
-    // card's own surface padding (see HelionSurfacePadding below) instead of sitting on the screen
-    // as a whole, so the total inset -- and every one of those tests' numbers -- is
-    // unchanged even though the visual result (a rounded, padded card, not a bare column) is
-    // not. The history list below the cards, which is not itself on a card, gets that same
-    // 16dp back explicitly (see the history item and HistoryRow below) for the same total.
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        // No page header here: the bottom navigation bar already names this destination
-        // (icon + "Sommeil" label), so a second, purely decorative "SOMMEIL" line at the
-        // top only pushed real content down for nothing.
+        Text(
+            stringResource(R.string.tab_sleep), style = HelionType.headline, color = colors.textPrimary,
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
+        )
         val selected = loaded.getOrNull(selectedIndex)
         if (selected == null) {
             Text(stringResource(R.string.sleep_no_nights), style = HelionType.body, color = colors.textSecondary)

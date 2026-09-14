@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,8 +20,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
@@ -38,6 +39,8 @@ import ch.kevinjordil.helion.ui.metric.MetricScreen
 import ch.kevinjordil.helion.ui.settings.SettingsScreen
 import ch.kevinjordil.helion.ui.settings.SettingsSectionScreen
 import ch.kevinjordil.helion.ui.sleep.SleepScreen
+import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
+import ch.kevinjordil.helion.ui.theme.HelionType
 
 private const val METRIC_ROUTE_PREFIX = "metric:"
 private const val ACTIVITY_ROUTE_PREFIX = "activity:"
@@ -239,8 +242,10 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 
     Scaffold(
         modifier = modifier,
+        containerColor = HelionThemeTokens.colors.ground,
         bottomBar = {
-            NavigationBar {
+            val colors = HelionThemeTokens.colors
+            NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
                 RootDestination.entries.forEach { entry ->
                     val selected = current == entry.route ||
                         (entry == RootDestination.HOME && current.startsWith(METRIC_ROUTE_PREFIX)) ||
@@ -258,7 +263,14 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                         selected = selected,
                         onClick = { selectRoot(entry.route) },
                         icon = { Icon(entry.icon, contentDescription = null) },
-                        label = { Text(stringResource(entry.labelRes)) },
+                        label = { Text(stringResource(entry.labelRes), style = HelionType.labelSmall) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = colors.accentViolet,
+                            selectedTextColor = colors.accentViolet,
+                            indicatorColor = colors.accentViolet.copy(alpha = 0.12f),
+                            unselectedIconColor = colors.textTertiary,
+                            unselectedTextColor = colors.textSecondary,
+                        ),
                     )
                 }
             }

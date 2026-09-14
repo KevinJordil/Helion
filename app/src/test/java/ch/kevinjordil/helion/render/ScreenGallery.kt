@@ -7,11 +7,17 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import ch.kevinjordil.helion.AppContainer
+import ch.kevinjordil.helion.source.SleepStage
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.store.ActivityOrigin
 import ch.kevinjordil.helion.store.ActivityStatus
@@ -19,8 +25,8 @@ import ch.kevinjordil.helion.store.MinuteSample
 import ch.kevinjordil.helion.store.PointSample
 import ch.kevinjordil.helion.store.SleepStageSegment
 import ch.kevinjordil.helion.store.Slot
-import ch.kevinjordil.helion.source.SleepStage
 import ch.kevinjordil.helion.store.SportType
+import ch.kevinjordil.helion.ui.HelionNavHost
 import ch.kevinjordil.helion.ui.activity.ActivityDetailScreen
 import ch.kevinjordil.helion.ui.activity.ActivityListScreen
 import ch.kevinjordil.helion.ui.activity.DayTimelineScreen
@@ -34,6 +40,11 @@ import ch.kevinjordil.helion.ui.settings.SettingsSectionScreen
 import ch.kevinjordil.helion.ui.sleep.SleepScreen
 import ch.kevinjordil.helion.ui.theme.HelionTheme
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
+import java.io.File
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume
 import org.junit.Before
@@ -44,11 +55,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.io.File
-import java.time.DayOfWeek
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
 
 /**
  * Renders every screen off-screen and writes a PNG per screen, so the layout can be looked
@@ -240,17 +246,24 @@ class ScreenGallery {
         rule.waitForIdle()
     }
 
-    private fun shoot(name: String, heightPx: Int = 2340, content: @Composable () -> Unit) {
+    private fun shoot(
+        name: String,
+        heightPx: Int = 2340,
+        widthPx: Int = 1080,
+        fontScale: Float = 1f,
+        content: @Composable () -> Unit,
+    ) {
         rule.setContent {
-            HelionTheme {
-                Box(modifier = Modifier.fillMaxSize().background(HelionThemeTokens.colors.ground)) { content() }
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                HelionTheme {
+                    Box(modifier = Modifier.fillMaxSize().background(HelionThemeTokens.colors.ground)) { content() }
+                }
             }
         }
         settle()
         // Compose's own captureToImage() waits on a redraw callback Robolectric never
         // fires, so the view tree is measured, laid out and drawn straight into a bitmap.
         val view: View = rule.activity.window.decorView
-        val widthPx = 1080
         view.measure(
             View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY),
@@ -300,4 +313,31 @@ class ScreenGallery {
     @Test fun reglages() { seed(); shoot("reglages") { SettingsScreen(container, onOpenSection = {}) } }
 
     @Test fun reglagesProfil() { seed(); shoot("reglages-profil") { SettingsSectionScreen(container, sectionId = "profile", onBack = {}) } }
+
+    @Test fun navigation() { seed(); shoot("navigation") { HelionNavHost(container) } }
+
+    /** S23 Ultra aspect ratio at 360dp, with space reserved for Android's system bars. */
+    @Test fun accueilS23Ultra() {
+        seed(); shoot("accueil-s23-ultra", heightPx = 2316) {
+            Box(Modifier.fillMaxSize().padding(top = 24.dp, bottom = 24.dp)) {
+                HelionNavHost(container)
+            }
+        }
+    }
+
+    @Test fun accueilCompact() {
+        seed(); shoot("accueil-compact", widthPx = 960, heightPx = 3200, fontScale = 1.3f) {
+            HomeScreen(container, onOpenMetric = {}, onOpenSettings = {})
+        }
+    }
+
+    @Test fun activitesCompactes() {
+        seed(); shoot("activites-compactes", widthPx = 960, fontScale = 1.3f) {
+            ActivityListScreen(container, onOpenActivity = {}, onNewActivity = {}, onManageSlots = {})
+        }
+    }
+
+    @Test fun reglagesClairs() {
+        seed(dark = false); shoot("reglages-clairs") { SettingsScreen(container, onOpenSection = {}) }
+    }
 }

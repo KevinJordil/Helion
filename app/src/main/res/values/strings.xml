@@ -110,7 +110,7 @@
     <string name="badge_longest_in_sport">Ta plus longue séance en %1$s</string>
     <string name="badge_max_heart_rate">Fréquence cardiaque la plus haute</string>
     <string name="badge_highest_intensity">Séance la plus intense</string>
-    <string name="activity_manage_slots">Séances récurrentes</string>
+    <string name="activity_manage_slots">Mes créneaux</string>
     <string name="activity_reanalyze_action">Réanalyser tout l\'historique</string>
     <string name="activity_reanalyzing">Réanalyse en cours…</string>
     <string name="activity_reanalyze_result_found">%1$d nouvelle(s) activité(s) repérée(s).</string>
@@ -434,4 +434,11 @@
 
     <string name="recording_device_name_label">Nom de l\'appareil (Strava)</string>
     <string name="recording_device_name_note">Nom affiché par Strava comme appareil d\'enregistrement.</string>
+    <string name="home_heading">Votre journée</string>
+    <string name="settings_group_personal">Au quotidien</string>
+    <string name="settings_group_connections">Données et connexions</string>
+    <string name="settings_group_application">Application</string>
+    <string name="settings_subtitle">Personnalisez votre suivi</string>
+    <string name="goal_progress_compact">%1$d %% · %2$d pas</string>
+    <string name="tile_strand_week_compact">7 jours</string>
 </resources>

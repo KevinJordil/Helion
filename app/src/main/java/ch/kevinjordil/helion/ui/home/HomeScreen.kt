@@ -1,17 +1,15 @@
 package ch.kevinjordil.helion.ui.home
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,52 +23,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
-import ch.kevinjordil.helion.ui.metric.TileStrand
 import ch.kevinjordil.helion.ui.metric.MetricReader
 import ch.kevinjordil.helion.ui.metric.Range
 import ch.kevinjordil.helion.ui.metric.Reading
-import ch.kevinjordil.helion.ui.metric.formatValue
+import ch.kevinjordil.helion.ui.metric.TileStrand
 import ch.kevinjordil.helion.ui.metric.metricColor
 import ch.kevinjordil.helion.ui.minutesSinceLastSample
-import ch.kevinjordil.helion.ui.quality.PersonalBaseline
 import ch.kevinjordil.helion.ui.quality.computeBaseline
-import ch.kevinjordil.helion.ui.quality.personalBaselineMessage
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
-import ch.kevinjordil.helion.ui.ribbon.DayRibbon
-import ch.kevinjordil.helion.ui.ribbon.RibbonBar
 import ch.kevinjordil.helion.ui.ribbon.buildRibbon
-import ch.kevinjordil.helion.ui.ribbon.heroRibbonSize
 import ch.kevinjordil.helion.ui.settings.SyncOutcome
-import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionContentInset
-import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionSurface
-import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /** How long Accueil's pull-to-refresh waits for Gadgetbridge's sync-finish broadcast. */
 private const val SYNC_FINISH_TIMEOUT_MILLIS = 25_000L
-
-/**
- * The share of the hero ribbon's plot height kept clear at the top for the figure drawn
- * over it. Bars grow into the rest, so the number never lands in them.
- */
-private const val HERO_TEXT_STRIP_FRACTION = 0.72f
-
-private const val HEART_RATE_ID = "heart_rate"
 
 /** The one metric with a goal to measure a day against -- see [ch.kevinjordil.helion.ui.settings.StepsGoal]. */
 private const val STEPS_ID = "steps"
@@ -84,16 +68,13 @@ private const val STEPS_ID = "steps"
  */
 private const val TILE_RIBBON_BUCKETS = 20
 
-/** The hero is far wider than a tile, so it can carry more bars at the same bar width. */
-private const val HERO_RIBBON_BUCKETS = 40
-
 /** One bar per day for a [TileStrand.WEEK] metric: night to night is the shape that means something. */
 private const val WEEK_RIBBON_BUCKETS = 7
 
 private const val WEEK_SECONDS = 7L * 24 * 3600
 
 /**
- * Accueil: heart rate as the hero, the other six catalog metrics as tiles, all sharing one
+ * Accueil: all eight metrics in a compact two-column grid, all sharing one
  * day ribbon. Three states replace the dashboard entirely -- see [HomeStatus] -- and a
  * fourth, quieter one (a failed refresh) overlays a banner without touching data already
  * on screen, because that data is still valid.
@@ -246,29 +227,26 @@ fun HomeScreen(
             modifier = modifier.fillMaxSize(),
         ) {
             val newestSample = latestByMetricId.values.filterNotNull().maxOfOrNull { it.timestamp }
-            val tiles = MetricCatalog.all.filter { it.id != HEART_RATE_ID }
+            val tiles = MetricCatalog.all
             // Read once per pass rather than per tile: it is a SharedPreferences value.
             val stepsGoal = container.stepsGoal.value
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().testTag("home-dashboard"),
+                contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+            ) {
                 item {
-                    val heroWindowStart = System.currentTimeMillis() / 1000 - Range.DAY.seconds
-                    val heroWindowEnd = System.currentTimeMillis() / 1000
-                    HeroHeartRate(
-                        latest = latestByMetricId[HEART_RATE_ID],
-                        ribbonBars = buildRibbon(
-                            dayReadingsByMetricId[HEART_RATE_ID].orEmpty(),
-                            windowStart = heroWindowStart,
-                            windowEnd = heroWindowEnd,
-                            bucketCount = HERO_RIBBON_BUCKETS,
-                        ),
-                        windowStart = heroWindowStart,
-                        windowEnd = heroWindowEnd,
-                        personalBaseline = latestByMetricId[HEART_RATE_ID]?.value?.let { value ->
-                            placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[HEART_RATE_ID].orEmpty()))
-                        },
-                        onClick = { onOpenMetric(HEART_RATE_ID) },
-                    )
+                    Column(
+                        modifier = Modifier.padding(horizontal = HelionContentInset).padding(bottom = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(stringResource(R.string.home_heading), style = HelionType.headline, color = colors.textPrimary)
+                        Text(
+                            LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)),
+                            style = HelionType.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
                 }
                 item {
                     // One line, not the four the owner reported ("Reçue à…" / "Comme
@@ -279,8 +257,7 @@ fun HomeScreen(
                     // ever shown at a time, picked in that priority order. The amber state
                     // for a failed or degraded refresh survives as this line's colour,
                     // rather than a second banner line underneath it. The distinct,
-                    // genuinely different fact -- the personal-baseline caption -- stays on
-                    // its own line inside HeroHeartRate.
+                    // genuinely different fact -- the personal baseline -- stays inside each tile.
                     val phaseRes = refreshPhase?.let(::refreshPhaseLabel)
                     val currentBanner = banner
                     val text = when {
@@ -295,7 +272,7 @@ fun HomeScreen(
                         color = if (isAmber) colors.accentAmber else colors.textSecondary,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = HelionContentInset, end = HelionContentInset, top = 4.dp, bottom = 8.dp),
+                            .padding(start = HelionContentInset, end = HelionContentInset, top = 0.dp, bottom = 6.dp),
                     )
                 }
                 items(tiles.chunked(2)) { pair ->
@@ -303,9 +280,9 @@ fun HomeScreen(
                     // surface (see HelionSurface's own kdoc) rather than two unrelated
                     // metrics sharing one rectangle; a row here only lays two of those
                     // surfaces out side by side. The row's own margin is
-                    // HelionScreenEdgeMargin and each surface pads by HelionSurfacePadding,
+                    // HelionScreenEdgeMargin and each tile pads by HelionSurfacePadding,
                     // so a tile's text starts on HelionContentInset -- the same line as the
-                    // hero and the freshness line above it, which is what a tighter tile
+                    // heading and freshness line above it, which is what a tighter tile
                     // padding used to break.
                     Row(
                         modifier = Modifier
@@ -315,8 +292,8 @@ fun HomeScreen(
                             // track, and without this its card stood taller than its
                             // neighbour and the grid stopped looking like a grid.
                             .height(IntrinsicSize.Min)
-                            .padding(horizontal = HelionScreenEdgeMargin, vertical = 3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .padding(horizontal = HelionScreenEdgeMargin, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         pair.forEach { metric ->
                             val now = System.currentTimeMillis() / 1000
@@ -324,10 +301,7 @@ fun HomeScreen(
                             HelionSurface(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                                 tint = colors.metricColor(metric),
-                                // Horizontal padding stays on the app's left-hand line;
-                                // only the vertical is trimmed, which is what buys the
-                                // whole set of tiles a single screenful.
-                                padding = PaddingValues(horizontal = HelionSurfacePadding, vertical = 10.dp),
+                                padding = PaddingValues(0.dp),
                             ) {
                                 // Only `steps` has a goal today, and it is the only tile
                                 // that gets a track; see MetricTile's own kdoc.
@@ -342,7 +316,7 @@ fun HomeScreen(
                                     goalProgress = goalFraction,
                                     goalCaption = goalFraction?.let {
                                         stringResource(
-                                            R.string.goal_progress_caption,
+                                            R.string.goal_progress_compact,
                                             (it * 100).roundToInt(),
                                             stepsGoal,
                                         )
@@ -365,7 +339,7 @@ fun HomeScreen(
                                         )
                                     },
                                     strandCaption = if (metric.tileStrand == TileStrand.WEEK) {
-                                        stringResource(R.string.tile_strand_week)
+                                        stringResource(R.string.tile_strand_week_compact)
                                     } else {
                                         null
                                     },
@@ -373,92 +347,14 @@ fun HomeScreen(
                                         placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
                                     },
                                     onClick = { onOpenMetric(metric.id) },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                                 )
                             }
                         }
                         if (pair.size == 1) Box(modifier = Modifier.weight(1f)) {}
                     }
                 }
-                item { Spacer(Modifier.padding(bottom = 24.dp)) }
             }
-        }
-    }
-}
-
-@Composable
-private fun HeroHeartRate(
-    latest: Reading?,
-    ribbonBars: List<RibbonBar>,
-    windowStart: Long,
-    windowEnd: Long,
-    personalBaseline: PersonalBaseline?,
-    onClick: () -> Unit,
-) {
-    val colors = HelionThemeTokens.colors
-    val metric = MetricCatalog.byId(HEART_RATE_ID) ?: return
-    val hue = colors.metricColor(metric)
-    // The figure sits on the ribbon, which is what the owner wants to see: the day's shape
-    // behind the number it belongs to, and one screenful of Accueil rather than two. The
-    // collision that made this unreadable before was vertical, not conceptual -- the text
-    // block and the bars were fighting for the same band -- so the ribbon reserves a top
-    // strip (see heroTextStrip) that the bars never grow into, and the text sits in it.
-    // Only the figure is drawn over the ribbon. The baseline caption used to ride along
-    // with it and landed on the ribbon's own hour labels; it belongs under the whole thing,
-    // beside the freshness line, which is where the rest of Accueil's prose lives.
-    Column {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            // The most prominent element on the screen must not be the one dead tap
-            // target: tapping the hero opens the same detail screen as tapping a tile,
-            // with the same clickable mechanics (ripple via LocalIndication) and the
-            // same Role.Button semantics for accessibility/switch access.
-            .clickable(onClick = onClick, role = Role.Button)
-            .padding(bottom = 4.dp),
-    ) {
-        DayRibbon(
-            bars = ribbonBars,
-            barColor = hue.copy(alpha = 0.45f),
-            modifier = Modifier
-                .heroRibbonSize()
-                .padding(start = HelionContentInset, end = HelionContentInset),
-            windowStart = windowStart,
-            windowEnd = windowEnd,
-            axisLabelColor = colors.textTertiary,
-            topReservedFraction = HERO_TEXT_STRIP_FRACTION,
-        )
-        Column(modifier = Modifier.padding(horizontal = HelionContentInset, vertical = 8.dp)) {
-            if (latest != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        metric.formatValue(latest.value),
-                        style = HelionType.hero,
-                        color = hue,
-                        modifier = Modifier.alignByBaseline(),
-                    )
-                    // On the shared baseline, not the top of the digits: a unit set beside
-                    // a figure belongs on that figure's own line.
-                    Text(
-                        stringResource(metric.unitRes),
-                        style = HelionType.label,
-                        color = colors.textSecondary,
-                        modifier = Modifier.alignByBaseline(),
-                    )
-                }
-            } else {
-                Text(stringResource(R.string.accueil_hero_no_reading), style = HelionType.body, color = colors.textSecondary)
-            }
-        }
-    }
-        personalBaseline?.let { baseline ->
-            val (messageRes, isAmber) = personalBaselineMessage(baseline)
-            Text(
-                stringResource(messageRes),
-                style = HelionType.bodySmall,
-                color = if (isAmber) colors.accentAmber else colors.textSecondary,
-                modifier = Modifier.padding(horizontal = HelionContentInset),
-            )
         }
     }
 }

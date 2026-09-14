@@ -107,14 +107,14 @@ object MetricPalette {
      * and chroma that carry against [HelionDarkColors.ground] instead.
      */
     object OnDark {
-        val red = Color(0xFFFF5F6B)
-        val teal = Color(0xFF2ED3C6)
-        val olive = Color(0xFFC3DC3F)
-        val violet = Color(0xFFA78BFA)
-        val orange = Color(0xFFFF9F43)
-        val blue = Color(0xFF3FBEF7)
-        val green = Color(0xFF34D399)
-        val magenta = Color(0xFFF472B6)
+        val red = Color(0xFFFF8795)
+        val teal = Color(0xFF5CE8DD)
+        val olive = Color(0xFFD6EA62)
+        val violet = Color(0xFFC2AAFF)
+        val orange = Color(0xFFFFB86B)
+        val blue = Color(0xFF73D1FF)
+        val green = Color(0xFF6CE6B2)
+        val magenta = Color(0xFFFFA0D6)
     }
 }
 
@@ -157,17 +157,17 @@ private val HELION_METRIC_HUES_ON_DARK: List<Color> = listOf(
  * from [MetricPalette.OnDark] rather than the light theme's deeper set.
  */
 val HelionDarkColors = HelionColors(
-    ground = Color(0xFF121828),
-    surface = Color(0xFF1A2133),
-    surfaceRaised = Color(0xFF232C42),
+    ground = Color(0xFF192742),
+    surface = Color(0xFF233653),
+    surfaceRaised = Color(0xFF304566),
     textPrimary = Color(0xFFF4F6FB),
-    textSecondary = Color(0xFFB3BCD0),
-    textTertiary = Color(0xFF7C87A0),
-    divider = Color(0xFF333E58),
-    accentViolet = Color(0xFF9B7BFF),
-    onAccentViolet = Color(0xFF121828),
+    textSecondary = Color(0xFFCDD9EE),
+    textTertiary = Color(0xFFB3C4DF),
+    divider = Color(0xFF526A91),
+    accentViolet = Color(0xFFB69BFF),
+    onAccentViolet = Color(0xFF192742),
     accentAmber = Color(0xFFF5B342),
-    onAccentAmber = Color(0xFF121828),
+    onAccentAmber = Color(0xFF192742),
     phaseAwake = Color(0xFF6B7694),
     phaseLight = Color(0xFF5B84E0),
     phaseRem = Color(0xFF2FD3BE),
@@ -185,7 +185,7 @@ val HelionLightColors = HelionColors(
     surfaceRaised = Color(0xFFE9EBF2),
     textPrimary = Color(0xFF12151D),
     textSecondary = Color(0xFF4B5163),
-    textTertiary = Color(0xFF7B8296),
+    textTertiary = Color(0xFF626D83),
     divider = Color(0xFFD8DBE4),
     accentViolet = Color(0xFF6C3FE0),
     onAccentViolet = Color(0xFFFFFFFF),

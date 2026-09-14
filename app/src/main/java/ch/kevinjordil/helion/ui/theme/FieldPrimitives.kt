@@ -3,6 +3,7 @@ package ch.kevinjordil.helion.ui.theme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -62,6 +63,8 @@ fun HelionField(
             value = value,
             onValueChange = onValueChange,
             singleLine = singleLine,
+            shape = RoundedCornerShape(HelionCornerRadiusSmall),
+            textStyle = HelionType.body,
             keyboardOptions = keyboardOptions,
             isError = warning != null,
             placeholder = placeholder?.let { hint -> { Text(hint) } },
@@ -71,6 +74,9 @@ fun HelionField(
             colors = OutlinedTextFieldDefaults.colors(
                 errorBorderColor = colors.accentAmber,
                 errorCursorColor = colors.accentAmber,
+                unfocusedBorderColor = colors.divider,
+                unfocusedContainerColor = colors.ground.copy(alpha = 0.4f),
+                focusedContainerColor = colors.ground.copy(alpha = 0.4f),
             ),
             modifier = Modifier.fillMaxWidth(),
         )

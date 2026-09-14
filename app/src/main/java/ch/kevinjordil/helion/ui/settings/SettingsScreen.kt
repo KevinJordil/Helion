@@ -1,32 +1,49 @@
 package ch.kevinjordil.helion.ui.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.BuildConfig
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
-import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 
@@ -93,51 +110,80 @@ fun SettingsScreen(container: AppContainer, onOpenSection: (String) -> Unit, mod
             modifier = Modifier.padding(horizontal = HelionSurfacePadding),
         )
 
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            SettingsSection.entries.forEach { section ->
-                SettingsEntryRow(
-                    label = stringResource(section.titleRes),
-                    value = settingsEntryPreview(section, container),
-                    onClick = { onOpenSection(section.id) },
-                )
+        Text(
+            stringResource(R.string.settings_subtitle),
+            style = HelionType.body,
+            color = colors.textSecondary,
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
+        )
+        val groups = listOf(
+            R.string.settings_group_personal to listOf(SettingsSection.PROFILE, SettingsSection.GOALS, SettingsSection.NOTIFICATIONS),
+            R.string.settings_group_connections to listOf(SettingsSection.SOURCE, SettingsSection.STRAVA, SettingsSection.HEALTH_CONNECT),
+            R.string.settings_group_application to listOf(SettingsSection.MAINTENANCE, SettingsSection.ABOUT),
+        )
+        groups.forEach { (titleRes, sections) ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(titleRes), style = HelionType.label, color = colors.textSecondary,
+                    modifier = Modifier.padding(horizontal = HelionSurfacePadding))
+                HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
+                    sections.forEachIndexed { index, section ->
+                        SettingsEntryRow(
+                            label = stringResource(section.titleRes),
+                            value = settingsEntryPreview(section, container),
+                            icon = settingsIcon(section),
+                            onClick = { onOpenSection(section.id) },
+                        )
+                        if (index < sections.lastIndex) {
+                            HorizontalDivider(modifier = Modifier.padding(start = 64.dp, end = 16.dp),
+                                color = colors.divider.copy(alpha = 0.4f))
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-/**
- * One row of [SettingsScreen]'s list: the entry's own label, a short status/value preview
- * underneath, and a trailing chevron that marks it as opening something rather than acting
- * directly -- the same distinction a button (acts now) and this row (navigates) need to keep
- * clear at a glance. Every entry uses this composable and nothing else, so label, value and
- * spacing can never diverge entry to entry.
- */
-/** The chevron that marks a settings row as opening a screen. */
+private fun settingsIcon(section: SettingsSection): ImageVector = when (section) {
+    SettingsSection.PROFILE -> Icons.Filled.Person
+    SettingsSection.GOALS -> Icons.Filled.Star
+    SettingsSection.NOTIFICATIONS -> Icons.Filled.Notifications
+    SettingsSection.SOURCE -> Icons.Filled.Refresh
+    SettingsSection.STRAVA -> Icons.Filled.Share
+    SettingsSection.HEALTH_CONNECT -> Icons.Filled.Favorite
+    SettingsSection.MAINTENANCE -> Icons.Filled.Build
+    SettingsSection.ABOUT -> Icons.Filled.Info
+}
+
 private val CHEVRON_SIZE = 18.dp
 
 @Composable
-private fun SettingsEntryRow(label: String, value: String, onClick: () -> Unit) {
+private fun SettingsEntryRow(label: String, value: String, icon: ImageVector, onClick: () -> Unit) {
     val colors = HelionThemeTokens.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .clickable(onClick = onClick, role = Role.Button)
+            .heightIn(min = 72.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = HelionType.label, color = colors.textPrimary)
+        Box(
+            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
+                .background(colors.accentViolet.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = colors.accentViolet, modifier = Modifier.size(20.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = HelionType.body, color = colors.textPrimary)
             Text(value, style = HelionType.bodySmall, color = colors.textSecondary)
         }
         // A drawn chevron, not the ">" character: a literal greater-than sign is the one
         // remaining piece of the app that looked typed into a terminal rather than laid out.
         Icon(
-            Icons.Filled.ArrowForward,
+            Icons.AutoMirrored.Filled.ArrowForward,
             contentDescription = null,
             tint = colors.textTertiary,
             modifier = Modifier.size(CHEVRON_SIZE),

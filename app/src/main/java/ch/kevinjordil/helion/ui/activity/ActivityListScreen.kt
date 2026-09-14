@@ -1,26 +1,22 @@
 package ch.kevinjordil.helion.ui.activity
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.Alignment
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,17 +24,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.store.Activity
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
+import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
-import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 import java.time.Instant
@@ -63,6 +62,7 @@ private val ROW_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd
  * A candidate's row never looks like a confirmed one's -- see [needsAttention] -- so the
  * owner's eye lands on what still needs a verdict before anything else on the screen.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ActivityListScreen(
     container: AppContainer,
@@ -86,23 +86,21 @@ fun ActivityListScreen(
             .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        Row(
+        Text(
+            stringResource(R.string.tab_activities), style = HelionType.headline, color = colors.textPrimary,
+            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
+        )
+        FlowRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(stringResource(R.string.tab_activities), style = HelionType.headline, color = colors.textPrimary)
-            Text(
-                stringResource(R.string.activity_manage_slots),
-                style = HelionType.label,
-                color = colors.accentViolet,
-                modifier = Modifier.clickable(onClick = onManageSlots),
-            )
+            Button(onClick = onNewActivity) {
+                Text(stringResource(R.string.activity_new_action))
+            }
+            OutlinedButton(onClick = onManageSlots) {
+                Text(stringResource(R.string.activity_manage_slots))
+            }
         }
-
-        Button(onClick = onNewActivity, modifier = Modifier.padding(horizontal = HelionSurfacePadding)) {
-            Text(stringResource(R.string.activity_new_action))
-        }
-
         when {
             loaded == null -> Unit
 
@@ -131,7 +129,7 @@ fun ActivityListScreen(
                         items(dayActivities, key = { "activity:${it.id}" }) { activity ->
                             HelionSurface(
                                 modifier = Modifier.fillMaxWidth(),
-                                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
+                                padding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                                 tint = colors.sportColorOrNull(activity.sport),
                             ) {
                                 ActivityRow(activity, onClick = { onOpenActivity(activity.id) })
@@ -159,6 +157,7 @@ private fun EmptyActivityList(onNewActivity: () -> Unit, modifier: Modifier = Mo
 /** The disc the sport glyph sits on. */
 private val SPORT_DISC_SIZE = 40.dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
@@ -170,78 +169,45 @@ private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modif
     val sportHue = colors.sportColorOrNull(activity.sport)
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            // Intrinsic height, so the bar's fillMaxHeight has something to fill: in a Row
-            // with an unbounded height constraint it would resolve to zero and the bar
-            // would simply not be drawn.
-            .height(IntrinsicSize.Min)
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
+        modifier = modifier.fillMaxWidth()
+            .clickable(onClick = onClick, role = Role.Button)
+            .padding(HelionSurfacePadding),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // The sport's glyph, on a disc washed in its own colour: the row is read by shape
-        // and colour before any of its words are.
         Box(
-            modifier = Modifier
-                .size(SPORT_DISC_SIZE)
-                .clip(CircleShape)
-                .background((sportHue ?: colors.divider).copy(alpha = 0.22f)),
+            modifier = Modifier.size(SPORT_DISC_SIZE).clip(RoundedCornerShape(14.dp))
+                .background((sportHue ?: colors.divider).copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(sportEmoji(activity.sport), style = HelionType.body)
         }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Weighted so a long title wraps within its own share of the row instead of
-            // pushing the status label off the edge -- the status must always stay fully
-            // visible, it is what tells a candidate from a decided activity. No
-            // maxLines/ellipsis on the title itself: it wraps rather than clips. See
-            // ActivityStatusWidthTest for the fixed-width status label's own coverage.
-            Text(
-                activity.title ?: sportOrNoneLabel(activity.sport),
-                style = HelionType.body,
-                color = colors.textPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                stringResource(statusLabelRes(activity.status)),
-                style = HelionType.labelSmall,
-                color = if (attention) colors.accentAmber else colors.textTertiary,
-            )
-        }
-        // The duration is what the owner scans this list for, so it is set as a figure and
-        // leads; the sport and the clock range follow as context. Still one composed Text
-        // rather than three side by side: three unweighted Texts in a Row can overflow the
-        // row's bounds at a narrow width or a large font scale (exactly the clipping shape
-        // reported before), while one Text with no maxLines/ellipsis wraps instead.
-        val range = "${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.startTimestamp))}" +
-            "–${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.endTimestamp))}"
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                activityDurationText(activity.endTimestamp - activity.startTimestamp),
-                style = HelionType.valueMedium,
-                color = sportHue ?: colors.textPrimary,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Text(
-                "${sportOrNoneLabel(activity.sport)} · $range",
-                style = HelionType.bodySmall,
-                color = colors.textSecondary,
-                modifier = Modifier.alignByBaseline(),
-            )
-        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(activity.title ?: sportOrNoneLabel(activity.sport),
+                style = HelionType.title, color = colors.textPrimary)
+            val range = "${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.startTimestamp))}" +
+                "–${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.endTimestamp))}"
+            Text("${sportOrNoneLabel(activity.sport)} · $range",
+                style = HelionType.bodySmall, color = colors.textSecondary)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(activityDurationText(activity.endTimestamp - activity.startTimestamp),
+                    style = HelionType.valueMedium, color = sportHue ?: colors.textPrimary)
+                Text(
+                    stringResource(statusLabelRes(activity.status)),
+                    style = HelionType.labelSmall,
+                    color = if (attention) colors.accentAmber else colors.textSecondary,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .background(if (attention) colors.accentAmber.copy(alpha = 0.12f) else colors.surfaceRaised)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
         }
     }
 }
 
-/** Groups [activities] by the local calendar day their start falls on, most recent day first. */
 private fun groupByDay(activities: List<Activity>): List<Pair<LocalDate, List<Activity>>> {
     val zone = ZoneId.systemDefault()
     return activities
