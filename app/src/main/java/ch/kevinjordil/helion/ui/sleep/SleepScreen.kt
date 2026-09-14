@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
@@ -126,6 +127,21 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
     // the last index is the most recent, which is also this state's initial value.
     var selectedIndex by remember { mutableStateOf(0) }
 
+    /**
+     * Naps, listed below the nights and never mixed into them: they are deliberately absent
+     * from the averages and from the morning notification, because a forty-minute doze
+     * averaged in with nights would drag the figure down as though it were one.
+     */
+    var naps by remember { mutableStateOf<List<SleepEpisode>>(emptyList()) }
+
+    /**
+     * Which nap is open in the detail card, or null while a night is. Held separately from
+     * [selectedIndex] rather than merged into one list so the previous/next controls always
+     * step through episodes of the same kind -- stepping from a night into an afternoon
+     * doze and back out again is not browsing, it is losing your place.
+     */
+    var selectedNapIndex by remember { mutableStateOf<Int?>(null) }
+
     // Overlay toggles for the night chart, hoisted here rather than remembered inside
     // SelectedNightCard so they survive stepping to a different night -- exactly what
     // "persist while he browses between nights" requires. Off by default; heart rate
@@ -146,6 +162,7 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
             .map { Reading(it.wokeAt, it.durationAsleepMinutes / 60.0) }
         baseline = computeBaseline(history)
         allNights = reader.loadNights(now, lookbackDays = null)
+        naps = reader.loadNaps(now)
     }
 
     val loaded = nights ?: return
@@ -181,18 +198,38 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
         LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
             item {
-                SelectedNightCard(
-                    episode = selected,
-                    baseline = baseline,
-                    hasPrevious = selectedIndex > 0,
-                    hasNext = selectedIndex < loaded.lastIndex,
-                    onPrevious = { selectedIndex -= 1 },
-                    onNext = { selectedIndex += 1 },
-                    showRespiratoryOverlay = showRespiratoryOverlay,
-                    onShowRespiratoryOverlayChange = { showRespiratoryOverlay = it },
-                    showMovementOverlay = showMovementOverlay,
-                    onShowMovementOverlayChange = { showMovementOverlay = it },
-                )
+                // A nap, once opened, takes over the same card: same chart, same figures.
+                // Its own previous/next steps through naps, so the two kinds never
+                // interleave under the arrows.
+                val openNap = selectedNapIndex?.let { naps.getOrNull(it) }
+                if (openNap != null) {
+                    val napIndex = selectedNapIndex!!
+                    SelectedNightCard(
+                        episode = openNap,
+                        baseline = baseline,
+                        hasPrevious = napIndex > 0,
+                        hasNext = napIndex < naps.lastIndex,
+                        onPrevious = { selectedNapIndex = napIndex - 1 },
+                        onNext = { selectedNapIndex = napIndex + 1 },
+                        showRespiratoryOverlay = showRespiratoryOverlay,
+                        onShowRespiratoryOverlayChange = { showRespiratoryOverlay = it },
+                        showMovementOverlay = showMovementOverlay,
+                        onShowMovementOverlayChange = { showMovementOverlay = it },
+                    )
+                } else {
+                    SelectedNightCard(
+                        episode = selected,
+                        baseline = baseline,
+                        hasPrevious = selectedIndex > 0,
+                        hasNext = selectedIndex < loaded.lastIndex,
+                        onPrevious = { selectedIndex -= 1 },
+                        onNext = { selectedIndex += 1 },
+                        showRespiratoryOverlay = showRespiratoryOverlay,
+                        onShowRespiratoryOverlayChange = { showRespiratoryOverlay = it },
+                        showMovementOverlay = showMovementOverlay,
+                        onShowMovementOverlayChange = { showMovementOverlay = it },
+                    )
+                }
             }
             allNights?.let { all ->
                 item {
@@ -213,7 +250,39 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
                     )
                 }
                 items(history, key = { (index, _) -> index }) { (index, episode) ->
-                    HistoryRow(episode, onClick = { selectedIndex = index }, modifier = Modifier.padding(horizontal = HelionSurfacePadding))
+                    HistoryRow(
+                        episode,
+                        onClick = {
+                            selectedIndex = index
+                            selectedNapIndex = null
+                        },
+                        modifier = Modifier.padding(horizontal = HelionSurfacePadding),
+                    )
+                }
+            }
+
+            // Naps, under the nights and clearly apart from them. They were classified from
+            // the start so they could be kept out of the night averages, but until now
+            // nothing ever showed them -- so a sleep the app filed as a nap was a sleep the
+            // owner could not reach at all.
+            if (naps.isNotEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.sleep_naps_title),
+                        style = HelionType.title,
+                        color = colors.textPrimary,
+                        modifier = Modifier.padding(start = HelionSurfacePadding, end = HelionSurfacePadding, top = 8.dp),
+                    )
+                }
+                itemsIndexed(naps.reversed(), key = { _, episode -> "nap:${episode.wokeAt}" }) { reversedIndex, episode ->
+                    HistoryRow(
+                        episode,
+                        onClick = { selectedNapIndex = naps.lastIndex - reversedIndex },
+                        modifier = Modifier.padding(horizontal = HelionSurfacePadding),
+                        // A nap is identified by when in the day it happened: two on the
+                        // same date are otherwise two identical rows.
+                        startTime = CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)),
+                    )
                 }
             }
         }
@@ -309,7 +378,11 @@ private fun SelectedNightCard(
                 )
             }
 
-            if (!episode.isInProgress && !episode.hasDataGap) {
+            // Nights only. Both comparisons are defined over a night's duration -- the
+            // owner's own 30-night baseline, and the 7-9h reference range -- so applying
+            // them to a nap would report a forty-minute doze as "below the recommended
+            // range" and count it against his usual, which is nonsense in both directions.
+            if (episode.kind == SleepEpisodeKind.NIGHT && !episode.isInProgress && !episode.hasDataGap) {
                 val (personalRes, personalAmber) = personalBaselineMessage(
                     placeAgainstBaseline(episode.durationAsleepMinutes / 60.0, baseline),
                 )

@@ -129,7 +129,20 @@ class ScreenGallery {
                     sleepStage = if (awakeBlip) SleepStage.AWAKE else SleepStage.ASLEEP,
                 )
             }
-            container.database.minuteSamples().upsertAll(minutes + nightMinutes)
+            // An afternoon nap two days back, so Sommeil's own Siestes section has
+            // something in it.
+            val napStart = today.minusDays(2).atTime(LocalTime.of(14, 10)).atZone(zone).toEpochSecond()
+            val napMinutes = (napStart..napStart + 55 * 60 step 60L).map { ts ->
+                MinuteSample(
+                    timestamp = ts,
+                    steps = 0,
+                    intensity = 0,
+                    rawKind = 1,
+                    heartRate = 58,
+                    sleepStage = SleepStage.ASLEEP,
+                )
+            }
+            container.database.minuteSamples().upsertAll(minutes + nightMinutes + napMinutes)
 
             // Sampled through the day, the way the watch reports them.
             val daytimeSeries = mapOf(

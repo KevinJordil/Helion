@@ -68,7 +68,12 @@ internal fun nightBarWidthFraction(durationMinutes: Long, referenceMaxMinutes: L
  * detail card uses, so it is never mistaken for the device's own measurement.
  */
 @Composable
-internal fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun HistoryRow(
+    episode: SleepEpisode,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    startTime: String? = null,
+) {
     val colors = HelionThemeTokens.colors
     val hours = episode.durationAsleepMinutes / 60
     val minutes = episode.durationAsleepMinutes % 60
@@ -100,12 +105,18 @@ internal fun HistoryRow(episode: SleepEpisode, onClick: () -> Unit, modifier: Mo
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            weekdayDateText(episode.date, weekdays),
-            style = HelionType.body,
-            color = colors.textSecondary,
-            modifier = Modifier.width(104.dp),
-        )
+        Column(modifier = Modifier.width(104.dp)) {
+            Text(
+                weekdayDateText(episode.date, weekdays),
+                style = HelionType.body,
+                color = colors.textSecondary,
+            )
+            // Only naps carry this: a night is fully identified by its date, while two
+            // naps on one date are otherwise indistinguishable rows.
+            startTime?.let {
+                Text(it, style = HelionType.labelSmall, color = colors.textTertiary)
+            }
+        }
         StageCompositionBar(
             composition = composition,
             barFraction = barFraction,
