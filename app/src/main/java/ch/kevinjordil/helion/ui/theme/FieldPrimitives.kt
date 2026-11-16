@@ -28,14 +28,14 @@ fun HelionFieldLabel(text: String) {
 /**
  * The one presentation "this needs your attention" ever gets on a field: a validation error,
  * a refused permission, an unconfirmed plain-HTTP address, a malformed date. Amber stays
- * reserved for exactly this -- see [HelionColors.accentAmber]'s own kdoc -- so every such
+ * reserved for exactly this -- see [HelionColors.attention]'s own kdoc -- so every such
  * message across every screen goes through this one composable rather than each screen
  * picking its own colour.
  */
 @Composable
 fun HelionWarning(text: String) {
     val colors = HelionThemeTokens.colors
-    Text(text, style = HelionType.bodySmall, color = colors.accentAmber)
+    Text(text, style = HelionType.bodySmall, color = colors.attention)
 }
 
 /**
@@ -69,14 +69,14 @@ fun HelionField(
             isError = warning != null,
             placeholder = placeholder?.let { hint -> { Text(hint) } },
             // Amber, not Material's default red: amber is this app's one "needs your
-            // attention" colour everywhere else (see HelionColors.accentAmber's own kdoc),
+            // attention" colour everywhere else (see HelionColors.attention's own kdoc),
             // so a malformed field must not introduce a second, competing warning colour.
             colors = OutlinedTextFieldDefaults.colors(
-                errorBorderColor = colors.accentAmber,
-                errorCursorColor = colors.accentAmber,
+                errorBorderColor = colors.attention,
+                errorCursorColor = colors.attention,
                 unfocusedBorderColor = colors.divider,
-                unfocusedContainerColor = colors.ground.copy(alpha = 0.4f),
-                focusedContainerColor = colors.ground.copy(alpha = 0.4f),
+                unfocusedContainerColor = colors.surfaceDim,
+                focusedContainerColor = colors.surfaceDim, focusedBorderColor = colors.accent,
             ),
             modifier = Modifier.fillMaxWidth(),
         )

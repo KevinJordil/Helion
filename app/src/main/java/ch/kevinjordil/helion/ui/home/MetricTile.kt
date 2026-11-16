@@ -1,145 +1,134 @@
 package ch.kevinjordil.helion.ui.home
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.ui.metric.Metric
 import ch.kevinjordil.helion.ui.metric.formatValue
 import ch.kevinjordil.helion.ui.metric.metricColor
 import ch.kevinjordil.helion.ui.quality.PersonalBaseline
 import ch.kevinjordil.helion.ui.quality.personalBaselineCompactMessage
-import ch.kevinjordil.helion.ui.ribbon.DayRibbon
-import ch.kevinjordil.helion.ui.ribbon.RibbonBar
-import ch.kevinjordil.helion.ui.ribbon.tileRibbonSize
-import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
+import ch.kevinjordil.helion.ui.theme.AnimatedFigure
+import ch.kevinjordil.helion.ui.theme.ContextTag
+import ch.kevinjordil.helion.ui.theme.HelionIcons
+import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 
-/** The goal track's own thickness -- a hairline reading, never a bar chart. */
-private val GOAL_TRACK_HEIGHT = 5.dp
+/** Height of a tile's chart band, the same for every visual so the grid stays even. */
+private val TILE_CHART_HEIGHT = 26.dp
+
+/** The glyph that identifies a metric, beside its name on a tile and on its detail screen. */
+fun metricIcon(metric: Metric): ImageVector = when (metric.id) {
+    "heart_rate" -> HelionIcons.HeartPulse
+    "steps" -> HelionIcons.Footprints
+    "stress" -> HelionIcons.Gauge
+    "spo2" -> HelionIcons.Droplet
+    "pai" -> HelionIcons.Bolt
+    "hrv" -> HelionIcons.Waveform
+    "temperature" -> HelionIcons.Thermometer
+    "respiratory_rate" -> HelionIcons.Wind
+    else -> HelionIcons.Waveform
+}
+
+/** What a tile shows under its figure, already computed from stored readings. */
+sealed interface TileChart {
+    data class Line(val points: List<TilePoint?>) : TileChart
+    data class Bars(val points: List<TilePoint?>) : TileChart
+    data class Goal(val fraction: Float, val caption: String) : TileChart
+    data object None : TileChart
+}
 
 /**
- * One tile of Accueil's grid: label, latest value and unit, and the metric's own strand
- * of the day ribbon. One metric is one idea, so each tile now sits on its own raised
- * surface (see [HomeScreen]'s own tile row). Padding belongs inside the clickable column
- * so the whole card, including the space around its text, opens the metric.
+ * One tile of Accueil's grid, in the "performance" register: the metric's glyph and name,
+ * its latest value as the dominant element with the unit set small beside it, a chart band
+ * chosen for the kind of data it is (see [TileVisual]), and a short contextual reading
+ * against the owner's own recent history. The whole card opens the metric.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MetricTile(
     metric: Metric,
     latestValue: Double?,
-    ribbonBars: List<RibbonBar>,
+    chart: TileChart,
     personalBaseline: PersonalBaseline?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    goalProgress: Float? = null,
-    goalCaption: String? = null,
-    strandCaption: String? = null,
+    chartCaption: String? = null,
 ) {
     val colors = HelionThemeTokens.colors
     val hue = colors.metricColor(metric)
-    Column(
-        modifier = modifier
-            .clickable(onClick = onClick, role = Role.Button)
-            .padding(horizontal = HelionSurfacePadding, vertical = 10.dp),
+    HelionSurface(
+        modifier = modifier,
+        padding = PaddingValues(start = 12.dp, end = 12.dp, top = 11.dp, bottom = 11.dp),
+        onClick = onClick,
     ) {
-        // No maxLines/ellipsis: labels are kept short in strings.xml specifically so they
-        // fit at 320dp, but if a larger system font scale ever still doesn't have room,
-        // this wraps to a second line rather than clipping -- see NoTextClippingTest.
-        Text(
-            stringResource(metric.labelRes),
-            style = HelionType.label,
-            color = colors.textSecondary,
-        )
-        // Share a baseline when there is room; wrap the unit at larger font scales.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(metricIcon(metric), contentDescription = null, tint = hue, modifier = Modifier.size(15.dp))
+            // No maxLines: at a large font scale a label wraps rather than being clipped
+            // (see NoTextClippingTest).
+            Text(stringResource(metric.labelRes), style = HelionType.labelSmall, color = colors.textSecondary, modifier = Modifier.weight(1f))
+        }
         FlowRow(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            Text(
-                latestValue?.let { metric.formatValue(it) } ?: "—",
-                style = if (metric.id == "heart_rate") HelionType.valueLarge else HelionType.valueMedium,
-                color = if (latestValue != null) hue else colors.textTertiary,
-                modifier = Modifier.alignByBaseline(),
-            )
-            val unit = stringResource(metric.unitRes)
-            if (unit.isNotEmpty()) {
-                Text(
-                    unit,
-                    style = HelionType.labelSmall,
-                    color = colors.textTertiary,
+            if (latestValue != null) {
+                AnimatedFigure(
+                    value = latestValue,
+                    format = metric::formatValue,
+                    style = HelionType.valueLarge,
+                    color = colors.textPrimary,
                     modifier = Modifier.alignByBaseline(),
                 )
+            } else {
+                Text("—", style = HelionType.valueLarge, color = colors.textTertiary, modifier = Modifier.alignByBaseline())
+            }
+            val unit = stringResource(metric.unitRes)
+            if (unit.isNotEmpty() && latestValue != null) {
+                Text(unit, style = HelionType.labelSmall, color = colors.textSecondary, modifier = Modifier.alignByBaseline())
             }
         }
-        // No strand at all rather than an empty one: a metric that has nothing to draw
-        // here (see TileStrand.NONE) must not reserve a band of blank space either.
-        if (ribbonBars.isNotEmpty()) {
-            DayRibbon(
-                bars = ribbonBars,
-                barColor = hue,
-                modifier = Modifier.tileRibbonSize().padding(top = 8.dp),
-            )
-        }
-        // A goal is the one thing on a tile that has a target to be measured against, so it
-        // is the one thing that gets a track rather than only a figure -- the pattern every
-        // measurement app uses for exactly this, and the only reading in Helion that has a
-        // target at all. Metrics with no goal show none: there is no target for a resting
-        // heart rate to be a percentage of.
-        if (goalProgress != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .height(GOAL_TRACK_HEIGHT)
-                    .clip(RoundedCornerShape(GOAL_TRACK_HEIGHT / 2))
-                    .background(colors.divider),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(goalProgress)
-                        .height(GOAL_TRACK_HEIGHT)
-                        .clip(RoundedCornerShape(GOAL_TRACK_HEIGHT / 2))
-                        .background(hue),
-                )
+        Spacer(Modifier.weight(1f))
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(TILE_CHART_HEIGHT), contentAlignment = Alignment.BottomStart) {
+            when (chart) {
+                is TileChart.Line -> TileSparkline(chart.points, hue, Modifier.fillMaxWidth().height(TILE_CHART_HEIGHT))
+                is TileChart.Bars -> TileBars(chart.points, hue, Modifier.fillMaxWidth().height(TILE_CHART_HEIGHT))
+                is TileChart.Goal -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(chart.caption, style = HelionType.labelSmall, color = colors.textSecondary)
+                    GoalTrack(chart.fraction, hue)
+                }
+                TileChart.None -> Unit
             }
         }
-        // Compact context shares one line when possible; large fonts can still wrap.
-        FlowRow(
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            (goalCaption ?: strandCaption)?.let {
-                Text(
-                    it,
-                    style = HelionType.labelSmall,
-                    color = colors.textTertiary,
-                )
-            }
+        // The contextual reading on the left, the window the chart covers on the right.
+        // The contextual reading on the left, the window the chart covers on the right. Both
+        // are kept short ("Plus bas", "7 j") so they share the line even on a 320dp screen.
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             personalBaseline?.let { baseline ->
-                val (messageRes, isAmber) = personalBaselineCompactMessage(baseline)
-                Text(
-                    stringResource(messageRes),
-                    style = HelionType.labelSmall,
-                    color = if (isAmber) colors.accentAmber else colors.textTertiary,
-                )
+                val (messageRes, notable) = personalBaselineCompactMessage(baseline)
+                ContextTag(stringResource(messageRes), attention = notable, modifier = Modifier.weight(1f))
             }
+            Spacer(Modifier.width(6.dp))
+            chartCaption?.let { Text(it, style = HelionType.labelSmall, color = colors.textTertiary) }
         }
     }
 }

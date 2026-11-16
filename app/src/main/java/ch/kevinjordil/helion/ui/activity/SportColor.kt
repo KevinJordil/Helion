@@ -18,26 +18,25 @@ import ch.kevinjordil.helion.ui.theme.HelionColors
  * Order is the source of truth and must not be reshuffled: it is what fixes badminton to
  * one colour across releases. Adding a category means appending to it, never inserting.
  */
-private val SPORT_CATEGORY_HUE_ORDER = listOf(
-    SportCategory.RACKET,
-    SportCategory.CYCLING,
-    SportCategory.RUNNING_WALKING,
-    SportCategory.WATER,
-    SportCategory.SNOW_ICE,
-    SportCategory.INDOOR_FITNESS,
-    SportCategory.TEAM,
-    SportCategory.OTHER,
+/**
+ * Each sport category's slot in [HelionColors.metricHues], picked so the hue suggests the
+ * category where it can (sky for water, turquoise for snow and ice, red for running) while
+ * every category keeps a hue of its own.
+ */
+private val SPORT_CATEGORY_HUE_SLOT = mapOf(
+    SportCategory.RUNNING_WALKING to 0, // red
+    SportCategory.SNOW_ICE to 1, // turquoise
+    SportCategory.CYCLING to 2, // orange
+    SportCategory.OTHER to 3, // pink
+    SportCategory.RACKET to 4, // lime
+    SportCategory.TEAM to 5, // blue
+    SportCategory.INDOOR_FITNESS to 6, // violet
+    SportCategory.WATER to 7, // sky
 )
 
-/**
- * This category's permanent colour. Every [SportCategory] has an entry in
- * [SPORT_CATEGORY_HUE_ORDER]; an unmapped one is a bug in that list rather than a state a
- * real category can reach, so it fails loudly instead of falling back to a default hue.
- */
 fun HelionColors.sportColor(category: SportCategory): Color {
-    val index = SPORT_CATEGORY_HUE_ORDER.indexOf(category)
-    check(index >= 0) { "no colour assigned for sport category: $category" }
-    return metricHues[index]
+    val slot = checkNotNull(SPORT_CATEGORY_HUE_SLOT[category]) { "no colour assigned for sport category: $category" }
+    return metricHues[slot]
 }
 
 /**

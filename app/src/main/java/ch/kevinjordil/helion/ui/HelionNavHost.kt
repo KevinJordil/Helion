@@ -1,31 +1,54 @@
 package ch.kevinjordil.helion.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathFillType
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.activity.ActivityDetailScreen
@@ -39,8 +62,11 @@ import ch.kevinjordil.helion.ui.metric.MetricScreen
 import ch.kevinjordil.helion.ui.settings.SettingsScreen
 import ch.kevinjordil.helion.ui.settings.SettingsSectionScreen
 import ch.kevinjordil.helion.ui.sleep.SleepScreen
+import ch.kevinjordil.helion.ui.theme.HelionIcons
+import ch.kevinjordil.helion.ui.theme.HelionMotion
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.HorizontalRule
 
 private const val METRIC_ROUTE_PREFIX = "metric:"
 private const val ACTIVITY_ROUTE_PREFIX = "activity:"
@@ -58,7 +84,7 @@ fun activityDetailRoute(id: Long): String = "$ACTIVITY_ROUTE_PREFIX$id"
 /** The Activités list route -- what a batch notification's tap opens. */
 // A computed accessor, deliberately NOT an initialised top-level val: as a val it runs
 // during this file class's static initialisation, which forces RootDestination's own
-// initialisation, which reads SleepIcon and ActivityIcon below -- still null at that
+// initialisation, which reads the tab icons -- possibly still null at that
 // point, and permanently so, since the JVM will not re-enter an initialisation already
 // in progress. That produced null tab icons and a crash on the first frame.
 val activitiesListRoute: String get() = RootDestination.ACTIVITIES.route
@@ -77,90 +103,15 @@ object NotificationNavigationTarget {
 }
 
 /**
- * A crescent moon for the Sommeil tab. Hand-drawn rather than pulled from
- * material-icons-extended: that module is not a dependency (see the app's "no new Gradle
- * dependencies" rule), and this app's icon needs are small enough that one bespoke vector
- * is cheaper than a new artifact. Standard 24x24 Material-style viewport, so it sits at the
- * same visual weight as [Icons.Filled.Home] and [Icons.Filled.Settings] beside it.
- */
-private val SleepIcon: ImageVector = ImageVector.Builder(
-    name = "Sleep",
-    defaultWidth = 24.dp,
-    defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f,
-).apply {
-    path(fill = SolidColor(Color.Black)) {
-        moveTo(12f, 3f)
-        curveToRelative(-4.97f, 0f, -9f, 4.03f, -9f, 9f)
-        curveToRelative(0f, 4.97f, 4.03f, 9f, 9f, 9f)
-        curveToRelative(4.13f, 0f, 7.6f, -2.79f, 8.66f, -6.58f)
-        curveToRelative(-0.21f, 0.05f, -0.42f, 0.07f, -0.66f, 0.07f)
-        curveToRelative(-3.31f, 0f, -6f, -2.69f, -6f, -6f)
-        curveToRelative(0f, -2.12f, 1.11f, -3.98f, 2.77f, -5.04f)
-        curveTo(15.24f, 3.23f, 13.66f, 3f, 12f, 3f)
-        close()
-    }
-}.build()
-
-/**
- * A stopwatch for the Activités tab. Same reasoning as [SleepIcon]: no new dependency for
- * one bespoke glyph. A circle (the dial) with a small button on top and a lap hand pointing
- * to about "two o'clock" -- legible at 24x24 without relying on colour.
- */
-private val ActivityIcon: ImageVector = ImageVector.Builder(
-    name = "Activity",
-    defaultWidth = 24.dp,
-    defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f,
-).apply {
-    path(fill = SolidColor(Color.Black)) {
-        // Crown button on top of the dial.
-        moveTo(10f, 1f)
-        lineTo(14f, 1f)
-        lineTo(14f, 3f)
-        lineTo(10f, 3f)
-        close()
-    }
-    path(fill = SolidColor(Color.Black), pathFillType = PathFillType.EvenOdd) {
-        // The dial itself, as a ring: an outer circle with an inner circle cut out of it
-        // by the even-odd fill rule below, rather than two separately filled discs.
-        moveTo(12f, 4f)
-        curveToRelative(-4.97f, 0f, -9f, 4.03f, -9f, 9f)
-        curveToRelative(0f, 4.97f, 4.03f, 9f, 9f, 9f)
-        curveToRelative(4.97f, 0f, 9f, -4.03f, 9f, -9f)
-        curveToRelative(0f, -4.97f, -4.03f, -9f, -9f, -9f)
-        close()
-        moveTo(12f, 6f)
-        curveToRelative(3.87f, 0f, 7f, 3.13f, 7f, 7f)
-        curveToRelative(0f, 3.87f, -3.13f, 7f, -7f, 7f)
-        curveToRelative(-3.87f, 0f, -7f, -3.13f, -7f, -7f)
-        curveToRelative(0f, -3.87f, 3.13f, -7f, 7f, -7f)
-        close()
-    }
-    path(fill = SolidColor(Color.Black)) {
-        // Lap hand from the centre toward two o'clock.
-        moveTo(11.25f, 9f)
-        lineTo(12.75f, 9f)
-        lineTo(12.75f, 13.25f)
-        lineTo(16f, 15.15f)
-        lineTo(15.25f, 16.45f)
-        lineTo(11.25f, 14.1f)
-        close()
-    }
-}.build()
-
-/**
  * The navigation bar's root destinations: Accueil, Sommeil, Activités and Réglages. Kept as
  * a plain list a `when` can exhaust, so adding another destination never needs to touch the
  * bar's rendering or the back-stack logic below.
  */
 enum class RootDestination(val route: String, val labelRes: Int, val icon: ImageVector) {
-    HOME("home", R.string.tab_home, Icons.Filled.Home),
-    SLEEP("sleep", R.string.tab_sleep, SleepIcon),
-    ACTIVITIES("activities", R.string.tab_activities, ActivityIcon),
-    SETTINGS("settings", R.string.tab_settings, Icons.Filled.Settings),
+    HOME("home", R.string.tab_home, HelionIcons.Today),
+    SLEEP("sleep", R.string.tab_sleep, HelionIcons.Moon),
+    ACTIVITIES("activities", R.string.tab_activities, HelionIcons.Stopwatch),
+    SETTINGS("settings", R.string.tab_settings, HelionIcons.Sliders),
 }
 
 /**
@@ -181,11 +132,22 @@ enum class RootDestination(val route: String, val labelRes: Int, val icon: Image
 @Composable
 fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     var backStack by rememberSaveable { mutableStateOf(listOf(RootDestination.HOME.route)) }
+    // Which way the last navigation went, so the transition can tell a push from a pop
+    // from a tab switch: +1 deeper, -1 back, 0 sideways.
+    var direction by rememberSaveable { mutableIntStateOf(0) }
     val current = backStack.last()
 
-    BackHandler(enabled = backStack.size > 1) {
+    fun push(route: String) {
+        direction = 1
+        backStack = backStack + route
+    }
+
+    fun popBack() {
+        direction = -1
         backStack = backStack.dropLast(1)
     }
+
+    BackHandler(enabled = backStack.size > 1) { popBack() }
 
     // A notification tap (cold start or warm, see NotificationNavigationTarget's own kdoc)
     // replaces the whole back stack with its target rather than pushing onto whatever was
@@ -193,42 +155,29 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     // the notification feature exists for in the first place.
     LaunchedEffect(NotificationNavigationTarget.route) {
         NotificationNavigationTarget.route?.let { route ->
+            direction = 0
             backStack = listOf(route)
             NotificationNavigationTarget.route = null
         }
     }
 
-    fun openMetric(metricId: String) {
-        backStack = backStack + "$METRIC_ROUTE_PREFIX$metricId"
-    }
+    fun openMetric(metricId: String) = push("$METRIC_ROUTE_PREFIX$metricId")
 
     fun selectRoot(route: String) {
+        if (backStack == listOf(route)) return
+        direction = 0
         backStack = listOf(route)
     }
 
-    fun popBack() {
-        backStack = backStack.dropLast(1)
-    }
+    fun openActivity(id: Long) = push("$ACTIVITY_ROUTE_PREFIX$id")
 
-    fun openActivity(id: Long) {
-        backStack = backStack + "$ACTIVITY_ROUTE_PREFIX$id"
-    }
+    fun openDayTimeline() = push(DAY_TIMELINE_ROUTE)
 
-    fun openDayTimeline() {
-        backStack = backStack + DAY_TIMELINE_ROUTE
-    }
+    fun openSlots() = push(SLOTS_ROUTE)
 
-    fun openSlots() {
-        backStack = backStack + SLOTS_ROUTE
-    }
+    fun openSlot(id: String) = push("$SLOT_ROUTE_PREFIX$id")
 
-    fun openSlot(id: String) {
-        backStack = backStack + "$SLOT_ROUTE_PREFIX$id"
-    }
-
-    fun openSettingsSection(sectionId: String) {
-        backStack = backStack + "$SETTINGS_SECTION_ROUTE_PREFIX$sectionId"
-    }
+    fun openSettingsSection(sectionId: String) = push("$SETTINGS_SECTION_ROUTE_PREFIX$sectionId")
 
     /**
      * Called when [DayTimelineScreen] turns a selection into a new activity: the timeline
@@ -237,126 +186,224 @@ fun HelionNavHost(container: AppContainer, modifier: Modifier = Modifier) {
      * not back through the timeline that only exists to create it.
      */
     fun replaceWithActivity(id: Long) {
+        direction = 1
         backStack = backStack.dropLast(1) + "$ACTIVITY_ROUTE_PREFIX$id"
     }
 
+    val colors = HelionThemeTokens.colors
     Scaffold(
         modifier = modifier,
-        containerColor = HelionThemeTokens.colors.ground,
+        containerColor = colors.ground,
+        contentWindowInsets = WindowInsets.systemBars,
         bottomBar = {
-            val colors = HelionThemeTokens.colors
-            NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
-                RootDestination.entries.forEach { entry ->
-                    val selected = current == entry.route ||
-                        (entry == RootDestination.HOME && current.startsWith(METRIC_ROUTE_PREFIX)) ||
-                        (
-                            entry == RootDestination.ACTIVITIES &&
-                                (
-                                    current.startsWith(ACTIVITY_ROUTE_PREFIX) ||
-                                        current == DAY_TIMELINE_ROUTE ||
-                                        current == SLOTS_ROUTE ||
-                                        current.startsWith(SLOT_ROUTE_PREFIX)
-                                )
-                            ) ||
-                        (entry == RootDestination.SETTINGS && current.startsWith(SETTINGS_SECTION_ROUTE_PREFIX))
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { selectRoot(entry.route) },
-                        icon = { Icon(entry.icon, contentDescription = null) },
-                        label = { Text(stringResource(entry.labelRes), style = HelionType.labelSmall) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = colors.accentViolet,
-                            selectedTextColor = colors.accentViolet,
-                            indicatorColor = colors.accentViolet.copy(alpha = 0.12f),
-                            unselectedIconColor = colors.textTertiary,
-                            unselectedTextColor = colors.textSecondary,
-                        ),
-                    )
-                }
-            }
+            HelionBottomBar(
+                selected = rootOf(current),
+                onSelect = { selectRoot(it.route) },
+            )
         },
     ) { contentPadding ->
-        Box(Modifier.padding(contentPadding)) {
-            when {
-                current == RootDestination.SETTINGS.route -> SettingsScreen(container, onOpenSection = ::openSettingsSection)
-
-                current.startsWith(SETTINGS_SECTION_ROUTE_PREFIX) -> SettingsSectionScreen(
-                    container = container,
-                    sectionId = current.removePrefix(SETTINGS_SECTION_ROUTE_PREFIX),
-                    onBack = ::popBack,
-                )
-
-                current == RootDestination.SLEEP.route -> SleepScreen(container)
-
-                current == RootDestination.ACTIVITIES.route -> ActivityListScreen(
-                    container = container,
-                    onOpenActivity = ::openActivity,
-                    onNewActivity = ::openDayTimeline,
-                    onManageSlots = ::openSlots,
-                )
-
-                current.startsWith(ACTIVITY_ROUTE_PREFIX) -> {
-                    val activityId = current.removePrefix(ACTIVITY_ROUTE_PREFIX).toLongOrNull()
-                    if (activityId != null) {
-                        ActivityDetailScreen(
-                            container = container,
-                            activityId = activityId,
-                            onBack = ::popBack,
-                            onDeleted = ::popBack,
-                        )
-                    } else {
-                        LaunchedEffect(current) { backStack = listOf(RootDestination.ACTIVITIES.route) }
-                    }
-                }
-
-                current == DAY_TIMELINE_ROUTE -> DayTimelineScreen(
-                    container = container,
-                    onBack = ::popBack,
-                    onActivityCreated = ::replaceWithActivity,
-                )
-
-                current == SLOTS_ROUTE -> SlotListScreen(
-                    container = container,
-                    onBack = ::popBack,
-                    onOpenSlot = { openSlot(it.toString()) },
-                    onNewSlot = { openSlot(NEW_SLOT_ID) },
-                )
-
-                current.startsWith(SLOT_ROUTE_PREFIX) -> {
-                    val slotIdText = current.removePrefix(SLOT_ROUTE_PREFIX)
-                    SlotEditScreen(
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(contentPadding)
+                .consumeWindowInsets(contentPadding)
+                .imePadding(),
+        ) {
+            AnimatedContent(
+                targetState = current,
+                transitionSpec = { screenTransition(direction) },
+                label = "screen",
+            ) { route ->
+                Box(Modifier.fillMaxSize().background(colors.ground)) {
+                    Destination(
+                        route = route,
                         container = container,
-                        slotId = if (slotIdText == NEW_SLOT_ID) null else slotIdText.toLongOrNull(),
+                        onOpenMetric = ::openMetric,
+                        onOpenSettings = { selectRoot(RootDestination.SETTINGS.route) },
+                        onOpenSettingsSection = ::openSettingsSection,
+                        onOpenActivity = ::openActivity,
+                        onNewActivity = ::openDayTimeline,
+                        onManageSlots = ::openSlots,
+                        onOpenSlot = ::openSlot,
+                        onActivityCreated = ::replaceWithActivity,
                         onBack = ::popBack,
-                        onSaved = ::popBack,
-                        onDeleted = ::popBack,
+                        onReset = { root ->
+                            direction = 0
+                            backStack = listOf(root)
+                        },
                     )
                 }
+            }
+        }
+    }
+}
 
-                current.startsWith(METRIC_ROUTE_PREFIX) -> {
-                    val metricId = current.removePrefix(METRIC_ROUTE_PREFIX)
-                    val metric = MetricCatalog.byId(metricId)
-                    if (metric != null) {
-                        MetricScreen(
-                            container = container,
-                            metric = metric,
-                            onBack = { backStack = backStack.dropLast(1) },
-                        )
-                    } else {
-                        // A saved id that no longer matches a catalog entry: fall back to
-                        // Accueil instead of a permanently broken detail screen. See
-                        // MetricCatalog.byId's kdoc -- the same "outlives the catalog"
-                        // concern applies here, since the route survives process death too.
-                        LaunchedEffect(current) { backStack = listOf(RootDestination.HOME.route) }
-                    }
-                }
+/** The root tab a route belongs to, so the bar keeps its tab lit on pushed screens. */
+private fun rootOf(route: String): RootDestination = when {
+    route.startsWith(METRIC_ROUTE_PREFIX) -> RootDestination.HOME
+    route.startsWith(ACTIVITY_ROUTE_PREFIX) || route == DAY_TIMELINE_ROUTE ||
+        route == SLOTS_ROUTE || route.startsWith(SLOT_ROUTE_PREFIX) -> RootDestination.ACTIVITIES
+    route.startsWith(SETTINGS_SECTION_ROUTE_PREFIX) -> RootDestination.SETTINGS
+    else -> RootDestination.entries.firstOrNull { it.route == route } ?: RootDestination.HOME
+}
 
-                else -> HomeScreen(
+/**
+ * A push slides the new screen in from the right over a short distance while the old one
+ * steps back; a pop reverses it; a tab switch is a quick cross-fade, since tabs are
+ * siblings, not a hierarchy.
+ */
+private fun screenTransition(direction: Int): ContentTransform {
+    val duration = HelionMotion.MEDIUM
+    val easing = HelionMotion.Emphasized
+    return when {
+        direction > 0 ->
+            (slideInHorizontally(tween(duration, easing = easing)) { it / 5 } + fadeIn(tween(duration, easing = easing))) togetherWith
+                (slideOutHorizontally(tween(duration, easing = easing)) { -it / 12 } + fadeOut(tween(duration / 2)))
+        direction < 0 ->
+            (slideInHorizontally(tween(duration, easing = easing)) { -it / 12 } + fadeIn(tween(duration, easing = easing))) togetherWith
+                (slideOutHorizontally(tween(duration, easing = easing)) { it / 5 } + fadeOut(tween(duration / 2)))
+        else -> fadeIn(tween(220, delayMillis = 60)) togetherWith fadeOut(tween(120))
+    }
+}
+
+@Composable
+private fun Destination(
+    route: String,
+    container: AppContainer,
+    onOpenMetric: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenSettingsSection: (String) -> Unit,
+    onOpenActivity: (Long) -> Unit,
+    onNewActivity: () -> Unit,
+    onManageSlots: () -> Unit,
+    onOpenSlot: (String) -> Unit,
+    onActivityCreated: (Long) -> Unit,
+    onBack: () -> Unit,
+    onReset: (String) -> Unit,
+) {
+    when {
+        route == RootDestination.SETTINGS.route -> SettingsScreen(container, onOpenSection = onOpenSettingsSection)
+
+        route.startsWith(SETTINGS_SECTION_ROUTE_PREFIX) -> SettingsSectionScreen(
+            container = container,
+            sectionId = route.removePrefix(SETTINGS_SECTION_ROUTE_PREFIX),
+            onBack = onBack,
+        )
+
+        route == RootDestination.SLEEP.route -> SleepScreen(container)
+
+        route == RootDestination.ACTIVITIES.route -> ActivityListScreen(
+            container = container,
+            onOpenActivity = onOpenActivity,
+            onNewActivity = onNewActivity,
+            onManageSlots = onManageSlots,
+        )
+
+        route.startsWith(ACTIVITY_ROUTE_PREFIX) -> {
+            val activityId = route.removePrefix(ACTIVITY_ROUTE_PREFIX).toLongOrNull()
+            if (activityId != null) {
+                ActivityDetailScreen(
                     container = container,
-                    onOpenMetric = ::openMetric,
-                    onOpenSettings = { selectRoot(RootDestination.SETTINGS.route) },
+                    activityId = activityId,
+                    onBack = onBack,
+                    onDeleted = onBack,
+                )
+            } else {
+                LaunchedEffect(route) { onReset(RootDestination.ACTIVITIES.route) }
+            }
+        }
+
+        route == DAY_TIMELINE_ROUTE -> DayTimelineScreen(
+            container = container,
+            onBack = onBack,
+            onActivityCreated = onActivityCreated,
+        )
+
+        route == SLOTS_ROUTE -> SlotListScreen(
+            container = container,
+            onBack = onBack,
+            onOpenSlot = { onOpenSlot(it.toString()) },
+            onNewSlot = { onOpenSlot(NEW_SLOT_ID) },
+        )
+
+        route.startsWith(SLOT_ROUTE_PREFIX) -> {
+            val slotIdText = route.removePrefix(SLOT_ROUTE_PREFIX)
+            SlotEditScreen(
+                container = container,
+                slotId = if (slotIdText == NEW_SLOT_ID) null else slotIdText.toLongOrNull(),
+                onBack = onBack,
+                onSaved = onBack,
+                onDeleted = onBack,
+            )
+        }
+
+        route.startsWith(METRIC_ROUTE_PREFIX) -> {
+            val metric = MetricCatalog.byId(route.removePrefix(METRIC_ROUTE_PREFIX))
+            if (metric != null) {
+                MetricScreen(container = container, metric = metric, onBack = onBack)
+            } else {
+                // A saved id that no longer matches a catalog entry: fall back to Accueil
+                // instead of a permanently broken detail screen. See MetricCatalog.byId's
+                // kdoc -- the route survives process death too.
+                LaunchedEffect(route) { onReset(RootDestination.HOME.route) }
+            }
+        }
+
+        else -> HomeScreen(
+            container = container,
+            onOpenMetric = onOpenMetric,
+            onOpenSettings = onOpenSettings,
+        )
+    }
+}
+
+/**
+ * The tab bar, part of the screen rather than floating over it: the black ground, a hairline
+ * along its top edge, linear icons with compact labels. The active tab is the accent blue
+ * with a short bar on the top edge; inactive tabs recede to the tertiary text colour.
+ */
+@Composable
+private fun HelionBottomBar(selected: RootDestination, onSelect: (RootDestination) -> Unit) {
+    val colors = HelionThemeTokens.colors
+    Column(modifier = Modifier.fillMaxWidth().background(colors.ground).navigationBarsPadding()) {
+        HorizontalRule()
+        Row(modifier = Modifier.fillMaxWidth().height(58.dp)) {
+            RootDestination.entries.forEach { entry ->
+                BottomBarItem(
+                    label = stringResource(entry.labelRes),
+                    icon = entry.icon,
+                    selected = entry == selected,
+                    onClick = { onSelect(entry) },
+                    modifier = Modifier.weight(1f),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BottomBarItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = HelionThemeTokens.colors
+    val tint by animateColorAsState(if (selected) colors.accent else colors.textTertiary, tween(HelionMotion.SHORT), label = "tab")
+    val indicator by animateFloatAsState(if (selected) 1f else 0f, tween(HelionMotion.SHORT), label = "tab-indicator")
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .width(20.dp)
+                .height(2.dp)
+                .alpha(indicator)
+                .clip(RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
+                .background(colors.accent),
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+            Text(label, style = HelionType.labelSmall.copy(fontSize = 11.sp, lineHeight = 13.sp), color = tint)
         }
     }
 }

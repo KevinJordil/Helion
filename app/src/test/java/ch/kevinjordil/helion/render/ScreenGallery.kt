@@ -279,10 +279,6 @@ class ScreenGallery {
 
     @Test fun accueil() { seed(); shoot("accueil") { HomeScreen(container, onOpenMetric = {}, onOpenSettings = {}) } }
 
-    @Test fun accueilClair() {
-        seed(dark = false); shoot("accueil-clair") { HomeScreen(container, onOpenMetric = {}, onOpenSettings = {}) }
-    }
-
     @Test fun sommeil() { seed(); shoot("sommeil") { SleepScreen(container) } }
 
     /** The whole screen at once, so the averages panel below the fold can be checked too. */

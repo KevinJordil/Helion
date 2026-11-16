@@ -44,6 +44,12 @@ fun referenceForSteps(current: Double, goal: Int, notableShortfallFraction: Doub
     return ReferenceIndicator.Placed(Position.BELOW, isNotable = shortfall > notableShortfallFraction)
 }
 
+/** PAI's weekly target -- see [referenceForPai]. Also drawn as the reference line on PAI's chart. */
+const val PAI_WEEKLY_TARGET = 100.0
+
+/** The resting SpO2 threshold -- see [referenceForSpo2]. Also drawn on SpO2's chart. */
+const val SPO2_RESTING_THRESHOLD = 95.0
+
 /**
  * `pai` against the weekly target of 100 -- the level established and validated by the
  * HUNT cohort study as associated with reduced cardiovascular risk, independent of any
@@ -51,7 +57,7 @@ fun referenceForSteps(current: Double, goal: Int, notableShortfallFraction: Doub
  * [Position.BELOW], notable once the shortfall passes [notableShortfallFraction] of the
  * target.
  */
-fun referenceForPai(current: Double, target: Double = 100.0, notableShortfallFraction: Double = 0.3): ReferenceIndicator {
+fun referenceForPai(current: Double, target: Double = PAI_WEEKLY_TARGET, notableShortfallFraction: Double = 0.3): ReferenceIndicator {
     if (current >= target) return ReferenceIndicator.Placed(Position.USUAL, isNotable = false)
     val shortfall = (target - current) / target
     return ReferenceIndicator.Placed(Position.BELOW, isNotable = shortfall > notableShortfallFraction)
@@ -62,7 +68,7 @@ fun referenceForPai(current: Double, target: Double = 100.0, notableShortfallFra
  * [Position.USUAL]; below it is [Position.BELOW], notable once the shortfall passes
  * [notableMarginPoints] percentage points.
  */
-fun referenceForSpo2(current: Double, thresholdPercent: Double = 95.0, notableMarginPoints: Double = 3.0): ReferenceIndicator {
+fun referenceForSpo2(current: Double, thresholdPercent: Double = SPO2_RESTING_THRESHOLD, notableMarginPoints: Double = 3.0): ReferenceIndicator {
     if (current >= thresholdPercent) return ReferenceIndicator.Placed(Position.USUAL, isNotable = false)
     val shortfall = thresholdPercent - current
     return ReferenceIndicator.Placed(Position.BELOW, isNotable = shortfall > notableMarginPoints)

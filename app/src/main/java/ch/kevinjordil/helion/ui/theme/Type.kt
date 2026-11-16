@@ -4,17 +4,18 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.R
 
 /**
- * The app's single face: every word and every figure. Figures are set apart from words by
- * weight and size (see [HelionType]) rather than by a second family -- a
- * monospaced face was tried for numerals and retired, because it gave separators a full
- * digit cell and broke composed values apart ("6 h 18", "23:10").
+ * The app's single face, for every word and every figure: IBM Plex Sans, a neo-grotesque
+ * in the same family of technical sans faces as Inter, with tall digits that stay distinct
+ * at small sizes (a slashed-free 0, an open 4, a 1 with a foot).
  *
- * Bundled as static .ttf resources rather than the downloadable-fonts API: no network
- * fetch, no first-run flash of a fallback face, and no new Gradle dependency.
+ * Bundled as static .ttf resources rather than through the downloadable-fonts API: no
+ * network fetch, no first-run flash of a fallback face, no new dependency.
  */
 val PlexSans = FontFamily(
     Font(R.font.ibmplexsans_regular, FontWeight.Normal),
@@ -23,119 +24,69 @@ val PlexSans = FontFamily(
 )
 
 /**
- * Helion's type scale. Kept as a flat set of named styles rather than shoehorned into
- * Material3's full type scale -- this UI does not use most of Material's roles (no cards,
- * no filled buttons), so naming them for what they actually are here is clearer than
- * borrowing "displayLarge" etc. for meanings Material never intended.
+ * Tabular figures, asked for explicitly on every style. Plex's default digits already share
+ * one advance, but stating it keeps a value that ticks (a scrub readout, a count-up, a
+ * column of stats) from shifting sideways if the face ever changes.
+ */
+private const val TABULAR = "tnum"
+
+/** Trims the font's built-in top and bottom padding so text sits where its box says. */
+private val TIGHT = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
+
+private fun style(size: Int, line: Int, weight: FontWeight, tracking: Float = 0f) = TextStyle(
+    fontFamily = PlexSans,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = line.sp,
+    letterSpacing = tracking.em,
+    fontFeatureSettings = TABULAR,
+    lineHeightStyle = TIGHT,
+)
+
+/**
+ * Helion's type scale. Three registers, each recognisable without reading the words:
  *
- * Three deliberate steps separate a headline figure from a supporting figure from a caption
- * ([hero] to [valueLarge]/[valueMedium] to [label]/[labelSmall]/[bodySmall]), rather than the
- * half-dozen closely-sized styles a console UI tends to accumulate: a reader should be able
- * to tell "this is the answer" from "this is context" from "this is a footnote" without
- * reading the words at all.
+ * - **Figures** ([hero], [valueLarge], [valueMedium], [valueSmall]): semibold, slightly
+ *   tightened, always the strongest thing in their card.
+ * - **Labels** ([label], [labelSmall], [overline], [axisLabel]): medium weight, compact,
+ *   in a secondary colour. A unit is a label set beside its figure, never the figure's size.
+ * - **Prose** ([headline], [title], [body], [bodySmall]): sentences and headings.
  */
 object HelionType {
 
-    /**
-     * The hero numeral, in [PlexSans] rather than a monospaced face. Monospacing gives
-     * every separator a full digit cell, so a composed value read as separated blocks
-     * ("6 h 18", "23:10") instead of as one figure. Nothing was lost by dropping it: IBM
-     * Plex Sans's own digits are already tabular -- all ten have an identical 600-unit
-     * advance -- so a column of figures still lines up, and only the characters between
-     * them stopped being stretched. The width tests depend on that property; see
-     * TileTextWidthTest, which measures these advances out of the shipped .ttf.
-     */
-    val hero: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 88.sp,
-        lineHeight = 92.sp,
-        letterSpacing = (-1).sp,
-    )
+    /** The one dominant figure on a screen: a metric's current value, a night's duration. */
+    val hero: TextStyle = style(48, 52, FontWeight.SemiBold, tracking = -0.03f)
 
-    /** A tile's or the detail screen's own value. See [hero] on the figure treatment. */
-    val valueLarge: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 30.sp,
-        lineHeight = 34.sp,
-    )
+    /** A dashboard tile's value. */
+    val valueLarge: TextStyle = style(28, 32, FontWeight.SemiBold, tracking = -0.02f)
 
-    /** A tile's compact value, or a stat figure sitting beside others in a row. */
-    val valueMedium: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.Medium,
-        fontSize = 22.sp,
-        lineHeight = 26.sp,
-    )
+    /** A figure in a stats row, beside its siblings. */
+    val valueMedium: TextStyle = style(20, 24, FontWeight.SemiBold, tracking = -0.01f)
 
-    /**
-     * A small numeral drawn directly on a chart's own `Canvas` -- an axis tick, a gridline
-     * value, a scrub chip's time or value readout -- rather than laid out as a Compose
-     * `Text`. Set in [PlexSans] like every other figure in the app (see [hero]), whose
-     * digits are tabular, so a stack of axis ticks lines up.
-     */
-    val axisLabel: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 14.sp,
-    )
+    /** A figure inside a list row or a legend. */
+    val valueSmall: TextStyle = style(15, 20, FontWeight.SemiBold)
 
-    /**
-     * A page-level headline: an empty state's own title, the one place this app still needs
-     * a Material-style "headlineSmall" -- but in [PlexSans], not the system default face
-     * Material falls back to, so an empty Accueil does not suddenly look like a different
-     * app from the one either side of it.
-     */
-    val headline: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 28.sp,
-        lineHeight = 34.sp,
-    )
+    /** A numeral drawn directly on a chart's canvas: an axis tick, a gridline value. */
+    val axisLabel: TextStyle = style(10, 13, FontWeight.Medium, tracking = 0.01f)
 
-    /** A section title: sentence case, [PlexSans], one clear step above a caption. */
-    val title: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-    )
+    /** A screen's own title, at the top of the page. */
+    val headline: TextStyle = style(24, 30, FontWeight.SemiBold, tracking = -0.015f)
 
-    /**
-     * A short word label: a metric's name on a tile, a range/window selector option, a
-     * button. Sentence case, [PlexSans] -- deliberately not the uppercase, letter-spaced
-     * mono style this app used to default to.
-     */
-    val label: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-    )
+    /** A card's or a section's title. */
+    val title: TextStyle = style(16, 22, FontWeight.SemiBold, tracking = -0.005f)
 
-    /** A smaller word label: a unit, a stat's caption, an inline tag. Sentence case, [PlexSans]. */
-    val labelSmall: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-    )
+    /** A short word label: a metric's name, a selector option, a button. */
+    val label: TextStyle = style(13, 18, FontWeight.Medium)
 
-    /** Prose: freshness line, notes, empty-state copy. */
-    val body: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 20.sp,
-    )
+    /** A smaller label: a unit, a stat's caption, a status. */
+    val labelSmall: TextStyle = style(12, 16, FontWeight.Medium)
+
+    /** A section heading above a group of cards, set in capitals by the caller. */
+    val overline: TextStyle = style(11, 14, FontWeight.SemiBold, tracking = 0.08f)
+
+    /** Prose: notes, descriptions, empty-state copy. */
+    val body: TextStyle = style(15, 21, FontWeight.Normal)
 
     /** Smaller prose: captions, secondary lines. */
-    val bodySmall: TextStyle = TextStyle(
-        fontFamily = PlexSans,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-    )
+    val bodySmall: TextStyle = style(13, 18, FontWeight.Normal)
 }

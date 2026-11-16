@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.settings
 
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -7,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -114,14 +114,14 @@ fun ArchiveReanalysisSection(container: AppContainer) {
 
     val running = reanalysisJob != null
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = { startReanalysis() }, enabled = !running) {
+        HelionButton(onClick = { startReanalysis() }, enabled = !running) {
             Text(stringResource(if (running) R.string.activity_reanalyzing else R.string.activity_reanalyze_action))
         }
         if (running) {
             Text(
                 stringResource(R.string.action_cancel),
                 style = HelionType.label,
-                color = colors.accentViolet,
+                color = colors.accent,
                 modifier = Modifier.clickable { reanalysisJob?.cancel() },
             )
         }
@@ -145,7 +145,7 @@ fun ArchiveReanalysisSection(container: AppContainer) {
         color = colors.textTertiary,
     )
     Text(stringResource(R.string.source_background_sync_battery_hint), style = HelionType.bodySmall, color = colors.textSecondary)
-    Button(
+    HelionButton(
         onClick = {
             context.startActivity(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {

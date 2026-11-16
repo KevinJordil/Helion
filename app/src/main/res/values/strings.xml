@@ -465,11 +465,42 @@
 
     <string name="recording_device_name_label">Nom de l\'appareil (Strava)</string>
     <string name="recording_device_name_note">Nom affiché par Strava comme appareil d\'enregistrement.</string>
-    <string name="home_heading">Votre journée</string>
+    <string name="home_heading">Aujourd\'hui</string>
     <string name="settings_group_personal">Au quotidien</string>
     <string name="settings_group_connections">Données et connexions</string>
     <string name="settings_group_application">Application</string>
     <string name="settings_subtitle">Personnalisez votre suivi</string>
     <string name="goal_progress_compact">%1$d %% · %2$d pas</string>
     <string name="tile_strand_week_compact">7 jours</string>
+
+    <!-- Redesigned Accueil: the window a day-long tile chart covers, a goal caption for a
+         target other than the steps goal, the header's freshness line and sync control. -->
+    <string name="tile_window_day">24 h</string>
+    <string name="tile_window_week">7 j</string>
+    <string name="tile_goal_target">%1$d %% · obj. %2$d</string>
+    <string name="home_freshness">Dernière mesure il y a %1$d min</string>
+    <string name="home_sync_action">Synchroniser</string>
+    <!-- Metric detail -->
+    <string name="metric_usual_range_title">Plage habituelle · 30 jours</string>
+    <string name="metric_usual_range_value">%1$s – %2$s</string>
+    <string name="metric_usual_median">Médiane %1$s</string>
+    <string name="metric_reference_target">Objectif %1$s</string>
+    <string name="metric_reference_threshold">Seuil %1$s</string>
+    <string name="metric_about_title">À propos</string>
+    <string name="metric_context_title">Repères</string>
+    <string name="metric_chart_zoom_hint">Glissez pour lire une valeur · pincez pour zoomer · touchez deux fois pour revenir</string>
+    <string name="metric_chart_legend_usual">Plage habituelle</string>
+    <string name="metric_reset_zoom">Vue complète</string>
+    <string name="metric_latest">Dernière valeur</string>
+    <string name="metric_selected_value">Valeur sélectionnée</string>
+    <string name="metric_stats_title">Statistiques · %1$s</string>
+    <!-- Sommeil -->
+    <string name="sleep_phases_title">Phases</string>
+    <string name="sleep_hypnogram_title">Hypnogramme</string>
+    <string name="sleep_window_value">%1$s → %2$s</string>
+    <string name="sleep_phase_share">%1$d %%</string>
+    <string name="sleep_night_heart_rate_title">Fréquence cardiaque nocturne</string>
+    <string name="sleep_nap_label">Sieste</string>
+    <string name="sleep_total_label">Sommeil total</string>
+    <string name="sleep_cursor_hint">Glissez sur l\'hypnogramme ou la courbe pour lire un instant</string>
 </resources>

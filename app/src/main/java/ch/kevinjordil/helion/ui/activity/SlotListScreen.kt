@@ -1,5 +1,7 @@
 package ch.kevinjordil.helion.ui.activity
 
+import ch.kevinjordil.helion.ui.theme.HelionBackLink
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,12 +69,7 @@ fun SlotListScreen(
             .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        Text(
-            stringResource(R.string.action_back),
-            style = HelionType.label,
-            color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = HelionSurfacePadding),
-        )
+        HelionBackLink(onBack, Modifier.padding(start = HelionSurfacePadding - 8.dp))
         Text(
             stringResource(R.string.activity_manage_slots),
             style = HelionType.headline,
@@ -81,7 +77,7 @@ fun SlotListScreen(
             modifier = Modifier.padding(horizontal = HelionSurfacePadding),
         )
 
-        Button(onClick = onNewSlot, modifier = Modifier.padding(horizontal = HelionSurfacePadding)) {
+        HelionButton(onClick = onNewSlot, modifier = Modifier.padding(horizontal = HelionSurfacePadding)) {
             Text(stringResource(R.string.slot_new_action))
         }
 
@@ -139,7 +135,7 @@ private fun SlotRow(slot: Slot, weekdayAbbreviations: List<String>, onClick: () 
             Text(
                 stringResource(if (slot.active) R.string.slot_active_on else R.string.slot_active_off),
                 style = HelionType.labelSmall,
-                color = if (slot.active) colors.textTertiary else colors.accentAmber,
+                color = if (slot.active) colors.textTertiary else colors.attention,
             )
         }
         // One composed string rather than a Row of separate Texts -- see ActivityRow's own

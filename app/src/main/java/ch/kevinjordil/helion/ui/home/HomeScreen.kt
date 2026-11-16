@@ -1,5 +1,12 @@
 package ch.kevinjordil.helion.ui.home
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,9 +18,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -24,56 +33,59 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.metric.Metric
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
 import ch.kevinjordil.helion.ui.metric.MetricReader
 import ch.kevinjordil.helion.ui.metric.Range
 import ch.kevinjordil.helion.ui.metric.Reading
-import ch.kevinjordil.helion.ui.metric.TileStrand
-import ch.kevinjordil.helion.ui.metric.metricColor
 import ch.kevinjordil.helion.ui.minutesSinceLastSample
 import ch.kevinjordil.helion.ui.quality.computeBaseline
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
-import ch.kevinjordil.helion.ui.ribbon.buildRibbon
-import ch.kevinjordil.helion.ui.theme.HelionContentInset
+import ch.kevinjordil.helion.ui.theme.HelionButton
+import ch.kevinjordil.helion.ui.theme.HelionControlRadius
+import ch.kevinjordil.helion.ui.theme.HelionIcons
+import ch.kevinjordil.helion.ui.theme.HelionMotion
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
-import ch.kevinjordil.helion.ui.theme.HelionSurface
+import ch.kevinjordil.helion.ui.theme.HelionScreenHeader
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.IconTile
+import ch.kevinjordil.helion.ui.theme.StatusDot
+import ch.kevinjordil.helion.ui.theme.helionWell
+import ch.kevinjordil.helion.ui.theme.rememberReducedMotion
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-
-/** The one metric with a goal to measure a day against -- see [ch.kevinjordil.helion.ui.settings.StepsGoal]. */
+/** The one metric with a goal set in Réglages -- see [ch.kevinjordil.helion.ui.settings.StepsGoal]. */
 private const val STEPS_ID = "steps"
 
-/**
- * How many bars a day is cut into. Far fewer than the 48 half-hour buckets this used to
- * draw: at that density a tile's strand was a rake of hairlines, which is what made the
- * screen read as an instrument panel rather than as something pleasant to look at. Coarser
- * bars still show the day's shape -- when he moved, when he slept -- which is all a tile's
- * strand was ever for; the detail chart is where the actual resolution lives.
- */
-private const val TILE_RIBBON_BUCKETS = 20
+/** Buckets across the day for a line, and for bars. */
+private const val DAY_LINE_BUCKETS = 36
+private const val DAY_BAR_BUCKETS = 24
 
-/** One bar per day for a [TileStrand.WEEK] metric: night to night is the shape that means something. */
-private const val WEEK_RIBBON_BUCKETS = 7
+private const val WEEK_DAYS = 7
+private const val WEEK_SECONDS = WEEK_DAYS * 24L * 3600
 
-private const val WEEK_SECONDS = 7L * 24 * 3600
+private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)
 
 /**
- * Accueil: all eight metrics in a compact two-column grid, all sharing one
- * day ribbon. Three states replace the dashboard entirely -- see [HomeStatus] -- and a
- * fourth, quieter one (a failed refresh) overlays a banner without touching data already
- * on screen, because that data is still valid.
+ * Accueil: a compact performance dashboard. All eight metrics share one two-column grid at
+ * equal weight -- no hero, no global score -- so the whole day reads at a glance, above the
+ * tab bar on a typical phone. Three states replace the grid entirely (see [HomeStatus]);
+ * a failed refresh only changes the status line, since the data on screen is still valid.
  */
 @Composable
 fun HomeScreen(
@@ -82,7 +94,6 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = HelionThemeTokens.colors
     val reader = remember(container) { MetricReader(container.database) }
     val scope = rememberCoroutineScope()
 
@@ -95,8 +106,8 @@ fun HomeScreen(
     // screen only shows its progress and reloads when a pass lands.
     val syncState by container.foregroundSync.state.collectAsState()
     // A completed pass' outcome replaces the freshness line only for passes that finished
-    // while this screen was showing, as before: not a stale "N minutes synchronisées" from a
-    // pass that ran an hour ago, before the owner came back to Accueil.
+    // while this screen was showing: not a stale "N minutes synchronisées" from a pass that
+    // ran an hour ago, before the owner came back to Accueil.
     val passesAtMount = remember { container.foregroundSync.state.value.completedPasses }
     val banner = syncState.lastOutcome
         ?.takeIf { syncState.completedPasses > passesAtMount }
@@ -115,15 +126,15 @@ fun HomeScreen(
             metric.id to reader.load(metric, Range.DAY, now).readings
         }
         // Range.MONTH is exactly the "roughly the last 30 days" window the personal
-        // baseline is defined over (see ui.quality.computeBaseline); reusing it here is
-        // the same list MetricReader already computes for the detail screen's Mois range.
+        // baseline is defined over (see ui.quality.computeBaseline), and it also covers the
+        // week a nightly metric's bars span.
         monthReadingsByMetricId = MetricCatalog.all.associate { metric ->
             metric.id to reader.load(metric, Range.MONTH, now).readings
         }
         loaded = true
     }
 
-    /** Pull-to-refresh: the spinner shows until the pass (a new one, or one already running) ends. */
+    /** Pull-to-refresh and the header button: the spinner shows until the pass ends. */
     fun refresh() {
         isRefreshing = true
         scope.launch {
@@ -165,131 +176,68 @@ fun HomeScreen(
             modifier = modifier.fillMaxSize(),
         ) {
             val newestSample = latestByMetricId.values.filterNotNull().maxOfOrNull { it.timestamp }
-            val tiles = MetricCatalog.all
             // Read once per pass rather than per tile: it is a SharedPreferences value.
             val stepsGoal = container.stepsGoal.value
+            val now = System.currentTimeMillis() / 1000
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize().testTag("home-dashboard"),
-                contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+                contentPadding = PaddingValues(bottom = 14.dp),
             ) {
                 item {
-                    Column(
-                        modifier = Modifier.padding(horizontal = HelionContentInset).padding(bottom = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(stringResource(R.string.home_heading), style = HelionType.headline, color = colors.textPrimary)
-                        Text(
-                            LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)),
-                            style = HelionType.bodySmall,
-                            color = colors.textSecondary,
-                        )
-                    }
-                }
-                item {
-                    // One line, not the four the owner reported ("Reçue à…" / "Comme
-                    // d'habitude" / a blank line from stacked padding / "Dernière valeur
-                    // reçue…"): a refresh in progress, a completed pass's outcome, and the
-                    // ordinary freshness line all describe the same thing -- how fresh and
-                    // reliable what is on screen right now is -- so only one of them is
-                    // ever shown at a time, picked in that priority order. The amber state
-                    // for a failed or degraded refresh survives as this line's colour,
-                    // rather than a second banner line underneath it. The distinct,
-                    // genuinely different fact -- the personal baseline -- stays inside each tile.
-                    val phaseRes = refreshPhase?.let(::refreshPhaseLabel)
-                    val currentBanner = banner
-                    val text = when {
-                        phaseRes != null -> stringResource(phaseRes)
-                        currentBanner != null -> stringResource(currentBanner.messageRes, *currentBanner.args.toTypedArray())
-                        else -> freshnessLine(newestSample)
-                    }
-                    val isAmber = phaseRes == null && currentBanner?.isAttention == true
-                    Text(
-                        text,
-                        style = HelionType.bodySmall,
-                        color = if (isAmber) colors.accentAmber else colors.textSecondary,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = HelionContentInset, end = HelionContentInset, top = 0.dp, bottom = 6.dp),
+                    HelionScreenHeader(
+                        title = stringResource(R.string.home_heading),
+                        subtitle = {
+                            HomeStatusLine(
+                                phaseRes = refreshPhase?.let(::refreshPhaseLabel),
+                                banner = banner,
+                                newestSample = newestSample,
+                            )
+                        },
+                        trailing = {
+                            SyncButton(syncing = refreshPhase != null || isRefreshing, onClick = { refresh() })
+                        },
                     )
                 }
-                items(tiles.chunked(2)) { pair ->
-                    // Each metric is its own idea, so each tile sits on its own raised
-                    // surface (see HelionSurface's own kdoc) rather than two unrelated
-                    // metrics sharing one rectangle; a row here only lays two of those
-                    // surfaces out side by side. The row's own margin is
-                    // HelionScreenEdgeMargin and each tile pads by HelionSurfacePadding,
-                    // so a tile's text starts on HelionContentInset -- the same line as the
-                    // heading and freshness line above it, which is what a tighter tile
-                    // padding used to break.
+                itemsIndexed(MetricCatalog.all.chunked(2)) { rowIndex, pair ->
+                    // Intrinsic height so the two tiles in a row match whatever they hold.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // Intrinsic height so the two tiles in a row are the same
-                            // height whatever they hold: only `steps` carries a goal
-                            // track, and without this its card stood taller than its
-                            // neighbour and the grid stopped looking like a grid.
                             .height(IntrinsicSize.Min)
-                            .padding(horizontal = HelionScreenEdgeMargin, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            .padding(horizontal = HelionScreenEdgeMargin)
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        pair.forEach { metric ->
-                            val now = System.currentTimeMillis() / 1000
-                            val tileLatest = latestByMetricId[metric.id]?.value
-                            HelionSurface(
-                                modifier = Modifier.weight(1f).fillMaxHeight(),
-                                tint = colors.metricColor(metric),
-                                padding = PaddingValues(0.dp),
-                            ) {
-                                // Only `steps` has a goal today, and it is the only tile
-                                // that gets a track; see MetricTile's own kdoc.
-                                val goalFraction = if (metric.id == STEPS_ID) {
-                                    goalProgressFraction(tileLatest, stepsGoal)
-                                } else {
-                                    null
-                                }
-                                MetricTile(
+                        pair.forEachIndexed { column, metric ->
+                            val latest = latestByMetricId[metric.id]?.value
+                            MetricTile(
+                                metric = metric,
+                                latestValue = latest,
+                                chart = tileChart(
                                     metric = metric,
-                                    latestValue = tileLatest,
-                                    goalProgress = goalFraction,
-                                    goalCaption = goalFraction?.let {
-                                        stringResource(
-                                            R.string.goal_progress_compact,
-                                            (it * 100).roundToInt(),
-                                            stepsGoal,
-                                        )
-                                    },
-                                    // The strand's window follows the metric's own rhythm
-                                    // rather than always being "today" -- see TileStrand.
-                                    ribbonBars = when (metric.tileStrand) {
-                                        TileStrand.NONE -> emptyList()
-                                        TileStrand.DAY -> buildRibbon(
-                                            dayReadingsByMetricId[metric.id].orEmpty(),
-                                            windowStart = now - Range.DAY.seconds,
-                                            windowEnd = now,
-                                            bucketCount = TILE_RIBBON_BUCKETS,
-                                        )
-                                        TileStrand.WEEK -> buildRibbon(
-                                            monthReadingsByMetricId[metric.id].orEmpty(),
-                                            windowStart = now - WEEK_SECONDS,
-                                            windowEnd = now,
-                                            bucketCount = WEEK_RIBBON_BUCKETS,
-                                        )
-                                    },
-                                    strandCaption = if (metric.tileStrand == TileStrand.WEEK) {
-                                        stringResource(R.string.tile_strand_week_compact)
-                                    } else {
-                                        null
-                                    },
-                                    personalBaseline = tileLatest?.let { value ->
-                                        placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
-                                    },
-                                    onClick = { onOpenMetric(metric.id) },
-                                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                                )
-                            }
+                                    latest = latest,
+                                    day = dayReadingsByMetricId[metric.id].orEmpty(),
+                                    month = monthReadingsByMetricId[metric.id].orEmpty(),
+                                    stepsGoal = stepsGoal,
+                                    now = now,
+                                ),
+                                chartCaption = when (tileSpec(metric).visual) {
+                                    TileVisual.BARS_WEEK -> stringResource(R.string.tile_window_week)
+                                    TileVisual.LINE_DAY, TileVisual.BARS_DAY -> stringResource(R.string.tile_window_day)
+                                    TileVisual.GOAL -> null
+                                },
+                                personalBaseline = latest?.let { value ->
+                                    placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
+                                },
+                                onClick = { onOpenMetric(metric.id) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .entrance(index = rowIndex * 2 + column),
+                            )
                         }
-                        if (pair.size == 1) Box(modifier = Modifier.weight(1f)) {}
+                        if (pair.size == 1) Box(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -297,13 +245,99 @@ fun HomeScreen(
     }
 }
 
+/** The chart a tile draws, built from the readings already loaded for it. */
 @Composable
-private fun freshnessLine(newestSampleTimestamp: Long?): String {
-    val minutes = minutesSinceLastSample(newestSampleTimestamp, System.currentTimeMillis() / 1000)
-    return if (minutes == null) {
-        stringResource(R.string.never_synced)
+private fun tileChart(metric: Metric, latest: Double?, day: List<Reading>, month: List<Reading>, stepsGoal: Int, now: Long): TileChart {
+    val spec = tileSpec(metric)
+    return when (spec.visual) {
+        TileVisual.LINE_DAY -> TileChart.Line(tileSeries(day, now - Range.DAY.seconds, now, DAY_LINE_BUCKETS, spec))
+        TileVisual.BARS_DAY -> TileChart.Bars(tileSeries(day, now - Range.DAY.seconds, now, DAY_BAR_BUCKETS, spec))
+        TileVisual.BARS_WEEK -> TileChart.Bars(tileSeries(month, now - WEEK_SECONDS, now, WEEK_DAYS, spec))
+        TileVisual.GOAL -> {
+            val target = if (metric.id == STEPS_ID) stepsGoal else spec.target?.roundToInt() ?: 0
+            val fraction = goalProgressFraction(latest, target) ?: return TileChart.None
+            val percent = ((latest ?: 0.0) / target * 100).roundToInt()
+            val caption = if (metric.id == STEPS_ID) {
+                stringResource(R.string.goal_progress_compact, percent, target)
+            } else {
+                stringResource(R.string.tile_goal_target, percent, target)
+            }
+            TileChart.Goal(fraction, caption)
+        }
+    }
+}
+
+/**
+ * One line under the title saying how fresh the screen is: a sync in progress, the outcome
+ * of one that just finished, or the age of the newest value -- only one at a time, in that
+ * order. The dot carries the state: blue while syncing, amber when a sync failed, neutral
+ * otherwise.
+ */
+@Composable
+private fun HomeStatusLine(phaseRes: Int?, banner: RefreshBanner?, newestSample: Long?) {
+    val colors = HelionThemeTokens.colors
+    val date = LocalDate.now().format(HEADER_DATE).replaceFirstChar { it.uppercase() }
+    val status = when {
+        phaseRes != null -> stringResource(phaseRes)
+        banner != null -> stringResource(banner.messageRes, *banner.args.toTypedArray())
+        else -> {
+            val minutes = minutesSinceLastSample(newestSample, System.currentTimeMillis() / 1000)
+            if (minutes == null) stringResource(R.string.never_synced) else stringResource(R.string.home_freshness, minutes)
+        }
+    }
+    val attention = phaseRes == null && banner?.isAttention == true
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(date, style = HelionType.bodySmall, color = colors.textSecondary)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            StatusDot(
+                when {
+                    phaseRes != null -> colors.accent
+                    attention -> colors.attention
+                    else -> colors.textTertiary
+                },
+            )
+            Text(status, style = HelionType.labelSmall, color = if (attention) colors.attention else colors.textTertiary)
+        }
+    }
+}
+
+/** The header's discreet sync control; its glyph turns only while a pass is running. */
+@Composable
+private fun SyncButton(syncing: Boolean, onClick: () -> Unit) {
+    val colors = HelionThemeTokens.colors
+    val reduced = rememberReducedMotion()
+    val angle = if (syncing && !reduced) {
+        val transition = rememberInfiniteTransition(label = "sync")
+        transition.animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "sync-angle").value
     } else {
-        stringResource(R.string.last_value_minutes_ago, minutes)
+        0f
+    }
+    IconButton(onClick = onClick, enabled = !syncing) {
+        Box(modifier = Modifier.size(38.dp).helionWell(HelionControlRadius), contentAlignment = Alignment.Center) {
+            Icon(
+                HelionIcons.Refresh,
+                contentDescription = stringResource(R.string.home_sync_action),
+                tint = if (syncing) colors.accent else colors.textSecondary,
+                modifier = Modifier.size(18.dp).rotate(angle),
+            )
+        }
+    }
+}
+
+/** Tiles rise into place one after another on first display, quickly; never with motion off. */
+@Composable
+private fun Modifier.entrance(index: Int): Modifier {
+    val reduced = rememberReducedMotion()
+    val progress = remember { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (!reduced && progress.value < 1f) {
+            delay(index * 28L)
+            progress.animateTo(1f, tween(HelionMotion.MEDIUM + 80, easing = HelionMotion.Emphasized))
+        }
+    }
+    return this.graphicsLayer {
+        alpha = progress.value
+        translationY = (1f - progress.value) * 10.dp.toPx()
     }
 }
 
@@ -319,16 +353,22 @@ private fun EmptyState(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(stringResource(titleRes), style = HelionType.headline, color = colors.textPrimary)
+        IconTile(HelionIcons.Link, tint = colors.accent, size = 44.dp, iconSize = 22.dp)
+        Text(
+            stringResource(titleRes),
+            style = HelionType.headline,
+            color = colors.textPrimary,
+            modifier = Modifier.padding(top = 18.dp),
+        )
         Text(
             stringResource(bodyRes),
             style = HelionType.body,
             color = colors.textSecondary,
-            modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
+            modifier = Modifier.padding(top = 8.dp, bottom = 22.dp),
         )
-        Button(onClick = onAction) { Text(stringResource(actionRes)) }
+        HelionButton(onClick = onAction) { Text(stringResource(actionRes)) }
     }
 }

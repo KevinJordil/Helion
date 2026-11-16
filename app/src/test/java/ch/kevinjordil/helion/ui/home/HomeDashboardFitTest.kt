@@ -34,7 +34,8 @@ import org.robolectric.annotation.Config
 
 /** Verify the actual composed dashboard, including its bottom navigation, rather than a height formula. */
 @RunWith(RobolectricTestRunner::class)
-@Config(qualifiers = "w411dp-h891dp-xxhdpi-night")
+// Qualifiers in Android's order: night mode comes before density, or Robolectric refuses them.
+@Config(qualifiers = "w411dp-h891dp-night-xxhdpi")
 class HomeDashboardFitTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 

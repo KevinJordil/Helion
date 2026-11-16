@@ -1,5 +1,9 @@
 package ch.kevinjordil.helion.ui.activity
 
+import ch.kevinjordil.helion.ui.theme.HelionBackLink
+import ch.kevinjordil.helion.ui.theme.HelionTextButton
+import ch.kevinjordil.helion.ui.theme.HelionOutlinedButton
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,11 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -135,12 +136,7 @@ fun SlotEditScreen(
             .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        Text(
-            stringResource(R.string.action_back),
-            style = HelionType.label,
-            color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = HelionSurfacePadding),
-        )
+        HelionBackLink(onBack, Modifier.padding(start = HelionSurfacePadding - 8.dp))
 
         if (loaded) {
             HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(HelionSurfacePadding)) {
@@ -236,11 +232,11 @@ fun SlotEditScreen(
             // page like every other action button in the app rather than riding on a card.
             Row(modifier = Modifier.padding(horizontal = HelionSurfacePadding)) {
                 if (slotId == null) {
-                    Button(
+                    HelionButton(
                         enabled = labelText.isNotBlank() && !timeError,
                         onClick = {
-                            val start = startSecond ?: return@Button
-                            val end = endSecond ?: return@Button
+                            val start = startSecond ?: return@HelionButton
+                            val end = endSecond ?: return@HelionButton
                             scope.launch {
                                 container.database.slots().upsert(
                                     Slot(
@@ -259,7 +255,7 @@ fun SlotEditScreen(
                         Text(stringResource(R.string.slot_action_create))
                     }
                 } else {
-                    OutlinedButton(onClick = { showDeleteConfirm = true }) {
+                    HelionOutlinedButton(onClick = { showDeleteConfirm = true }) {
                         Text(stringResource(R.string.slot_action_delete))
                     }
                 }
@@ -274,7 +270,7 @@ fun SlotEditScreen(
             title = { Text(stringResource(R.string.slot_delete_confirm_title)) },
             text = { Text(stringResource(R.string.slot_delete_confirm_body)) },
             confirmButton = {
-                TextButton(onClick = {
+                HelionTextButton(onClick = {
                     showDeleteConfirm = false
                     if (idToDelete != null) {
                         scope.launch {
@@ -287,7 +283,7 @@ fun SlotEditScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
+                HelionTextButton(onClick = { showDeleteConfirm = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -304,7 +300,7 @@ private fun DayOfWeekPicker(selected: DayOfWeek, onSelect: (DayOfWeek) -> Unit, 
             Text(
                 weekdayAbbreviations[day.value - 1],
                 style = HelionType.label,
-                color = if (day == selected) colors.accentViolet else colors.textTertiary,
+                color = if (day == selected) colors.accent else colors.textTertiary,
                 modifier = Modifier
                     .clickable { onSelect(day) }
                     .padding(vertical = 4.dp),

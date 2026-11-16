@@ -1,22 +1,25 @@
 package ch.kevinjordil.helion.ui.sleep
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -24,603 +27,291 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.metric.ChartOverlay
+import ch.kevinjordil.helion.ui.metric.ChartStyle
+import ch.kevinjordil.helion.ui.metric.DetailChart
+import ch.kevinjordil.helion.ui.metric.MetricCatalog
+import ch.kevinjordil.helion.ui.metric.metricColor
 import ch.kevinjordil.helion.ui.metric.Reading
-import ch.kevinjordil.helion.ui.metric.chartGridlines
-import ch.kevinjordil.helion.ui.metric.chartYRange
-import ch.kevinjordil.helion.ui.metric.scrubReading
-import ch.kevinjordil.helion.ui.ribbon.buildCategoryRibbon
+import ch.kevinjordil.helion.ui.metric.chartTimeMarkers
+import ch.kevinjordil.helion.ui.metric.formatAxisTimestamp
+import ch.kevinjordil.helion.ui.theme.HelionMotion
+import ch.kevinjordil.helion.ui.theme.HelionStatRow
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
-import ch.kevinjordil.helion.ui.theme.HelionStatItem
-import ch.kevinjordil.helion.ui.theme.CHART_LINE_WIDTH
+import ch.kevinjordil.helion.ui.theme.HelionToggleChip
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.StatCell
+import ch.kevinjordil.helion.ui.theme.rememberReducedMotion
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
-private val NIGHT_CHART_CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+private val NIGHT_CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 
-/** Height of the heart-rate panel -- unchanged from the chart's previous single-panel height. */
-private val HEART_RATE_PANEL_HEIGHT = 140.dp
+/** The lane-name column on the left of the hypnogram; the night's heart-rate chart is indented by the same width so both share one time axis. */
+internal val LANE_LABEL_WIDTH: Dp = 68.dp
+
+/** The share column on the right, the same width as the heart-rate chart's value axis. */
+private val LANE_SHARE_WIDTH: Dp = 40.dp
+
+private val LANE_HEIGHT = 26.dp
+private val LANE_BLOCK_HEIGHT = 14.dp
+private val TIME_AXIS_HEIGHT = 18.dp
+private val NIGHT_HR_HEIGHT = 168.dp
+
+/** Lanes top to bottom: the classic hypnogram order, awake at the top and deep sleep at the bottom. */
+private val LANES = listOf(SleepPhase.AWAKE, SleepPhase.REM, SleepPhase.LIGHT, SleepPhase.DEEP)
 
 /**
- * Height of one hypnogram lane row. Deliberately taller than the label beside it: thin
- * lanes made the stage bands hard to read on a phone. The lanes are also stacked with no
- * gap (see the Column wrapping them below), so the hypnogram reads as one solid block
- * whose filled row steps up and down over the night, rather than four separate strips.
- */
-private val HYPNOGRAM_LANE_HEIGHT = 30.dp
-
-/**
- * Width of the label column that sits to the left of every row in the merged figure --
- * the heart-rate panel's row gets a blank spacer of this same width, each hypnogram lane
- * gets its stage label in it. Sharing one fixed width across every row is what actually
- * makes the two panels' time axes line up: both canvases are laid out as "this fixed
- * column, then the rest of the row", so both get the exact same remaining width from the
- * same parent, with no manual pixel offset to keep in sync.
+ * The night's hypnogram: one lane per phase, each continuous stretch of a phase drawn as a
+ * block on its lane and joined to the next by a thin riser, so the night reads as a single
+ * stepped line through the four depths. Times along the bottom; each lane's share of the
+ * night on the right.
  *
- * 90dp: verified to fit the widest of the four stage labels ("Paradoxal") at
- * [HelionType.labelSmall] and a 1.3x accessibility font scale -- see
- * `HypnogramLaneLabelWidthTest`.
+ * Drawn from the minute-exact phase runs ([phaseSegments]), not from buckets, so a ten-minute
+ * stretch of REM is exactly that wide. Dragging across it moves the shared [cursor], which
+ * the heart-rate chart below follows -- and dragging there moves this one.
  */
-private val LANE_LABEL_WIDTH: Dp = 90.dp
+@Composable
+internal fun Hypnogram(
+    episode: SleepEpisode,
+    segments: List<PhaseSegment>,
+    breakdown: Map<SleepPhase, Int>,
+    cursor: Long?,
+    onCursor: (Long?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = HelionThemeTokens.colors
+    val phaseColor = phaseColors(colors)
+    val measurer = rememberTextMeasurer()
+    val touchSlop = LocalViewConfiguration.current.touchSlop
+    val reduced = rememberReducedMotion()
+    val reveal = remember(episode) { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(episode) {
+        if (!reduced) reveal.animateTo(1f, tween(HelionMotion.LONG, easing = HelionMotion.Emphasized))
+    }
+    val start = episode.fellAsleepAt
+    val end = episode.wokeAt + 60
+    val total = breakdown.values.sum().coerceAtLeast(1)
+    var widthPx by remember { mutableFloatStateOf(0f) }
 
-/** Half the difference between Material's 48dp checkbox touch target and its 20dp box. */
-private val CHECKBOX_TOUCH_TARGET_INSET: Dp = 14.dp
+    fun timeAt(x: Float): Long = start + ((x / widthPx.coerceAtLeast(1f)).coerceIn(0f, 1f) * (end - start)).toLong()
 
-/** How much a run of one sleep stage has its corners taken off. */
-private val LANE_CORNER: Dp = 4.dp
+    Row(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.width(LANE_LABEL_WIDTH)) {
+            LANES.forEach { lane ->
+                Box(modifier = Modifier.heightIn(min = LANE_HEIGHT), contentAlignment = Alignment.CenterStart) {
+                    Text(stringResource(phaseLabelRes(lane)), style = HelionType.labelSmall, color = colors.textSecondary)
+                }
+            }
+        }
+        Canvas(
+            modifier = Modifier
+                .weight(1f)
+                .height(LANE_HEIGHT * LANES.size + TIME_AXIS_HEIGHT)
+                .semantics { contentDescription = "hypnogram" }
+                .pointerInput(episode) {
+                    detectTapGestures(onTap = { offset -> onCursor(if (cursor != null) null else timeAt(offset.x)) })
+                }
+                .pointerInput(episode) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var scrubbing = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.pressed } ?: break
+                            if (!scrubbing) {
+                                val dx = change.position.x - down.position.x
+                                val dy = change.position.y - down.position.y
+                                if (abs(dx) > touchSlop && abs(dx) > abs(dy)) scrubbing = true else if (abs(dy) > touchSlop) break
+                            }
+                            if (scrubbing) {
+                                if (change.positionChange() != Offset.Zero) change.consume()
+                                onCursor(timeAt(change.position.x))
+                            }
+                        }
+                    }
+                },
+        ) {
+            widthPx = size.width
+            val laneH = LANE_HEIGHT.toPx()
+            val blockH = LANE_BLOCK_HEIGHT.toPx()
+            val span = (end - start).toFloat().coerceAtLeast(1f)
+            fun xOf(t: Long) = ((t - start) / span) * size.width
+            fun laneCentre(phase: SleepPhase) = laneH * LANES.indexOf(phase) + laneH / 2f
 
-/** Buckets an episode's own span into roughly ten-minute slices, clamped to a sane range for very short or very long episodes. */
-private const val EPISODE_BUCKET_MINUTES = 10
-private const val MIN_EPISODE_BUCKETS = 24
-private const val MAX_EPISODE_BUCKETS = 96
+            // Lane guides.
+            LANES.forEach { lane ->
+                val y = laneCentre(lane)
+                drawLine(colors.hairline, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
+            }
 
-internal fun episodeBucketCount(episode: SleepEpisode): Int {
-    val spanMinutes = (episode.wokeAt - episode.fellAsleepAt) / 60 + 1
-    return (spanMinutes / EPISODE_BUCKET_MINUTES).toInt().coerceIn(MIN_EPISODE_BUCKETS, MAX_EPISODE_BUCKETS)
+            clipRect(right = size.width * reveal.value) {
+                // Risers first, so the blocks sit on top of them.
+                segments.zipWithNext().forEach { (a, b) ->
+                    if (a.phase != b.phase && b.startTimestamp - a.endTimestamp <= 120) {
+                        val x = xOf(b.startTimestamp)
+                        drawLine(colors.textTertiary.copy(alpha = 0.55f), Offset(x, laneCentre(a.phase)), Offset(x, laneCentre(b.phase)), strokeWidth = 1.dp.toPx())
+                    }
+                }
+                segments.forEach { segment ->
+                    val left = xOf(segment.startTimestamp)
+                    val right = xOf(segment.endTimestamp).coerceAtLeast(left + 1.5f)
+                    val y = laneCentre(segment.phase) - blockH / 2f
+                    drawRoundRect(
+                        phaseColor.getValue(segment.phase),
+                        Offset(left, y),
+                        Size(right - left, blockH),
+                        CornerRadius(minOf(3.dp.toPx(), (right - left) / 2f)),
+                    )
+                }
+            }
+
+            // Time axis.
+            val axisTop = laneH * LANES.size
+            val axisStyle = HelionType.axisLabel.copy(color = colors.textTertiary)
+            var lastRight = Float.NEGATIVE_INFINITY
+            chartTimeMarkers(start, end).forEach { t ->
+                val x = xOf(t)
+                drawLine(colors.divider, Offset(x, axisTop), Offset(x, axisTop + 3.dp.toPx()), strokeWidth = 1f)
+                val label = measurer.measure(formatAxisTimestamp(t, end - start), axisStyle)
+                val left = (x - label.size.width / 2f).coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f))
+                if (left >= lastRight + 6.dp.toPx()) {
+                    drawText(label, topLeft = Offset(left, size.height - label.size.height))
+                    lastRight = left + label.size.width
+                }
+            }
+
+            cursor?.let { t ->
+                val x = xOf(t).coerceIn(0f, size.width)
+                drawLine(colors.textPrimary.copy(alpha = 0.8f), Offset(x, 0f), Offset(x, axisTop), strokeWidth = 1.dp.toPx())
+            }
+        }
+        Column(modifier = Modifier.width(LANE_SHARE_WIDTH)) {
+            LANES.forEach { lane ->
+                Box(modifier = Modifier.fillMaxWidth().heightIn(min = LANE_HEIGHT), contentAlignment = Alignment.CenterEnd) {
+                    val share = ((breakdown[lane] ?: 0) * 100f / total).roundToInt()
+                    Text(stringResource(R.string.sleep_phase_share, share), style = HelionType.labelSmall, color = colors.textTertiary, textAlign = TextAlign.End)
+                }
+            }
+        }
+    }
 }
 
 /**
- * One additional series that can be overlaid on [NightChartSection]'s heart-rate line.
- * Heart rate itself is not one of these -- it is always shown and drives the chart's own
- * bpm axis; an overlay only ever draws against its *own* min..max (see the heart-rate
- * canvas's kdoc for why), so [dashIntervals] gives each overlay a distinct line texture
- * rather than relying on hue alone to tell it from the others or from the heart-rate line.
- */
-private data class NightOverlay(
-    val readings: List<Reading>,
-    val color: Color,
-    val dashIntervals: FloatArray,
-)
-
-/**
- * The night's heart rate and its sleep stages (see [resolveSleepPhases] -- measured when
- * the device's own hypnogram is available, estimated otherwise) as one figure, two stacked
- * panels sharing a single time axis: heart rate on top over a neutral background, the
- * hypnogram lanes directly below it, one scrub cursor spanning both. This replaces an
- * earlier design that encoded the same stages twice -- once as a four-lane hypnogram
- * above the chart (position, read well) and again as full-height bands tinted along one
- * violet ramp behind the heart-rate line (hue alone, at low alpha, read poorly next to
- * itself). Only the hypnogram survives: a stage switching lanes is a vertical jump, which
- * degrades gracefully in sunlight, for colour-vision deficiency and in a grayscale capture
- * -- a property no single-hue wash can offer. Below the two panels: min/average/max heart
- * rate for the night, and checkboxes to add respiratory rate and movement intensity as
- * extra lines on the heart-rate panel.
- *
- * Omitted entirely when the episode has fewer than two heart-rate readings: a chart with
- * fewer than two points has no line to draw and nothing to scrub. The hypnogram lanes are
- * themselves omitted (in favour of [R.string.sleep_phase_not_estimable]) whenever
- * [resolveSleepPhases] could not classify the night at all.
- *
- * Heart rate, respiratory rate and movement intensity are three different units (bpm,
- * breaths/minute, an unlabelled intensity count) with no shared zero or scale -- plotting
- * them against one shared axis would silently misrepresent all but one of them. Rather than
- * a second labelled axis (which still only has room for one extra unit before it becomes as
- * unreadable as the problem it solves), every overlay is normalised to *its own* min..max
- * range and drawn as a distinct dashed line: the shape of an overlay relative to itself is
- * genuinely useful (does respiration rise when heart rate does?), its absolute value is not
- * lost (it is never shown, so nothing is misrepresented), and [R.string.sleep_overlay_scale_note]
- * says outright that the shared vertical position does not mean a shared scale. Only heart
- * rate gets an absolute readout -- the min/average/max row below the chart, and the value
- * shown in the scrub chip.
- *
- * Off by default except heart rate itself, and the toggle states are hoisted to
- * [SleepScreen] rather than remembered here, so they survive stepping to a different night.
- *
- * The drag gesture that drives the shared scrub cursor is attached to the heart-rate panel
- * only, exactly where it was before this panel gained a hypnogram beneath it: both panels
- * read the same hoisted scrub state, so dragging over the heart-rate curve moves a cursor
- * that spans both, which is what "one scrub cursor" is actually for -- seeing the stage and
- * the heart rate at the same instant, not making every pixel of the figure draggable.
+ * The night's heart rate, on the same time axis as the hypnogram above it, with the
+ * respiratory-rate and movement overlays the owner can switch on, and the night's
+ * minimum, average and maximum.
  */
 @Composable
-fun NightChartSection(
+internal fun NightHeartRate(
     episode: SleepEpisode,
     showRespiratory: Boolean,
     onShowRespiratoryChange: (Boolean) -> Unit,
     showMovement: Boolean,
     onShowMovementChange: (Boolean) -> Unit,
+    cursor: Long?,
+    onCursor: (Long?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = HelionThemeTokens.colors
-    val heartRateReadings = remember(episode) {
-        episode.minutes.mapNotNull { minute -> minute.heartRate?.let { Reading(minute.timestamp, it.toDouble()) } }
-            .sortedBy { it.timestamp }
+    val heartRate = remember(episode) {
+        episode.minutes.mapNotNull { m -> m.heartRate?.let { Reading(m.timestamp, it.toDouble()) } }.sortedBy { it.timestamp }
     }
-    if (heartRateReadings.size < 2) return
-
-    val phaseSource = remember(episode) { resolveSleepPhases(episode) }
-    val movementReadings = remember(episode) {
-        episode.minutes.mapNotNull { minute -> minute.intensity?.let { Reading(minute.timestamp, it.toDouble()) } }
-            .sortedBy { it.timestamp }
+    if (heartRate.size < 2) return
+    val movement = remember(episode) {
+        episode.minutes.mapNotNull { m -> m.intensity?.let { Reading(m.timestamp, it.toDouble()) } }.sortedBy { it.timestamp }
     }
-    val respiratoryReadings = episode.respiratoryRateReadings
-
-    val phaseColor = phaseColors(colors)
-    val phaseLabel = SleepPhase.values().associateWith { phase -> stringResource(phaseLabelRes(phase)) }
-    val bpmUnit = stringResource(R.string.unit_bpm)
-
-    val lanes = listOf(SleepPhase.AWAKE, SleepPhase.REM, SleepPhase.LIGHT, SleepPhase.DEEP)
-    val phaseSegments = remember(phaseSource) { phaseSegments(phaseSource) }
-    val hypnogramBars = remember(phaseSource, episode) {
-        val minutes = when (phaseSource) {
-            is SleepPhaseSource.Measured -> phaseSource.minutes
-            is SleepPhaseSource.Estimated -> phaseSource.minutes
-            SleepPhaseSource.NotEstimable -> emptyList()
-        }
-        buildCategoryRibbon(
-            items = minutes.map { it.timestamp to it.phase },
-            windowStart = episode.fellAsleepAt,
-            windowEnd = episode.wokeAt + 60,
-            bucketCount = episodeBucketCount(episode),
-        )
+    val respiratory = episode.respiratoryRateReadings
+    val bpm = stringResource(R.string.unit_bpm)
+    val hue = colors.metricColor(MetricCatalog.byId("heart_rate")!!)
+    val overlays = buildList {
+        if (showRespiratory && respiratory.size >= 2) add(ChartOverlay(respiratory, colors.textPrimary, floatArrayOf(10f, 6f)))
+        if (showMovement && movement.size >= 2) add(ChartOverlay(movement, colors.textSecondary, floatArrayOf(3f, 5f)))
     }
-    val showHypnogram = phaseSource !is SleepPhaseSource.NotEstimable
 
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.sleep_night_chart_title), style = HelionType.title, color = colors.textPrimary)
-
-        val overlays = buildMap {
-            if (showRespiratory && respiratoryReadings.size >= 2) {
-                put("respiratory", NightOverlay(respiratoryReadings, colors.textPrimary, floatArrayOf(10f, 6f)))
-            }
-            if (showMovement && movementReadings.size >= 2) {
-                put("movement", NightOverlay(movementReadings, colors.textSecondary, floatArrayOf(3f, 5f)))
-            }
-        }
-
-        var scrubFraction by remember { mutableStateOf<Float?>(null) }
-        var scrubbedReading by remember { mutableStateOf<Reading?>(null) }
-
-        if (showHypnogram) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                // The lane-label column, kept occupied rather than left as a bare spacer:
-                // the curve has to start where the lanes below it start, and an empty 90dp
-                // gutter beside it reads as a mistake rather than as alignment.
-                Box(modifier = Modifier.width(LANE_LABEL_WIDTH)) {
-                    Text(bpmUnit, style = HelionType.labelSmall, color = colors.textTertiary)
-                }
-                HeartRateCanvas(
-                    heartRateReadings = heartRateReadings,
-                    overlays = overlays.values.toList(),
-                    phaseSegments = phaseSegments,
-                    lineColor = colors.accentViolet,
-                    phaseLabel = phaseLabel,
-                    bpmUnit = bpmUnit,
-                    scrubFraction = scrubFraction,
-                    scrubbedReading = scrubbedReading,
-                    onScrub = { fraction, reading -> scrubFraction = fraction; scrubbedReading = reading },
-                    onScrubEnd = { scrubFraction = null; scrubbedReading = null },
-                    modifier = Modifier.weight(1f).height(HEART_RATE_PANEL_HEIGHT),
-                )
-            }
-            // No vertical arrangement: the lanes must touch, so the occupied band is
-            // continuous down the night instead of being cut by gaps.
-            Column(modifier = Modifier.fillMaxWidth()) {
-                lanes.forEach { lane ->
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.width(LANE_LABEL_WIDTH)) {
-                            Text(phaseLabel.getValue(lane), style = HelionType.labelSmall, color = colors.textSecondary)
-                        }
-                        HypnogramLaneCanvas(
-                            bars = hypnogramBars,
-                            lane = lane,
-                            laneColor = phaseColor.getValue(lane),
-                            cursorColor = colors.textSecondary,
-                            scrubFraction = scrubFraction,
-                            onScrub = { fraction ->
-                                scrubFraction = fraction
-                                scrubbedReading = scrubReading(heartRateReadings, fraction)
-                            },
-                            onScrubEnd = { scrubFraction = null; scrubbedReading = null },
-                            modifier = Modifier.weight(1f).height(HYPNOGRAM_LANE_HEIGHT),
-                        )
-                    }
-                }
-            }
-        } else {
-            HeartRateCanvas(
-                heartRateReadings = heartRateReadings,
-                overlays = overlays.values.toList(),
-                phaseSegments = phaseSegments,
-                lineColor = colors.accentViolet,
-                phaseLabel = phaseLabel,
-                bpmUnit = bpmUnit,
-                scrubFraction = scrubFraction,
-                scrubbedReading = scrubbedReading,
-                onScrub = { fraction, reading -> scrubFraction = fraction; scrubbedReading = reading },
-                onScrubEnd = { scrubFraction = null; scrubbedReading = null },
-                modifier = Modifier.fillMaxWidth().height(HEART_RATE_PANEL_HEIGHT),
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(Modifier.width(LANE_LABEL_WIDTH))
+            DetailChart(
+                readings = heartRate,
+                domainStart = episode.fellAsleepAt,
+                domainEnd = episode.wokeAt + 60,
+                style = ChartStyle.LINE,
+                color = hue,
+                unit = bpm,
+                formatValue = { "%.0f".format(it) },
+                formatTime = { NIGHT_CLOCK.format(Instant.ofEpochSecond(it)) },
+                formatAxisTime = { t, span -> formatAxisTimestamp(t, span) },
+                description = stringResource(R.string.sleep_night_heart_rate_title),
+                overlays = overlays,
+                externalCursor = cursor,
+                showReadout = false,
+                onScrub = { reading -> onCursor(reading?.timestamp) },
+                minVisibleSeconds = 1_800L,
+                modifier = Modifier.weight(1f).height(NIGHT_HR_HEIGHT),
             )
-            Text(stringResource(R.string.sleep_phase_not_estimable), style = HelionType.bodySmall, color = colors.textSecondary)
         }
-
-        if (phaseSource is SleepPhaseSource.Estimated) {
-            Text(stringResource(R.string.sleep_phase_title_estimated), style = HelionType.labelSmall, color = colors.textTertiary)
-        }
-
-        if (respiratoryReadings.size >= 2 || movementReadings.size >= 2) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (respiratoryReadings.size >= 2) {
-                    OverlayCheckbox(
-                        label = stringResource(R.string.sleep_overlay_respiratory),
-                        checked = showRespiratory,
-                        onCheckedChange = onShowRespiratoryChange,
-                        color = colors.textPrimary,
-                    )
+        if (respiratory.size >= 2 || movement.size >= 2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (respiratory.size >= 2) {
+                    HelionToggleChip(stringResource(R.string.sleep_overlay_respiratory), showRespiratory, onShowRespiratoryChange, keyColor = colors.textPrimary)
                 }
-                if (movementReadings.size >= 2) {
-                    OverlayCheckbox(
-                        label = stringResource(R.string.sleep_overlay_movement),
-                        checked = showMovement,
-                        onCheckedChange = onShowMovementChange,
-                        color = colors.textSecondary,
-                    )
+                if (movement.size >= 2) {
+                    HelionToggleChip(stringResource(R.string.sleep_overlay_movement), showMovement, onShowMovementChange, keyColor = colors.textSecondary)
                 }
             }
         }
-
-        val min = heartRateReadings.minOf { it.value }
-        val max = heartRateReadings.maxOf { it.value }
-        val average = heartRateReadings.sumOf { it.value } / heartRateReadings.size
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HelionStatItem(stringResource(R.string.stat_min), "%.0f".format(min), Modifier.weight(1f), unit = bpmUnit, centred = true)
-            HelionStatItem(stringResource(R.string.stat_max), "%.0f".format(max), Modifier.weight(1f), unit = bpmUnit, centred = true)
-            HelionStatItem(stringResource(R.string.stat_average), "%.0f".format(average), Modifier.weight(1f), unit = bpmUnit, valueColor = colors.accentViolet, centred = true)
-        }
-
         if (overlays.isNotEmpty()) {
-            Text(stringResource(R.string.sleep_overlay_scale_note), style = HelionType.bodySmall, color = colors.textTertiary)
+            Text(stringResource(R.string.sleep_overlay_scale_note), style = HelionType.labelSmall, color = colors.textTertiary)
         }
-    }
-}
-
-@Composable
-private fun OverlayCheckbox(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, color: Color) {
-    val colors = HelionThemeTokens.colors
-    // Material centres the 20dp box in a 48dp touch target, so left as-is the box starts
-    // 14dp right of everything else in the card. The offset puts the box back on the card's
-    // own left-hand line while keeping the full-size touch target.
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.offset(x = -CHECKBOX_TOUCH_TARGET_INSET),
-    ) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(checkedColor = color, uncheckedColor = colors.textTertiary),
-        )
-        Text(label, style = HelionType.bodySmall, color = colors.textSecondary)
-    }
-}
-
-
-/**
- * The heart-rate panel: the line itself on its own bpm-scaled axis (see [chartYRange]),
- * over a plain, neutral background -- no phase bands here any more, since the hypnogram
- * below already encodes stage by lane position, which reads better than a background wash
- * ever did and does not need to fight the line for the same pixels. Any active [overlays]
- * are drawn as thin dashed lines each normalised to its own range (see
- * [NightChartSection]'s kdoc for why). Scrubbing reuses [scrubReading] against the
- * heart-rate series -- the same geometry [ch.kevinjordil.helion.ui.metric.MetricScreen]'s
- * chart already uses -- and looks up the phase (measured or estimated) closest to the
- * resolved timestamp for the chip, via [phaseSegments].
- *
- * [scrubFraction]/[scrubbedReading] are hoisted by the caller (not remembered here) so the
- * hypnogram lanes below can draw the same cursor at the same horizontal position.
- */
-@Composable
-private fun HeartRateCanvas(
-    heartRateReadings: List<Reading>,
-    overlays: List<NightOverlay>,
-    phaseSegments: List<PhaseSegment>,
-    lineColor: Color,
-    phaseLabel: Map<SleepPhase, String>,
-    bpmUnit: String,
-    scrubFraction: Float?,
-    scrubbedReading: Reading?,
-    onScrub: (Float, Reading?) -> Unit,
-    onScrubEnd: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = HelionThemeTokens.colors
-    val textMeasurer = rememberTextMeasurer()
-    var canvasWidthPx by remember { mutableStateOf(0f) }
-
-    val minX = heartRateReadings.first().timestamp.toFloat()
-    val maxX = heartRateReadings.last().timestamp.toFloat()
-    val xSpan = (maxX - minX).takeIf { it > 0f }
-
-    Canvas(
-        modifier = modifier
-            .onSizeChanged { size: IntSize -> canvasWidthPx = size.width.toFloat() }
-            .pointerInput(heartRateReadings) {
-                detectDragGestures(
-                    onDragEnd = onScrubEnd,
-                    onDragCancel = onScrubEnd,
-                ) { change, _ ->
-                    if (canvasWidthPx > 0f) {
-                        val x = change.position.x.coerceIn(0f, canvasWidthPx)
-                        onScrub(x / canvasWidthPx, scrubReading(heartRateReadings, x / canvasWidthPx))
-                    }
-                }
-            },
-    ) {
-        if (xSpan == null) return@Canvas
-
-        fun xOf(t: Float): Float = ((t - minX) / xSpan * size.width).coerceIn(0f, size.width)
-
-        // A few round-valued bpm gridlines, the same frame-of-reference treatment
-        // MetricScreen's own chart gained -- see [chartGridlines]'s kdoc. No hour axis
-        // here: the hypnogram lanes directly beneath this panel already anchor the night
-        // in time (their own scrub cursor and chip, shared with this panel, show the exact
-        // clock time), so a second, separate time axis on this panel alone would repeat
-        // what the figure as a whole already states once, clearly, right below it.
-        run {
-            val gridRawMin = heartRateReadings.minOf { it.value }.toFloat()
-            val gridRawMax = heartRateReadings.maxOf { it.value }.toFloat()
-            val (gridMinY, gridMaxY) = chartYRange(gridRawMin, gridRawMax, zeroBased = false)
-            val gridYSpan = (gridMaxY - gridMinY).takeIf { it > 0f } ?: 1f
-            var lastLabelBottom = Float.NEGATIVE_INFINITY
-            chartGridlines(gridMinY, gridMaxY).forEach { value ->
-                val y = size.height - (value - gridMinY) / gridYSpan * size.height
-                drawLine(color = colors.divider.copy(alpha = 0.5f), start = Offset(0f, y), end = Offset(size.width, y), strokeWidth = 1f)
-                val label = textMeasurer.measure("${value.toInt()} $bpmUnit", HelionType.axisLabel.copy(color = colors.textTertiary))
-                val labelTop = (y - label.size.height - 2f).coerceAtLeast(0f)
-                if (labelTop >= lastLabelBottom) {
-                    drawText(label, topLeft = Offset(4f, labelTop))
-                    lastLabelBottom = labelTop + label.size.height
-                }
-            }
-        }
-
-        // Each active overlay, normalised to its own range, drawn thin and dashed.
-        overlays.forEach { overlay ->
-            val rawMin = overlay.readings.minOf { it.value }.toFloat()
-            val rawMax = overlay.readings.maxOf { it.value }.toFloat()
-            val (oMinY, oMaxY) = chartYRange(rawMin, rawMax, zeroBased = false)
-            val oSpan = (oMaxY - oMinY).takeIf { it > 0f } ?: 1f
-            fun oyOf(v: Float) = size.height - (v - oMinY) / oSpan * size.height
-            val path = Path()
-            overlay.readings.forEachIndexed { index, reading ->
-                val x = xOf(reading.timestamp.toFloat())
-                val y = oyOf(reading.value.toFloat())
-                if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            }
-            drawPath(
-                path,
-                color = overlay.color,
-                style = Stroke(
-                    width = 2.5f,
-                    cap = StrokeCap.Round,
-                    pathEffect = PathEffect.dashPathEffect(overlay.dashIntervals),
-                ),
-            )
-        }
-
-        // The heart-rate line, on top of any overlay.
-        val rawMin = heartRateReadings.minOf { it.value }.toFloat()
-        val rawMax = heartRateReadings.maxOf { it.value }.toFloat()
-        val (minY, maxY) = chartYRange(rawMin, rawMax, zeroBased = false)
-        val ySpan = (maxY - minY).takeIf { it > 0f } ?: 1f
-        fun yOf(v: Float) = size.height - (v - minY) / ySpan * size.height
-
-        val path = Path()
-        heartRateReadings.forEachIndexed { index, reading ->
-            val x = xOf(reading.timestamp.toFloat())
-            val y = yOf(reading.value.toFloat())
-            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
-        }
-
-        // A soft gradient wash under the curve, in the line's own hue -- the same treatment
-        // MetricScreen's own chart uses for its curve, so a night's heart-rate line and a
-        // metric's detail chart read as the same instrument rather than two different ones.
-        val fillPath = Path().apply {
-            addPath(path)
-            lineTo(xOf(heartRateReadings.last().timestamp.toFloat()), size.height)
-            lineTo(xOf(heartRateReadings.first().timestamp.toFloat()), size.height)
-            close()
-        }
-        drawPath(
-            fillPath,
-            brush = Brush.verticalGradient(
-                colors = listOf(lineColor.copy(alpha = 0.32f), lineColor.copy(alpha = 0f)),
-                startY = 0f,
-                endY = size.height,
+        HelionStatRow(
+            listOf(
+                StatCell(stringResource(R.string.stat_min), "%.0f".format(heartRate.minOf { it.value }), bpm),
+                StatCell(stringResource(R.string.stat_average), "%.0f".format(heartRate.sumOf { it.value } / heartRate.size), bpm),
+                StatCell(stringResource(R.string.stat_max), "%.0f".format(heartRate.maxOf { it.value }), bpm),
             ),
         )
-
-        drawPath(
-            path,
-            color = lineColor,
-            style = Stroke(
-                width = CHART_LINE_WIDTH.toPx(),
-                cap = StrokeCap.Round,
-                join = androidx.compose.ui.graphics.StrokeJoin.Round,
-            ),
-        )
-
-        if (scrubFraction != null && scrubbedReading != null) {
-            val pointX = xOf(scrubbedReading.timestamp.toFloat())
-            val pointY = yOf(scrubbedReading.value.toFloat())
-
-            drawLine(
-                color = colors.textSecondary,
-                start = Offset(pointX, 0f),
-                end = Offset(pointX, size.height),
-                strokeWidth = 2f,
-                cap = StrokeCap.Round,
-            )
-            drawCircle(color = lineColor, radius = 7f, center = Offset(pointX, pointY))
-            drawCircle(color = colors.ground, radius = 3f, center = Offset(pointX, pointY))
-
-            val phaseAtInstant = phaseSegments.minByOrNull {
-                minOf(abs(it.startTimestamp - scrubbedReading.timestamp), abs(it.endTimestamp - scrubbedReading.timestamp))
-            }?.takeIf { scrubbedReading.timestamp in it.startTimestamp..it.endTimestamp }?.phase
-
-            val timeText = NIGHT_CHART_CLOCK_FORMAT.format(Instant.ofEpochSecond(scrubbedReading.timestamp))
-            val valueText = "${scrubbedReading.value.toInt()} $bpmUnit"
-            val phaseText = phaseAtInstant?.let { phaseLabel.getValue(it) }
-
-            val timeLayout = textMeasurer.measure(timeText, HelionType.axisLabel.copy(color = colors.textSecondary))
-            val valueLayout = textMeasurer.measure(valueText, HelionType.axisLabel.copy(color = colors.accentViolet))
-            val phaseLayout = phaseText?.let { textMeasurer.measure(it, HelionType.labelSmall.copy(color = colors.textPrimary)) }
-
-            val padding = 8f
-            val lineWidths = listOfNotNull(timeLayout.size.width, valueLayout.size.width, phaseLayout?.size?.width)
-            val chipWidth = (lineWidths.maxOrNull() ?: 0) + padding * 2
-            val lineHeights = listOfNotNull(timeLayout.size.height, valueLayout.size.height, phaseLayout?.size?.height)
-            val chipHeight = lineHeights.sum() + padding * 2
-
-            // Clamped to stay fully inside the canvas even when scrubbing right at either
-            // edge -- the same requirement and technique as MetricScreen's chart.
-            val chipLeft = (pointX - chipWidth / 2f).coerceIn(0f, (size.width - chipWidth).coerceAtLeast(0f))
-            val chipTop = padding
-
-            drawRoundRect(
-                color = colors.surfaceRaised,
-                topLeft = Offset(chipLeft, chipTop),
-                size = Size(chipWidth, chipHeight),
-                cornerRadius = CornerRadius(10f, 10f),
-            )
-            drawRoundRect(
-                color = colors.divider,
-                topLeft = Offset(chipLeft, chipTop),
-                size = Size(chipWidth, chipHeight),
-                cornerRadius = CornerRadius(10f, 10f),
-                style = Stroke(width = 1f),
-            )
-            var lineTop = chipTop + padding / 2f
-            drawText(timeLayout, topLeft = Offset(chipLeft + padding, lineTop))
-            lineTop += timeLayout.size.height
-            drawText(valueLayout, topLeft = Offset(chipLeft + padding, lineTop))
-            lineTop += valueLayout.size.height
-            phaseLayout?.let { drawText(it, topLeft = Offset(chipLeft + padding, lineTop)) }
-        }
     }
 }
 
-/**
- * One hypnogram lane: [lane]'s own occupied buckets from [bars] (see [buildCategoryRibbon]),
- * drawn as short vertical marks the same way [ch.kevinjordil.helion.ui.ribbon.DayRibbon]
- * draws a day's ribbon, plus the same shared scrub cursor [HeartRateCanvas] draws, at the
- * same [scrubFraction] -- since both canvases receive the same remaining width from an
- * identical fixed-width label column (see [LANE_LABEL_WIDTH]), `scrubFraction * size.width`
- * lands at the same instant in both panels without either one needing to know the other's
- * pixel size directly.
- */
+/** "02:14 · Léger · 54 bpm" for the instant under the shared cursor. */
 @Composable
-private fun HypnogramLaneCanvas(
-    bars: List<Pair<Float, SleepPhase>>,
-    lane: SleepPhase,
-    laneColor: Color,
-    cursorColor: Color,
-    scrubFraction: Float?,
-    onScrub: (Float) -> Unit,
-    onScrubEnd: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var canvasWidthPx by remember { mutableStateOf(0f) }
-
-    Canvas(
-        modifier = modifier
-            .onSizeChanged { size: IntSize -> canvasWidthPx = size.width.toFloat() }
-            // The lanes drive the shared cursor too, not just the heart-rate panel above:
-            // a stage band is often the thing being pointed at, and having to reach back up
-            // to the curve to move the cursor over it reads as the lanes being inert.
-            .pointerInput(bars) {
-                detectDragGestures(
-                    onDragEnd = onScrubEnd,
-                    onDragCancel = onScrubEnd,
-                ) { change, _ ->
-                    if (canvasWidthPx > 0f) {
-                        onScrub(change.position.x.coerceIn(0f, canvasWidthPx) / canvasWidthPx)
-                    }
-                }
-            },
-    ) {
-        if (bars.isNotEmpty()) {
-            // Filled buckets, not centred strokes: a stroke narrower than the bucket
-            // spacing leaves a gap between consecutive occupied buckets, which reads as
-            // an interrupted stage. One bucket wide, plus a pixel so neighbours seam.
-            // Drawn one continuous run at a time, not one bucket at a time, so a run's two
-            // ends can be rounded while the buckets inside it stay welded together. Rounding
-            // each bucket instead would notch the band everywhere two buckets meet -- and
-            // the bands touching is the whole point of this lane (see the Column above).
-            val bucketWidth = size.width / bars.size
-            var runStart: Int? = null
-            fun flush(endExclusive: Int) {
-                val start = runStart ?: return
-                val left = bars[start].first * size.width
-                val right = bars[endExclusive - 1].first * size.width + bucketWidth + 1f
-                // A softened corner, not a pill: at half the lane's height a short run
-                // draws as a floating capsule and the band stops reading as one continuous
-                // night, which is the thing this lane exists to show.
-                val radius = LANE_CORNER.toPx().coerceAtMost((right - left) / 2f)
-                drawRoundRect(
-                    color = laneColor,
-                    topLeft = Offset(left, 0f),
-                    size = Size(right - left, size.height),
-                    cornerRadius = CornerRadius(radius, radius),
-                )
-                runStart = null
-            }
-            bars.forEachIndexed { index, (_, category) ->
-                if (category == lane) {
-                    if (runStart == null) runStart = index
-                } else {
-                    flush(index)
-                }
-            }
-            flush(bars.size)
-        }
-        if (scrubFraction != null) {
-            val x = scrubFraction * size.width
-            drawLine(color = cursorColor, start = Offset(x, 0f), end = Offset(x, size.height), strokeWidth = 2f, cap = StrokeCap.Round)
-        }
-    }
+internal fun cursorReadout(episode: SleepEpisode, segments: List<PhaseSegment>, time: Long): String {
+    val clock = NIGHT_CLOCK.format(Instant.ofEpochSecond(time))
+    val phase = segments.firstOrNull { time in it.startTimestamp until it.endTimestamp }?.phase
+    val heartRate = episode.minutes.filter { it.heartRate != null }.minByOrNull { abs(it.timestamp - time) }
+        ?.takeIf { abs(it.timestamp - time) <= 300 }?.heartRate
+    return listOfNotNull(
+        clock,
+        phase?.let { stringResource(phaseLabelRes(it)) },
+        heartRate?.let { "$it ${stringResource(R.string.unit_bpm)}" },
+    ).joinToString(" · ")
 }
 
-/** One contiguous run of the same phase (measured or estimated), in `[startTimestamp, endTimestamp]`. */
+/** One continuous run of a single phase, from its first minute to the end of its last. */
 internal data class PhaseSegment(val startTimestamp: Long, val endTimestamp: Long, val phase: SleepPhase)
 
-/** Collapses [SleepPhaseSource]'s per-minute track (measured or estimated alike) into contiguous runs, for [HeartRateCanvas]'s scrub-chip stage lookup. Empty for [SleepPhaseSource.NotEstimable]. */
+/**
+ * Collapses a phase source's per-minute track into continuous [PhaseSegment]s: consecutive
+ * minutes of the same phase, no more than a minute apart, join one segment; anything else
+ * starts a new one. Empty for a night whose phases cannot be estimated.
+ */
 internal fun phaseSegments(source: SleepPhaseSource): List<PhaseSegment> {
     val minutes = when (source) {
         is SleepPhaseSource.Measured -> source.minutes

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Helion is dark only: the window starts on the same near-black ground the app draws,
+         so there is no white flash before the first frame. -->
+    <color name="helion_ground">#FF050608</color>
+
+    <style name="Theme.Helion" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/helion_ground</item>
+        <item name="android:colorBackground">@color/helion_ground</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

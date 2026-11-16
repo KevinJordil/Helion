@@ -113,7 +113,7 @@ fun statusLabelRes(status: ActivityStatus): Int = when (status) {
 /**
  * Whether [status] is a candidate awaiting the owner's verdict -- the one state that must
  * always be visually distinct from a decided one (see the module's own brief). This is the
- * only status drawn in [ch.kevinjordil.helion.ui.theme.HelionColors.accentAmber]: amber
+ * only status drawn in [ch.kevinjordil.helion.ui.theme.HelionColors.attention]: amber
  * means "needs your attention" everywhere else in the app, and an unreviewed candidate is
  * exactly that.
  */

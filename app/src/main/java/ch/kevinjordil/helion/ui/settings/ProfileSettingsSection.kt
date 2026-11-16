@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.settings
 
+import ch.kevinjordil.helion.ui.theme.HelionSegmentedControl
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -83,19 +84,16 @@ fun ProfileSettingsSection(container: AppContainer) {
     )
 
     SettingsFieldLabel(stringResource(R.string.profile_sex_label))
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        listOf(Sex.MALE to R.string.profile_sex_male, Sex.FEMALE to R.string.profile_sex_female).forEach { (sex, labelRes) ->
-            Text(
-                stringResource(labelRes),
-                style = HelionType.label,
-                color = if (sex == selectedSex) colors.accentViolet else colors.textTertiary,
-                modifier = Modifier.clickable {
-                    selectedSex = sex
-                    container.profile.sex = sex
-                },
-            )
-        }
-    }
+    val sexOptions = listOf(Sex.MALE to R.string.profile_sex_male, Sex.FEMALE to R.string.profile_sex_female)
+    HelionSegmentedControl(
+        options = sexOptions.map { stringResource(it.second) },
+        selectedIndex = sexOptions.indexOfFirst { it.first == selectedSex },
+        onSelect = { index ->
+            val sex = sexOptions[index].first
+            selectedSex = sex
+            container.profile.sex = sex
+        },
+    )
 
     Text(stringResource(R.string.profile_note), style = HelionType.bodySmall, color = colors.textSecondary)
 }

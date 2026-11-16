@@ -1,5 +1,6 @@
 package ch.kevinjordil.helion.ui.settings
 
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import android.Manifest
 import android.app.Activity
 import android.app.NotificationManager
@@ -12,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -245,7 +245,7 @@ private fun NotificationChannelSection(
                 Text(stringResource(allClearMessageRes), style = HelionType.bodySmall, color = colors.textSecondary)
             } else {
                 SettingsWarning(stringResource(diagnosticsMessageRes(state, permissionMissingMessageRes, allClearMessageRes)))
-                Button(
+                HelionButton(
                     onClick = {
                         testResult = null
                         intentUnavailable = when (state) {
@@ -266,7 +266,7 @@ private fun NotificationChannelSection(
                 }
             }
 
-            Button(
+            HelionButton(
                 onClick = {
                     testResult = onSendTest()
                     onRefresh()

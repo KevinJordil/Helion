@@ -1,22 +1,14 @@
 package ch.kevinjordil.helion.ui.activity
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,20 +19,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.store.Activity
+import ch.kevinjordil.helion.store.ActivityStatus
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
+import ch.kevinjordil.helion.ui.theme.HelionIcons
+import ch.kevinjordil.helion.ui.theme.HelionOutlinedButton
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
+import ch.kevinjordil.helion.ui.theme.HelionScreenHeader
+import ch.kevinjordil.helion.ui.theme.HelionSectionLabel
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.HorizontalRule
+import ch.kevinjordil.helion.ui.theme.IconTile
+import ch.kevinjordil.helion.ui.theme.StatusDot
+import ch.kevinjordil.helion.ui.theme.helionRow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -50,20 +50,12 @@ private val ROW_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH
 private val ROW_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM")
 
 /**
- * The root Column's own horizontal inset, now that each day's group of activities sits on a
- * raised [HelionSurface] -- see [HelionSurfacePadding]. The two still add up to the historical 20dp
- * inset [ActivityLabelWidthTest] measures against.
+ * Activités: the sport history, newest first, grouped by day. Each day is one card with
+ * its sessions as compact rows -- the sport's glyph in its colour, the title, the sport and
+ * time range, and on the right the duration and status -- so a week of sessions can be
+ * compared at a glance. A candidate still waiting for a decision is the one row marked in
+ * the attention colour.
  */
-
-/**
- * Activités: every recorded [Activity], grouped by the calendar day it starts on (most
- * recent day first, and within a day most recent first), plus two ways in: creating one
- * from a day's timeline, and managing the recurring slots step 3's detection will consume.
- *
- * A candidate's row never looks like a confirmed one's -- see [needsAttention] -- so the
- * owner's eye lands on what still needs a verdict before anything else on the screen.
- */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ActivityListScreen(
     container: AppContainer,
@@ -75,68 +67,57 @@ fun ActivityListScreen(
     val colors = HelionThemeTokens.colors
     var activities by remember { mutableStateOf<List<Activity>?>(null) }
 
-    // Reloaded whenever a foreground sync lands (see ForegroundSync): a candidate detected by
-    // the opening sync shows up here without leaving and re-entering the screen.
+    // A sync can bring new candidates in while this list is open (the opening sync, or a
+    // manual one from Réglages); reload whenever one lands.
     val syncState by container.foregroundSync.state.collectAsState()
     LaunchedEffect(syncState.completedPasses) {
         activities = container.database.activities().all()
     }
 
     val loaded = activities
+    val weekdayAbbreviations = stringArrayResource(R.array.weekday_short).toList()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        Text(
-            stringResource(R.string.tab_activities), style = HelionType.headline, color = colors.textPrimary,
-            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
-        )
-        FlowRow(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(onClick = onNewActivity) {
-                Text(stringResource(R.string.activity_new_action))
-            }
-            OutlinedButton(onClick = onManageSlots) {
-                Text(stringResource(R.string.activity_manage_slots))
+        item {
+            HelionScreenHeader(title = stringResource(R.string.tab_activities))
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = HelionScreenEdgeMargin),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                HelionButton(onClick = onNewActivity, icon = HelionIcons.Plus, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.activity_new_action), style = HelionType.label)
+                }
+                HelionOutlinedButton(onClick = onManageSlots, icon = HelionIcons.Calendar, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.activity_manage_slots), style = HelionType.label)
+                }
             }
         }
         when {
             loaded == null -> Unit
-
-            loaded.isEmpty() -> EmptyActivityList(onNewActivity, modifier = Modifier.padding(horizontal = HelionSurfacePadding))
-
+            loaded.isEmpty() -> item { EmptyActivityList(onNewActivity) }
             else -> {
-                val weekdayAbbreviations = stringArrayResource(R.array.weekday_short).toList()
-                val groups = remember(loaded) { groupByDay(loaded) }
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
-                    groups.forEach { (date, dayActivities) ->
-                        item(key = "header:$date") {
-                            Text(
-                                dayHeaderText(date, weekdayAbbreviations),
-                                style = HelionType.label,
-                                color = colors.textTertiary,
-                                modifier = Modifier.padding(start = HelionSurfacePadding, end = HelionSurfacePadding, bottom = 4.dp),
-                            )
-                        }
-                        // One card per activity, washed in its own sport's colour, rather
-                        // than one neutral card per day holding divider-separated rows. A
-                        // day is not one thing -- a ride and a badminton evening have
-                        // nothing to do with each other beyond falling on the same date --
-                        // and the day header already says which day these are. What the
-                        // shared card did buy was a compact list; the tinted cards are
-                        // what make this screen read as a sports app rather than a ledger.
-                        items(dayActivities, key = { "activity:${it.id}" }) { activity ->
-                            HelionSurface(
-                                modifier = Modifier.fillMaxWidth(),
-                                padding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                                tint = colors.sportColorOrNull(activity.sport),
-                            ) {
-                                ActivityRow(activity, onClick = { onOpenActivity(activity.id) })
+                val groups = groupByDay(loaded)
+                groups.forEach { (date, dayActivities) ->
+                    item(key = "day:$date") {
+                        Column(
+                            modifier = Modifier.padding(horizontal = HelionScreenEdgeMargin).padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            val totalSeconds = dayActivities.sumOf { it.endTimestamp - it.startTimestamp }
+                            HelionSectionLabel(dayHeaderText(date, weekdayAbbreviations)) {
+                                Text(activityDurationText(totalSeconds), style = HelionType.labelSmall, color = colors.textTertiary)
+                            }
+                            HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
+                                dayActivities.forEachIndexed { index, activity ->
+                                    if (index > 0) HorizontalRule(Modifier.padding(start = 66.dp))
+                                    ActivityRow(activity, onClick = { onOpenActivity(activity.id) })
+                                }
                             }
                         }
                     }
@@ -147,68 +128,68 @@ fun ActivityListScreen(
 }
 
 @Composable
-private fun EmptyActivityList(onNewActivity: () -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyActivityList(onNewActivity: () -> Unit) {
     val colors = HelionThemeTokens.colors
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.activity_list_empty_title), style = HelionType.body, color = colors.textPrimary)
+    HelionSurface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = HelionScreenEdgeMargin).padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        IconTile(HelionIcons.Stopwatch, tint = colors.accent, size = 40.dp, iconSize = 20.dp)
+        Text(stringResource(R.string.activity_list_empty_title), style = HelionType.title, color = colors.textPrimary)
         Text(stringResource(R.string.activity_list_empty_body), style = HelionType.bodySmall, color = colors.textSecondary)
-        Button(onClick = onNewActivity) {
+        HelionButton(onClick = onNewActivity, icon = HelionIcons.Plus) {
             Text(stringResource(R.string.activity_list_empty_action))
         }
     }
 }
 
-/** The disc the sport glyph sits on. */
-private val SPORT_DISC_SIZE = 40.dp
-
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActivityRow(activity: Activity, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = HelionThemeTokens.colors
     val attention = needsAttention(activity.status)
-
-    // The sport's own colour: the card behind this row is already washed in it (see the
-    // list's own items block), and the glyph disc and the duration pick it up again so the
-    // row is readable as that sport even at a glance.
-    val sportHue = colors.sportColorOrNull(activity.sport)
+    val sportHue = colors.sportColorOrNull(activity.sport) ?: colors.textSecondary
+    val range = ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.startTimestamp)) +
+        "–" + ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.endTimestamp))
 
     Row(
-        modifier = modifier.fillMaxWidth()
-            .clickable(onClick = onClick, role = Role.Button)
-            .padding(HelionSurfacePadding),
+        modifier = modifier
+            .helionRow(onClick)
+            .heightIn(min = 64.dp)
+            .padding(horizontal = HelionSurfacePadding, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            modifier = Modifier.size(SPORT_DISC_SIZE).clip(RoundedCornerShape(14.dp))
-                .background((sportHue ?: colors.divider).copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(sportEmoji(activity.sport), style = HelionType.body)
+        IconTile(sportIcon(activity.sport), tint = sportHue, size = 40.dp, iconSize = 20.dp)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                activity.title ?: sportOrNoneLabel(activity.sport),
+                style = HelionType.label.copy(fontSize = HelionType.body.fontSize, fontWeight = HelionType.title.fontWeight),
+                color = colors.textPrimary,
+            )
+            Text("${sportOrNoneLabel(activity.sport)} · $range", style = HelionType.bodySmall, color = colors.textSecondary)
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(activity.title ?: sportOrNoneLabel(activity.sport),
-                style = HelionType.title, color = colors.textPrimary)
-            val range = "${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.startTimestamp))}" +
-                "–${ROW_TIME_FORMAT.format(Instant.ofEpochSecond(activity.endTimestamp))}"
-            Text("${sportOrNoneLabel(activity.sport)} · $range",
-                style = HelionType.bodySmall, color = colors.textSecondary)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(activityDurationText(activity.endTimestamp - activity.startTimestamp),
-                    style = HelionType.valueMedium, color = sportHue ?: colors.textPrimary)
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(activityDurationText(activity.endTimestamp - activity.startTimestamp), style = HelionType.valueSmall, color = colors.textPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                StatusDot(statusColor(activity.status, attention))
                 Text(
                     stringResource(statusLabelRes(activity.status)),
                     style = HelionType.labelSmall,
-                    color = if (attention) colors.accentAmber else colors.textSecondary,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                        .background(if (attention) colors.accentAmber.copy(alpha = 0.12f) else colors.surfaceRaised)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    color = if (attention) colors.attention else colors.textTertiary,
                 )
             }
         }
+    }
+}
+
+/** The dot beside a status: amber while undecided, blue once published, quiet otherwise. */
+@Composable
+private fun statusColor(status: ActivityStatus, attention: Boolean) = HelionThemeTokens.colors.let { colors ->
+    when {
+        attention -> colors.attention
+        status == ActivityStatus.PUBLISHED -> colors.accent
+        status == ActivityStatus.CONFIRMED -> colors.positive
+        else -> colors.textTertiary
     }
 }
 

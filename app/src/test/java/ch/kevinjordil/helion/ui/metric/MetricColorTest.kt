@@ -1,7 +1,6 @@
 package ch.kevinjordil.helion.ui.metric
 
 import ch.kevinjordil.helion.ui.theme.HelionDarkColors
-import ch.kevinjordil.helion.ui.theme.HelionLightColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -16,24 +15,19 @@ class MetricColorTest {
     }
 
     @Test
-    fun `no two metrics share a colour, in either theme`() {
-        listOf(HelionDarkColors, HelionLightColors).forEach { theme ->
-            val colors = MetricCatalog.all.map { theme.metricColor(it) }
-            assertEquals(colors.size, colors.toSet().size)
-        }
+    fun `no two metrics share a colour`() {
+        val colors = MetricCatalog.all.map { HelionDarkColors.metricColor(it) }
+        assertEquals(colors.size, colors.toSet().size)
     }
 
     @Test
-    fun `a metric keeps its slot in the palette across both themes`() {
-        // The two themes no longer share RGB values -- the light theme's hues are tuned to
-        // carry against white and read as muted and heavy on the dark ground, so the dark
-        // theme has its own raised set (MetricPalette.OnDark). What must not vary is which
-        // hue a metric gets: heart rate is the red one in both, steps the blue one in both.
-        // So this asserts the slot, not the value.
+    fun `no metric is drawn in the attention colour or the accent`() {
+        // Attention and accent each carry one meaning across the app; a metric hue equal to
+        // either would make a trace read as a warning or as something to tap.
         MetricCatalog.all.forEach { metric ->
-            val darkSlot = HelionDarkColors.metricHues.indexOf(HelionDarkColors.metricColor(metric))
-            val lightSlot = HelionLightColors.metricHues.indexOf(HelionLightColors.metricColor(metric))
-            assertEquals("slot for ${metric.id}", darkSlot, lightSlot)
+            val hue = HelionDarkColors.metricColor(metric)
+            assert(hue != HelionDarkColors.attention) { "${metric.id} uses the attention colour" }
+            assert(hue != HelionDarkColors.accent) { "${metric.id} uses the accent colour" }
         }
     }
 

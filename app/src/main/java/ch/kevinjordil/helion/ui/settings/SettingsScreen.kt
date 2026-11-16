@@ -1,9 +1,6 @@
 package ch.kevinjordil.helion.ui.settings
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,65 +10,38 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.BuildConfig
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
+import ch.kevinjordil.helion.ui.theme.HelionIcons
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
+import ch.kevinjordil.helion.ui.theme.HelionScreenHeader
+import ch.kevinjordil.helion.ui.theme.HelionSectionLabel
 import ch.kevinjordil.helion.ui.theme.HelionSurface
 import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
+import ch.kevinjordil.helion.ui.theme.HelionTopBar
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.HorizontalRule
+import ch.kevinjordil.helion.ui.theme.IconTile
+import ch.kevinjordil.helion.ui.theme.StatusDot
+import ch.kevinjordil.helion.ui.theme.helionRow
 
 /**
- * The root Column's own horizontal inset on both [SettingsScreen] and [SettingsSectionScreen],
- * now that the entry list and each sub-screen's own fields sit on a raised [HelionSurface]
- * rather than directly against the screen. [HelionScreenEdgeMargin] plus [HelionSurfacePadding] still add
- * up to the historical 20dp inset every Réglages width test in `TileTextWidthTest.kt` (e.g.
- * `SettingsMenuWidthTest`, `CustomServerLabelWidthTest`, `ProfileFieldWidthTest`) measures
- * against, so none of their budgets change even though every sub-screen is now presented on a
- * card instead of a bare column -- and since every one of the eight sections is rendered
- * through this one [SettingsSectionScreen], fixing the frame here fixes all eight at once.
- */
-
-/**
- * Réglages' eight top-level entries -- what used to be one long, unevenly-presented scroll
- * (Gadgetbridge export location, profile, steps goal, the Strava server, Health Connect,
- * notifications, the archive re-analysis, and the build stamp) is now a short list, each
- * entry opening its own focused sub-screen. [id] is the navigation route
- * [ch.kevinjordil.helion.ui.HelionNavHost] appends after `"settings:"`; [titleRes] is used
- * both as this entry's own label in [SettingsScreen] and, unchanged, as the sub-screen's own
- * header in [SettingsSectionScreen] -- one string, one place it is decided, so the two can
- * never drift into the "Envoi vers Strava" vs. "Serveur personnel" kind of mismatch this
- * reorganisation exists to remove.
- *
- * Named for what the owner wants to do (see each [titleRes]), not for the subsystem behind
- * it -- [HEALTH_CONNECT] is the one deliberate exception, since "Health Connect" already is
- * the name the owner knows it by, on this phone and in Android's own settings.
+ * The sections of Réglages, each opened as its own screen from the list. [id] is the route
+ * suffix, so it must stay stable across versions (it survives process death in the back stack).
  */
 enum class SettingsSection(val id: String, val titleRes: Int) {
     SOURCE("source", R.string.settings_entry_source_title),
@@ -84,59 +54,52 @@ enum class SettingsSection(val id: String, val titleRes: Int) {
     ABOUT("about", R.string.settings_entry_about_title),
 }
 
+/** How a section's state reads on the list: working, needing setup, or simply off. */
+private enum class EntryState { OK, ATTENTION, NEUTRAL }
+
 /**
- * Réglages' own top level: a short, uniformly-presented list of [SettingsSection] entries,
- * each showing its label and a one-line status/value preview (see `settingsEntryPreview`),
- * nothing else. Every entry is rendered by the exact same [SettingsEntryRow], which is the
- * whole point -- the unevenness the owner reported was as much about mixed presentation as
- * about ordering, and one shared row composable makes a second, differently-styled entry
- * impossible to add by accident.
+ * Réglages: every section grouped by what it is about -- daily use, data and connections,
+ * the app itself -- as rows with a glyph, the section's name and its current state at a
+ * glance. A connection that works carries a green dot; one the app cannot work without
+ * (no export file) carries the attention colour.
  */
 @Composable
 fun SettingsScreen(container: AppContainer, onOpenSection: (String) -> Unit, modifier: Modifier = Modifier) {
-    val colors = HelionThemeTokens.colors
-
+    val groups = listOf(
+        R.string.settings_group_personal to listOf(SettingsSection.PROFILE, SettingsSection.GOALS, SettingsSection.NOTIFICATIONS),
+        R.string.settings_group_connections to listOf(SettingsSection.SOURCE, SettingsSection.STRAVA, SettingsSection.HEALTH_CONNECT),
+        R.string.settings_group_application to listOf(SettingsSection.MAINTENANCE, SettingsSection.ABOUT),
+    )
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+            .padding(bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        Text(
-            stringResource(R.string.tab_settings),
-            style = HelionType.headline,
-            color = colors.textPrimary,
-            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
-        )
-
-        Text(
-            stringResource(R.string.settings_subtitle),
-            style = HelionType.body,
-            color = colors.textSecondary,
-            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
-        )
-        val groups = listOf(
-            R.string.settings_group_personal to listOf(SettingsSection.PROFILE, SettingsSection.GOALS, SettingsSection.NOTIFICATIONS),
-            R.string.settings_group_connections to listOf(SettingsSection.SOURCE, SettingsSection.STRAVA, SettingsSection.HEALTH_CONNECT),
-            R.string.settings_group_application to listOf(SettingsSection.MAINTENANCE, SettingsSection.ABOUT),
+        HelionScreenHeader(
+            title = stringResource(R.string.tab_settings),
+            subtitle = {
+                Text(stringResource(R.string.settings_subtitle), style = HelionType.bodySmall, color = HelionThemeTokens.colors.textSecondary)
+            },
         )
         groups.forEach { (titleRes, sections) ->
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(titleRes), style = HelionType.label, color = colors.textSecondary,
-                    modifier = Modifier.padding(horizontal = HelionSurfacePadding))
+            Column(
+                modifier = Modifier.padding(horizontal = HelionScreenEdgeMargin).padding(top = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                HelionSectionLabel(stringResource(titleRes))
                 HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) {
                     sections.forEachIndexed { index, section ->
+                        if (index > 0) HorizontalRule(Modifier.padding(start = 62.dp))
+                        val (value, state) = settingsEntryPreview(section, container)
                         SettingsEntryRow(
                             label = stringResource(section.titleRes),
-                            value = settingsEntryPreview(section, container),
+                            value = value,
+                            state = state,
                             icon = settingsIcon(section),
                             onClick = { onOpenSection(section.id) },
                         )
-                        if (index < sections.lastIndex) {
-                            HorizontalDivider(modifier = Modifier.padding(start = 64.dp, end = 16.dp),
-                                color = colors.divider.copy(alpha = 0.4f))
-                        }
                     }
                 }
             }
@@ -145,155 +108,118 @@ fun SettingsScreen(container: AppContainer, onOpenSection: (String) -> Unit, mod
 }
 
 private fun settingsIcon(section: SettingsSection): ImageVector = when (section) {
-    SettingsSection.PROFILE -> Icons.Filled.Person
-    SettingsSection.GOALS -> Icons.Filled.Star
-    SettingsSection.NOTIFICATIONS -> Icons.Filled.Notifications
-    SettingsSection.SOURCE -> Icons.Filled.Refresh
-    SettingsSection.STRAVA -> Icons.Filled.Share
-    SettingsSection.HEALTH_CONNECT -> Icons.Filled.Favorite
-    SettingsSection.MAINTENANCE -> Icons.Filled.Build
-    SettingsSection.ABOUT -> Icons.Filled.Info
+    SettingsSection.PROFILE -> HelionIcons.User
+    SettingsSection.GOALS -> HelionIcons.Target
+    SettingsSection.NOTIFICATIONS -> HelionIcons.Bell
+    SettingsSection.SOURCE -> HelionIcons.Link
+    SettingsSection.STRAVA -> HelionIcons.Upload
+    SettingsSection.HEALTH_CONNECT -> HelionIcons.Heart
+    SettingsSection.MAINTENANCE -> HelionIcons.Wrench
+    SettingsSection.ABOUT -> HelionIcons.Info
 }
 
-private val CHEVRON_SIZE = 18.dp
-
 @Composable
-private fun SettingsEntryRow(label: String, value: String, icon: ImageVector, onClick: () -> Unit) {
+private fun SettingsEntryRow(label: String, value: String, state: EntryState, icon: ImageVector, onClick: () -> Unit) {
     val colors = HelionThemeTokens.colors
+    val dot: Color? = when (state) {
+        EntryState.OK -> colors.positive
+        EntryState.ATTENTION -> colors.attention
+        EntryState.NEUTRAL -> null
+    }
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick, role = Role.Button)
-            .heightIn(min = 72.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .helionRow(onClick)
+            .heightIn(min = 62.dp)
+            .padding(horizontal = HelionSurfacePadding, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
-                .background(colors.accentViolet.copy(alpha = 0.10f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = null, tint = colors.accentViolet, modifier = Modifier.size(20.dp))
-        }
+        IconTile(icon, tint = colors.textSecondary, size = 34.dp, iconSize = 18.dp)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, style = HelionType.body, color = colors.textPrimary)
-            Text(value, style = HelionType.bodySmall, color = colors.textSecondary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                dot?.let { StatusDot(it) }
+                Text(
+                    value,
+                    style = HelionType.bodySmall,
+                    color = if (state == EntryState.ATTENTION) colors.attention else colors.textSecondary,
+                )
+            }
         }
-        // A drawn chevron, not the ">" character: a literal greater-than sign is the one
-        // remaining piece of the app that looked typed into a terminal rather than laid out.
-        Icon(
-            Icons.AutoMirrored.Filled.ArrowForward,
-            contentDescription = null,
-            tint = colors.textTertiary,
-            modifier = Modifier.size(CHEVRON_SIZE),
-        )
+        Icon(HelionIcons.ChevronRight, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
     }
 }
 
 /**
- * The one-line status [SettingsEntryRow] shows under each entry's label -- a plain read of
- * the same state its sub-screen edits, never a value tracked separately, so it can never go
- * stale relative to what the sub-screen actually shows.
+ * The second line of a section's row: its state in a word or two, read from the same
+ * stores the section itself edits, so the list never says something the section disagrees with.
  */
 @Composable
-private fun settingsEntryPreview(section: SettingsSection, container: AppContainer): String = when (section) {
+private fun settingsEntryPreview(section: SettingsSection, container: AppContainer): Pair<String, EntryState> = when (section) {
     SettingsSection.SOURCE -> if (container.exportLocation.uri != null) {
-        stringResource(R.string.settings_entry_source_configured)
+        stringResource(R.string.settings_entry_source_configured) to EntryState.OK
     } else {
-        stringResource(R.string.export_location_none)
+        stringResource(R.string.export_location_none) to EntryState.ATTENTION
     }
     SettingsSection.PROFILE -> if (container.profile.isComplete) {
-        stringResource(R.string.settings_entry_profile_complete)
+        stringResource(R.string.settings_entry_profile_complete) to EntryState.NEUTRAL
     } else {
-        stringResource(R.string.settings_entry_profile_incomplete)
+        stringResource(R.string.settings_entry_profile_incomplete) to EntryState.NEUTRAL
     }
-    SettingsSection.GOALS -> stringResource(R.string.settings_entry_goals_value, container.stepsGoal.value)
+    SettingsSection.GOALS -> stringResource(R.string.settings_entry_goals_value, container.stepsGoal.value) to EntryState.NEUTRAL
     SettingsSection.STRAVA -> if (container.customServerConfig.isConfigured) {
-        stringResource(R.string.settings_status_configured)
+        stringResource(R.string.settings_status_configured) to EntryState.OK
     } else {
-        stringResource(R.string.settings_status_not_configured)
+        stringResource(R.string.settings_status_not_configured) to EntryState.NEUTRAL
     }
     SettingsSection.HEALTH_CONNECT -> if (container.healthConnectConfig.enabled) {
-        stringResource(R.string.settings_status_enabled)
+        stringResource(R.string.settings_status_enabled) to EntryState.OK
     } else {
-        stringResource(R.string.settings_status_disabled)
+        stringResource(R.string.settings_status_disabled) to EntryState.NEUTRAL
     }
     SettingsSection.NOTIFICATIONS -> if (container.notificationPreference.enabled) {
-        stringResource(R.string.settings_status_enabled)
+        stringResource(R.string.settings_status_enabled) to EntryState.OK
     } else {
-        stringResource(R.string.settings_status_disabled)
+        stringResource(R.string.settings_status_disabled) to EntryState.NEUTRAL
     }
-    SettingsSection.MAINTENANCE -> stringResource(R.string.settings_entry_maintenance_value)
-    SettingsSection.ABOUT -> BuildConfig.BUILD_STAMP
+    SettingsSection.MAINTENANCE -> stringResource(R.string.settings_entry_maintenance_value) to EntryState.NEUTRAL
+    SettingsSection.ABOUT -> BuildConfig.BUILD_STAMP to EntryState.NEUTRAL
 }
 
-/**
- * One [SettingsSection]'s own screen: the shared back link, the shared uppercase header
- * (the section's own [SettingsSection.titleRes], identical to what [SettingsScreen] just
- * showed as this entry's label), then the section's own fields -- laid out as direct
- * siblings of this `Column`, not nested inside a second one, so every sub-screen inherits
- * the exact same 20dp padding and 12dp vertical rhythm [SettingsScreen] itself uses, with no
- * way for one section to quietly drift to different spacing.
- *
- * An unknown [sectionId] (only reachable if a saved route ever outlives [SettingsSection]
- * itself, the same concern [ch.kevinjordil.helion.ui.HelionNavHost] already documents for
- * its own metric route) falls back to leaving the sub-screen immediately rather than
- * rendering nothing.
- */
+/** One section of Réglages on its own screen, under a top bar that returns to the list. */
 @Composable
 fun SettingsSectionScreen(container: AppContainer, sectionId: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = HelionThemeTokens.colors
     val section = SettingsSection.entries.firstOrNull { it.id == sectionId }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
-        verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
-    ) {
-        SettingsBackLink(onBack, modifier = Modifier.padding(horizontal = HelionSurfacePadding))
-
-        if (section == null) {
-            LaunchedEffect(sectionId) { onBack() }
-            return@Column
-        }
-
-        Text(
-            stringResource(section.titleRes),
-            style = HelionType.headline,
-            color = colors.textPrimary,
-            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
-        )
-
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
+    if (section == null) {
+        LaunchedEffect(sectionId) { onBack() }
+        return
+    }
+    Column(modifier = modifier.fillMaxSize()) {
+        HelionTopBar(title = stringResource(section.titleRes), onBack = onBack, leadingIcon = settingsIcon(section))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = HelionScreenEdgeMargin)
+                .padding(top = 4.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
         ) {
-            when (section) {
-                SettingsSection.SOURCE -> SourceSettingsSection(container)
-                SettingsSection.PROFILE -> ProfileSettingsSection(container)
-                SettingsSection.GOALS -> GoalsSettingsSection(container)
-                SettingsSection.STRAVA -> CustomServerSettingsSection(container)
-                SettingsSection.HEALTH_CONNECT -> HealthConnectSettingsSection(container)
-                SettingsSection.NOTIFICATIONS -> NotificationsSettingsSection(container)
-                SettingsSection.MAINTENANCE -> ArchiveReanalysisSection(container)
-                SettingsSection.ABOUT -> AboutSettingsSection()
+            HelionSurface(
+                modifier = Modifier.fillMaxWidth(),
+                padding = PaddingValues(HelionSurfacePadding),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                when (section) {
+                    SettingsSection.SOURCE -> SourceSettingsSection(container)
+                    SettingsSection.PROFILE -> ProfileSettingsSection(container)
+                    SettingsSection.GOALS -> GoalsSettingsSection(container)
+                    SettingsSection.STRAVA -> CustomServerSettingsSection(container)
+                    SettingsSection.HEALTH_CONNECT -> HealthConnectSettingsSection(container)
+                    SettingsSection.NOTIFICATIONS -> NotificationsSettingsSection(container)
+                    SettingsSection.MAINTENANCE -> ArchiveReanalysisSection(container)
+                    SettingsSection.ABOUT -> AboutSettingsSection()
+                }
             }
         }
     }
-}
-
-/** The one back-to-the-list link every [SettingsSectionScreen] opens with. */
-@Composable
-private fun SettingsBackLink(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = HelionThemeTokens.colors
-    Text(
-        stringResource(R.string.action_back),
-        style = HelionType.label,
-        color = colors.accentViolet,
-        modifier = modifier.clickable(onClick = onBack),
-    )
 }

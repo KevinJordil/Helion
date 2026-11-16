@@ -1,8 +1,8 @@
 package ch.kevinjordil.helion.ui.settings
 
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -99,7 +99,7 @@ fun HealthConnectSettingsSection(container: AppContainer) {
         SettingsWarning(stringResource(R.string.health_connect_permission_missing))
     }
 
-    Button(
+    HelionButton(
         enabled = !exporting && availability == HealthConnectAvailability.Available,
         onClick = {
             exporting = true

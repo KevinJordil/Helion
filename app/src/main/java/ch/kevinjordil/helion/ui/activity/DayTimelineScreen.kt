@@ -1,5 +1,8 @@
 package ch.kevinjordil.helion.ui.activity
 
+import ch.kevinjordil.helion.ui.theme.HelionIcons
+import ch.kevinjordil.helion.ui.theme.HelionBackLink
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -16,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -122,19 +124,14 @@ fun DayTimelineScreen(
             .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        Text(
-            stringResource(R.string.action_back),
-            style = HelionType.label,
-            color = colors.accentViolet,
-            modifier = Modifier.clickable(onClick = onBack).padding(horizontal = HelionSurfacePadding),
-        )
+        HelionBackLink(onBack, Modifier.padding(start = HelionSurfacePadding - 8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { date = date.minusDays(1) }) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.day_timeline_previous_day))
+                Icon(HelionIcons.ChevronLeft, contentDescription = stringResource(R.string.day_timeline_previous_day), tint = colors.textPrimary)
             }
             // Centred, the same way Sommeil's night navigator centres its own date: the
             // two controls are the same control and looked like two different ones.
@@ -146,7 +143,7 @@ fun DayTimelineScreen(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { date = date.plusDays(1) }) {
-                Icon(Icons.Filled.ArrowForward, contentDescription = stringResource(R.string.day_timeline_next_day))
+                Icon(HelionIcons.ChevronRight, contentDescription = stringResource(R.string.day_timeline_next_day), tint = colors.textPrimary)
             }
         }
 
@@ -168,7 +165,7 @@ fun DayTimelineScreen(
                         state = state,
                         selection = selection,
                         onSelectionChange = { selection = it },
-                        heartRateColor = colors.accentViolet,
+                        heartRateColor = colors.accent,
                         movementColor = colors.textSecondary,
                         axisLabelColor = colors.textTertiary,
                         modifier = Modifier.fillMaxWidth().height(180.dp),
@@ -179,7 +176,7 @@ fun DayTimelineScreen(
                     Text(
                         stringResource(R.string.day_timeline_clear_selection),
                         style = HelionType.bodySmall,
-                        color = colors.accentViolet,
+                        color = colors.accent,
                         modifier = Modifier.clickable(enabled = selection != null) { selection = null },
                     )
                 }
@@ -200,10 +197,10 @@ fun DayTimelineScreen(
         }
 
         val currentSelection = selection
-        Button(
+        HelionButton(
             enabled = currentSelection != null && currentSelection.durationSeconds > 0 && sport != null,
             onClick = {
-                val range = currentSelection ?: return@Button
+                val range = currentSelection ?: return@HelionButton
                 scope.launch {
                     val id = container.database.activities().upsert(
                         Activity(
@@ -255,14 +252,14 @@ private fun ReadoutItem(label: String, value: String, modifier: Modifier = Modif
     val colors = HelionThemeTokens.colors
     Column(modifier = modifier) {
         Text(label, style = HelionType.labelSmall, color = colors.textTertiary)
-        Text(value, style = HelionType.valueMedium, color = colors.accentViolet)
+        Text(value, style = HelionType.valueMedium, color = colors.accent)
     }
 }
 
 /**
  * Draws heart rate and movement intensity against the full day window (not just the span
  * with readings -- a quiet stretch of the day must read as an honest gap, same reasoning as
- * [ch.kevinjordil.helion.ui.ribbon.RibbonBar]'s kdoc), each on its own normalised scale like
+ * the tile series' kdoc in ui.home.TileSeries), each on its own normalised scale like
  * [ch.kevinjordil.helion.ui.sleep.NightChartSection]'s overlays. Dragging picks out a range
  * via [selectionRange]; the selection is drawn as a translucent band with a solid edge line
  * at each boundary and persists after the finger lifts, so the readout below the chart stays

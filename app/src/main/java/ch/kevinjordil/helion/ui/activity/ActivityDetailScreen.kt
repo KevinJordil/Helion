@@ -1,5 +1,10 @@
 package ch.kevinjordil.helion.ui.activity
 
+import ch.kevinjordil.helion.ui.theme.HelionBackLink
+import androidx.compose.foundation.layout.offset
+import ch.kevinjordil.helion.ui.theme.HelionTextButton
+import ch.kevinjordil.helion.ui.theme.HelionOutlinedButton
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,10 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -245,13 +247,13 @@ fun ActivityDetailScreen(
                 Text(
                     current.sport?.let { stringResource(sportLabelRes(it)) } ?: stringResource(R.string.activity_review_sport_missing),
                     style = HelionType.title,
-                    color = if (current.sport == null) colors.accentAmber else colors.textPrimary,
+                    color = if (current.sport == null) colors.attention else colors.textPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
                     stringResource(statusLabelRes(current.status)),
                     style = HelionType.label,
-                    color = if (needsAttention(current.status)) colors.accentAmber else colors.textTertiary,
+                    color = if (needsAttention(current.status)) colors.attention else colors.textTertiary,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
@@ -348,7 +350,7 @@ fun ActivityDetailScreen(
 
             when (current.status) {
                 ActivityStatus.CANDIDATE -> {
-                    Button(
+                    HelionButton(
                         onClick = { publish(current, confirmFirst = true) },
                         enabled = publishBlocker == null && !sendingToCustomServer,
                         modifier = Modifier.fillMaxWidth(),
@@ -356,13 +358,13 @@ fun ActivityDetailScreen(
                         Text(stringResource(R.string.activity_action_confirm_publish))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(
+                        HelionOutlinedButton(
                             onClick = { save(current.copy(status = ActivityStatus.CONFIRMED)) },
                             enabled = !sendingToCustomServer,
                         ) {
                             Text(stringResource(R.string.activity_action_confirm_only))
                         }
-                        OutlinedButton(
+                        HelionOutlinedButton(
                             onClick = { save(current.copy(status = ActivityStatus.DISMISSED)) },
                             enabled = !sendingToCustomServer,
                         ) {
@@ -375,7 +377,7 @@ fun ActivityDetailScreen(
                     if (current.status == ActivityStatus.CONFIRMED && customServerPublication == null) {
                         Text(stringResource(R.string.activity_publish_not_yet), style = HelionType.bodySmall, color = colors.textSecondary)
                     }
-                    Button(
+                    HelionButton(
                         onClick = { publish(current, confirmFirst = false) },
                         enabled = publishBlocker == null && !sendingToCustomServer,
                     ) {
@@ -388,7 +390,7 @@ fun ActivityDetailScreen(
                 }
 
                 ActivityStatus.DISMISSED -> {
-                    Button(onClick = { save(current.copy(status = ActivityStatus.CANDIDATE)) }) {
+                    HelionButton(onClick = { save(current.copy(status = ActivityStatus.CANDIDATE)) }) {
                         Text(stringResource(R.string.activity_action_reopen))
                     }
                 }
@@ -507,7 +509,7 @@ fun ActivityDetailScreen(
 
         // Last on the screen and far from the send button, so scrolling to send never lands
         // a thumb on delete -- the confirmation dialog is still there either way.
-        OutlinedButton(
+        HelionOutlinedButton(
             onClick = { showDeleteConfirm = true },
             modifier = Modifier.padding(horizontal = HelionSurfacePadding),
         ) {
@@ -521,7 +523,7 @@ fun ActivityDetailScreen(
             title = { Text(stringResource(R.string.activity_delete_confirm_title)) },
             text = { Text(stringResource(R.string.activity_delete_confirm_body)) },
             confirmButton = {
-                TextButton(onClick = {
+                HelionTextButton(onClick = {
                     showDeleteConfirm = false
                     scope.launch {
                         container.database.activities().delete(activityId)
@@ -533,7 +535,7 @@ fun ActivityDetailScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
+                HelionTextButton(onClick = { showDeleteConfirm = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -565,11 +567,5 @@ private fun PublicationStatus(publication: Publication) {
 
 @Composable
 private fun BackLink(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = HelionThemeTokens.colors
-    Text(
-        stringResource(R.string.action_back),
-        style = HelionType.label,
-        color = colors.accentViolet,
-        modifier = modifier.clickable(onClick = onBack),
-    )
+    HelionBackLink(onBack, modifier.padding(start = 0.dp).offset(x = (-8).dp))
 }

@@ -1,5 +1,9 @@
 package ch.kevinjordil.helion.ui.activity
 
+import ch.kevinjordil.helion.ui.theme.HelionIcons
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
@@ -24,13 +28,13 @@ import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 
 /** The glyph that carries a badge's meaning before its words are read. */
-private fun badgeEmoji(badge: ActivityBadge): String = when (badge) {
-    is ActivityBadge.FirstInSport -> "🌱"
-    is ActivityBadge.Milestone -> "🎯"
-    ActivityBadge.LongestEver -> "⏱️"
-    is ActivityBadge.LongestInSport -> "⏱️"
-    ActivityBadge.MaxHeartRate -> "❤️‍🔥"
-    ActivityBadge.HighestIntensity -> "🔥"
+private fun badgeIcon(badge: ActivityBadge): ImageVector = when (badge) {
+    is ActivityBadge.FirstInSport -> HelionIcons.Medal
+    is ActivityBadge.Milestone -> HelionIcons.Target
+    ActivityBadge.LongestEver -> HelionIcons.Clock
+    is ActivityBadge.LongestInSport -> HelionIcons.Clock
+    ActivityBadge.MaxHeartRate -> HelionIcons.HeartPulse
+    ActivityBadge.HighestIntensity -> HelionIcons.Flame
 }
 
 /** A badge's own colour: the sport's where it names one, otherwise the app's accent. */
@@ -38,7 +42,7 @@ private fun badgeEmoji(badge: ActivityBadge): String = when (badge) {
 private fun badgeColor(badge: ActivityBadge, colors: HelionColors): Color = when (badge) {
     is ActivityBadge.FirstInSport -> colors.sportColor(badge.sport.category)
     is ActivityBadge.LongestInSport -> colors.sportColor(badge.sport.category)
-    else -> colors.accentViolet
+    else -> colors.accent
 }
 
 @Composable
@@ -52,12 +56,9 @@ private fun badgeLabel(badge: ActivityBadge): String = when (badge) {
 }
 
 /**
- * One badge, as a chip: its glyph and its words together. Never the glyph alone -- an emoji
- * is a hint, not a label, and a badge nobody can name is decoration.
- *
- * The chip is washed in the badge's own colour rather than filled with it, so a card
- * carrying three badges does not turn into three solid blocks; the text keeps the app's own
- * ink and its contrast never depends on which badge it is.
+ * One badge, as a chip: its glyph in the badge's colour and its words together, on a neutral
+ * raised surface. Never the glyph alone -- a badge nobody can name is decoration -- and the
+ * colour stays in the glyph, so a card carrying three badges never turns into three blocks.
  */
 @Composable
 fun BadgeChip(badge: ActivityBadge, modifier: Modifier = Modifier) {
@@ -65,20 +66,20 @@ fun BadgeChip(badge: ActivityBadge, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(HelionCornerRadiusSmall))
-            .background(badgeColor(badge, colors).copy(alpha = 0.20f))
+            .background(colors.surfaceRaised)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(badgeEmoji(badge), style = HelionType.labelSmall)
+        Icon(badgeIcon(badge), contentDescription = null, tint = badgeColor(badge, colors), modifier = Modifier.size(15.dp))
         Text(badgeLabel(badge), style = HelionType.labelSmall, color = colors.textPrimary)
     }
 }
 
 /**
  * Every badge an activity has earned, wrapped onto as many lines as it takes. A [FlowRow]
- * rather than a fixed grid: badge labels are sentences of very different lengths ("🎯 10e
- * activité" against "⏱️ Ta plus longue séance en badminton"), and forcing them into equal
+ * rather than a fixed grid: badge labels are sentences of very different lengths ("10e
+ * activité" against "Ta plus longue séance en badminton"), and forcing them into equal
  * columns would either clip the long ones or waste the row on the short ones.
  */
 @OptIn(ExperimentalLayoutApi::class)

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
@@ -26,6 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.R
+import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
 
@@ -91,8 +93,8 @@ internal fun HistoryRow(
     val phaseColor = phaseColors(colors)
 
     val tag = when {
-        episode.isInProgress -> stringResource(R.string.sleep_history_in_progress_tag) to colors.accentAmber
-        episode.hasDataGap -> stringResource(R.string.sleep_history_incomplete_tag) to colors.accentAmber
+        episode.isInProgress -> stringResource(R.string.sleep_history_in_progress_tag) to colors.attention
+        episode.hasDataGap -> stringResource(R.string.sleep_history_incomplete_tag) to colors.attention
         phaseSource is SleepPhaseSource.Estimated -> stringResource(R.string.sleep_history_estimated_tag) to colors.textTertiary
         else -> null
     }
@@ -101,15 +103,16 @@ internal fun HistoryRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick, role = Role.Button)
-            .padding(vertical = 12.dp),
+            .heightIn(min = 52.dp)
+            .padding(horizontal = HelionSurfacePadding, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(modifier = Modifier.width(104.dp)) {
+        Column(modifier = Modifier.width(92.dp)) {
             Text(
                 weekdayDateText(episode.date, weekdays),
-                style = HelionType.body,
-                color = colors.textSecondary,
+                style = HelionType.label,
+                color = colors.textPrimary,
             )
             // Only naps carry this: a night is fully identified by its date, while two
             // naps on one date are otherwise indistinguishable rows.
@@ -121,14 +124,14 @@ internal fun HistoryRow(
             composition = composition,
             barFraction = barFraction,
             phaseColor = phaseColor,
-            trackColor = colors.divider,
+            trackColor = colors.surfaceRaised,
             noDataColor = colors.textTertiary,
-            modifier = Modifier.weight(1f).height(10.dp),
+            modifier = Modifier.weight(1f).height(8.dp),
         )
-        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(96.dp)) {
+        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(84.dp)) {
             Text(
                 stringResource(R.string.sleep_duration_format, hours.toInt(), minutes.toInt()),
-                style = HelionType.body,
+                style = HelionType.valueSmall,
                 color = colors.textPrimary,
             )
             tag?.let { (text, color) -> Text(text, style = HelionType.labelSmall, color = color) }
@@ -160,7 +163,7 @@ private fun StageCompositionBar(
         val cornerRadius = CornerRadius(size.height / 2f)
 
         drawRoundRect(
-            color = trackColor.copy(alpha = 0.5f),
+            color = trackColor,
             topLeft = Offset.Zero,
             size = Size(size.width, size.height),
             cornerRadius = cornerRadius,

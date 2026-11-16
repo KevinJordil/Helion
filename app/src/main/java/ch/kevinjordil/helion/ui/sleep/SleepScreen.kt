@@ -1,19 +1,25 @@
 package ch.kevinjordil.helion.ui.sleep
 
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -26,10 +32,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.kevinjordil.helion.AppContainer
@@ -43,71 +54,42 @@ import ch.kevinjordil.helion.ui.quality.referenceForSleepDuration
 import ch.kevinjordil.helion.ui.quality.referenceMessage
 import ch.kevinjordil.helion.ui.theme.HelionCardSpacing
 import ch.kevinjordil.helion.ui.theme.HelionColors
+import ch.kevinjordil.helion.ui.theme.HelionIcons
+import ch.kevinjordil.helion.ui.theme.HelionMotion
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
-import ch.kevinjordil.helion.ui.theme.HelionStatItem
+import ch.kevinjordil.helion.ui.theme.HelionScreenHeader
+import ch.kevinjordil.helion.ui.theme.HelionSectionLabel
+import ch.kevinjordil.helion.ui.theme.HelionSegmentedControl
+import ch.kevinjordil.helion.ui.theme.HelionStatRow
 import ch.kevinjordil.helion.ui.theme.HelionSurface
-import ch.kevinjordil.helion.ui.theme.HelionSurfacePadding
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
+import ch.kevinjordil.helion.ui.theme.HorizontalRule
+import ch.kevinjordil.helion.ui.theme.StatCell
+import ch.kevinjordil.helion.ui.theme.StatusDot
+import ch.kevinjordil.helion.ui.theme.helionWell
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.roundToInt
 
 private val CLOCK_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM")
 
-/**
- * [date] prefixed with its French weekday abbreviation (see `R.array.weekday_short`,
- * Monday-first exactly like [java.time.DayOfWeek.getValue]) -- e.g. "Mer 24/08" -- so a
- * night's date is never shown without which day of the week it was. Abbreviated to three
- * letters to stay inside the same width budget as the bare date; see
- * SleepDateWidthTest. Internal rather than private: [ch.kevinjordil.helion.ui.sleep]'s
- * history-list row (see `SleepHistory.kt`) formats the same date the same way, and a
- * night's date must never read differently in the two places it appears.
- */
+/** "Lun 16/11": the short weekday from [weekdayAbbreviations] and the day/month. */
 internal fun weekdayDateText(date: LocalDate, weekdayAbbreviations: List<String>): String =
     "${weekdayAbbreviations[date.dayOfWeek.value - 1]} ${DATE_FORMAT.format(date)}"
 
-/**
- * The night's duration, sized down from [HelionType.hero]: a full 88sp hero numeral wraps
- * a ten-hour-plus night onto a second line on any narrow phone, which is exactly the bug
- * this style exists to fix. Verified against the widest value the format can realistically
- * show (a near-24h night, "23 h 59") at the app's narrowest supported width (320dp) by
- * DurationTextWidthTest -- see that test for the actual measurement.
- */
+/** The night's duration: the screen's one dominant figure (40sp keeps "10 h 59" on one line at 320dp). */
 private val SLEEP_DURATION_STYLE = HelionType.hero.copy(fontSize = 40.sp, lineHeight = 44.sp)
 
 /**
- * The root Column's own horizontal inset, now that the selected-night and averages cards sit
- * on raised [ch.kevinjordil.helion.ui.theme.HelionSurface]s rather than directly against it
- * -- see [HelionSurfacePadding] and this screen's own [SleepScreen] kdoc comment for why the two add
- * up to exactly the 20dp every Sommeil width test still measures against.
- */
-
-/** A card's own internal padding: [HelionScreenEdgeMargin] plus this is the historical 20dp inset. */
-
-/**
- * Sommeil: one selected night's full detail (the most recent by default), with
- * previous/next affordances to step through the roughly-last-month of recorded nights, and
- * the same nights again below as a tappable list -- a second way to jump straight to one.
- * Both routes land on exactly the same detail card, built entirely from [SleepReader] and
- * [segmentSleepEpisodes]; this composable only renders what it is handed.
- *
- * Night-by-night browsing was chosen over a calendar picker: every night this screen can
- * show already lives in one flat, chronologically-ordered list (see [SleepReader.loadNights]
- * -- roughly the last month), so stepping through it or tapping an entry directly are both
- * already free of a fresh query per date; a calendar's main advantage, jumping straight to
- * an arbitrary date, is not very different from tapping the entry for that date in the
- * history list this screen already shows.
- *
- * The two states [SleepEpisode.isInProgress] and [SleepEpisode.hasDataGap] are never
- * silently absorbed into a normal-looking number: both suppress the quality comparisons
- * (a provisional or untrustworthy duration has nothing honest to say "usual" or "in range"
- * about) and both surface their own explicit note instead. Since every entry in [loaded] is
- * an actual recorded episode, a selected night is never blank -- at worst it is one of
- * those two flagged states, said outright rather than shown as an empty card.
+ * Sommeil: the selected night first -- its duration, then how it divided into phases, then
+ * the hypnogram and the heart rate through it -- then averages over recent nights and the
+ * history to step back through. Naps sit in their own section and open in the same detail.
  */
 @Composable
 fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
@@ -116,36 +98,13 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
 
     var nights by remember { mutableStateOf<List<SleepEpisode>?>(null) }
     var baseline by remember { mutableStateOf<Baseline?>(null) }
-    // Every night the archive has ever recorded, loaded once and independently of [nights]
-    // (which stays capped at SleepReader's own ~30-day lookback): the averages panel's own
-    // SleepAverageWindow.ALL option must be able to answer "everything", not just the last
-    // month the history list and browsing already cover.
     var allNights by remember { mutableStateOf<List<SleepEpisode>?>(null) }
     var averageWindow by rememberSaveable { mutableStateOf(SleepAverageWindow.LAST_7) }
-    // Index into `nights`, ascending by [SleepEpisode.wokeAt] (oldest first, exactly as
-    // [SleepReader.loadNights] returns it) -- so index 0 is the oldest night on screen and
-    // the last index is the most recent, which is also this state's initial value.
     var selectedIndex by remember { mutableStateOf(0) }
-
-    /**
-     * Naps, listed below the nights and never mixed into them: they are deliberately absent
-     * from the averages and from the morning notification, because a forty-minute doze
-     * averaged in with nights would drag the figure down as though it were one.
-     */
     var naps by remember { mutableStateOf<List<SleepEpisode>>(emptyList()) }
-
-    /**
-     * Which nap is open in the detail card, or null while a night is. Held separately from
-     * [selectedIndex] rather than merged into one list so the previous/next controls always
-     * step through episodes of the same kind -- stepping from a night into an afternoon
-     * doze and back out again is not browsing, it is losing your place.
-     */
+    // A nap opened from the Siestes section replaces the night in the detail until another
+    // night is picked; null means the detail shows the selected night.
     var selectedNapIndex by remember { mutableStateOf<Int?>(null) }
-
-    // Overlay toggles for the night chart, hoisted here rather than remembered inside
-    // SelectedNightCard so they survive stepping to a different night -- exactly what
-    // "persist while he browses between nights" requires. Off by default; heart rate
-    // itself is not a toggle, it is always shown.
     var showRespiratoryOverlay by rememberSaveable { mutableStateOf(false) }
     var showMovementOverlay by rememberSaveable { mutableStateOf(false) }
 
@@ -154,9 +113,7 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
         val loaded = reader.loadNights(now)
         nights = loaded
         selectedIndex = loaded.lastIndex
-        // The baseline is computed only from completed, trustworthy nights: an
-        // in-progress or gappy duration is not a reading Helion can vouch for, and must
-        // not quietly pull the owner's own history off centre.
+        // In-progress and gapped nights would drag the baseline: their durations are not final.
         val history = loaded
             .filterNot { it.isInProgress || it.hasDataGap }
             .map { Reading(it.wokeAt, it.durationAsleepMinutes / 60.0) }
@@ -166,117 +123,119 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
     }
 
     val loaded = nights ?: return
+    val weekdays = stringArrayResource(R.array.weekday_short).toList()
+    val openNap = selectedNapIndex?.let { naps.getOrNull(it) }
+    val selected = openNap ?: loaded.getOrNull(selectedIndex)
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = HelionScreenEdgeMargin, vertical = HelionCardSpacing),
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
     ) {
-        Text(
-            stringResource(R.string.tab_sleep), style = HelionType.headline, color = colors.textPrimary,
-            modifier = Modifier.padding(horizontal = HelionSurfacePadding),
-        )
-        val selected = loaded.getOrNull(selectedIndex)
-        if (selected == null) {
-            Text(stringResource(R.string.sleep_no_nights), style = HelionType.body, color = colors.textSecondary)
-            return
+        item {
+            HelionScreenHeader(
+                title = stringResource(R.string.tab_sleep),
+                subtitle = selected?.let { episode ->
+                    {
+                        Text(
+                            longDate(episode, openNap != null),
+                            style = HelionType.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
+                },
+                trailing = if (selected == null) null else {
+                    {
+                        val napIndex = selectedNapIndex
+                        val hasPrevious = if (napIndex != null) napIndex > 0 else selectedIndex > 0
+                        val hasNext = if (napIndex != null) napIndex < naps.lastIndex else selectedIndex < loaded.lastIndex
+                        NightStepper(
+                            hasPrevious = hasPrevious,
+                            hasNext = hasNext,
+                            onPrevious = { if (napIndex != null) selectedNapIndex = napIndex - 1 else selectedIndex -= 1 },
+                            onNext = { if (napIndex != null) selectedNapIndex = napIndex + 1 else selectedIndex += 1 },
+                        )
+                    }
+                },
+            )
         }
 
-        // Every other recorded night, most recent first, indices preserved so tapping one
-        // can select it directly -- the second of the two ways to land on the same detail
-        // card as stepping with the previous/next controls.
-        val history = loaded.mapIndexed { index, episode -> index to episode }
-            .filter { (index, _) -> index != selectedIndex }
-            .reversed()
-
-        LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
+        if (selected == null) {
             item {
-                // A nap, once opened, takes over the same card: same chart, same figures.
-                // Its own previous/next steps through naps, so the two kinds never
-                // interleave under the arrows.
-                val openNap = selectedNapIndex?.let { naps.getOrNull(it) }
-                if (openNap != null) {
-                    val napIndex = selectedNapIndex!!
-                    SelectedNightCard(
-                        episode = openNap,
-                        baseline = baseline,
-                        hasPrevious = napIndex > 0,
-                        hasNext = napIndex < naps.lastIndex,
-                        onPrevious = { selectedNapIndex = napIndex - 1 },
-                        onNext = { selectedNapIndex = napIndex + 1 },
-                        showRespiratoryOverlay = showRespiratoryOverlay,
-                        onShowRespiratoryOverlayChange = { showRespiratoryOverlay = it },
-                        showMovementOverlay = showMovementOverlay,
-                        onShowMovementOverlayChange = { showMovementOverlay = it },
-                    )
-                } else {
-                    SelectedNightCard(
-                        episode = selected,
-                        baseline = baseline,
-                        hasPrevious = selectedIndex > 0,
-                        hasNext = selectedIndex < loaded.lastIndex,
-                        onPrevious = { selectedIndex -= 1 },
-                        onNext = { selectedIndex += 1 },
-                        showRespiratoryOverlay = showRespiratoryOverlay,
-                        onShowRespiratoryOverlayChange = { showRespiratoryOverlay = it },
-                        showMovementOverlay = showMovementOverlay,
-                        onShowMovementOverlayChange = { showMovementOverlay = it },
-                    )
-                }
+                Text(
+                    stringResource(R.string.sleep_no_nights),
+                    style = HelionType.body,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(horizontal = HelionScreenEdgeMargin + 14.dp),
+                )
             }
-            allNights?.let { all ->
-                item {
-                    SleepAveragesSection(
-                        nights = all,
-                        window = averageWindow,
-                        onWindowChange = { averageWindow = it },
-                    )
-                }
+            return@LazyColumn
+        }
+
+        item(key = "night") {
+            AnimatedContent(
+                targetState = selected,
+                transitionSpec = { fadeIn(tween(HelionMotion.MEDIUM)) togetherWith fadeOut(tween(HelionMotion.SHORT)) },
+                label = "night",
+            ) { episode ->
+                SelectedNight(
+                    episode = episode,
+                    baseline = baseline,
+                    showRespiratoryOverlay = showRespiratoryOverlay,
+                    onShowRespiratoryOverlayChange = { showRespiratoryOverlay = it },
+                    showMovementOverlay = showMovementOverlay,
+                    onShowMovementOverlayChange = { showMovementOverlay = it },
+                    modifier = Modifier.padding(horizontal = HelionScreenEdgeMargin),
+                )
             }
-            if (history.isNotEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.sleep_history_title),
-                        style = HelionType.title,
-                        color = colors.textPrimary,
-                        modifier = Modifier.padding(start = HelionSurfacePadding, end = HelionSurfacePadding, top = 8.dp),
-                    )
-                }
-                items(history, key = { (index, _) -> index }) { (index, episode) ->
-                    HistoryRow(
-                        episode,
-                        onClick = {
+        }
+
+        allNights?.let { all ->
+            item(key = "averages") {
+                SleepAveragesSection(
+                    nights = all,
+                    window = averageWindow,
+                    onWindowChange = { averageWindow = it },
+                    modifier = Modifier.padding(horizontal = HelionScreenEdgeMargin).padding(top = 12.dp),
+                )
+            }
+        }
+
+        // Every night except the one already open, newest first.
+        val history = loaded.mapIndexed { index, episode -> index to episode }
+            .filter { (index, _) -> openNap != null || index != selectedIndex }
+            .reversed()
+        if (history.isNotEmpty()) {
+            item(key = "history") {
+                EpisodeList(
+                    title = stringResource(R.string.sleep_history_title),
+                    modifier = Modifier.padding(horizontal = HelionScreenEdgeMargin).padding(top = 12.dp),
+                ) {
+                    history.forEachIndexed { position, (index, episode) ->
+                        if (position > 0) HorizontalRule()
+                        HistoryRow(episode, onClick = {
                             selectedIndex = index
                             selectedNapIndex = null
-                        },
-                        modifier = Modifier.padding(horizontal = HelionSurfacePadding),
-                    )
+                        })
+                    }
                 }
             }
+        }
 
-            // Naps, under the nights and clearly apart from them. They were classified from
-            // the start so they could be kept out of the night averages, but until now
-            // nothing ever showed them -- so a sleep the app filed as a nap was a sleep the
-            // owner could not reach at all.
-            if (naps.isNotEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.sleep_naps_title),
-                        style = HelionType.title,
-                        color = colors.textPrimary,
-                        modifier = Modifier.padding(start = HelionSurfacePadding, end = HelionSurfacePadding, top = 8.dp),
-                    )
-                }
-                itemsIndexed(naps.reversed(), key = { _, episode -> "nap:${episode.wokeAt}" }) { reversedIndex, episode ->
-                    HistoryRow(
-                        episode,
-                        onClick = { selectedNapIndex = naps.lastIndex - reversedIndex },
-                        modifier = Modifier.padding(horizontal = HelionSurfacePadding),
-                        // A nap is identified by when in the day it happened: two on the
-                        // same date are otherwise two identical rows.
-                        startTime = CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)),
-                    )
+        if (naps.isNotEmpty()) {
+            item(key = "naps") {
+                EpisodeList(
+                    title = stringResource(R.string.sleep_naps_title),
+                    modifier = Modifier.padding(horizontal = HelionScreenEdgeMargin).padding(top = 12.dp),
+                ) {
+                    naps.reversed().forEachIndexed { reversedIndex, episode ->
+                        if (reversedIndex > 0) HorizontalRule()
+                        HistoryRow(
+                            episode,
+                            onClick = { selectedNapIndex = naps.lastIndex - reversedIndex },
+                            startTime = CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)),
+                        )
+                    }
                 }
             }
         }
@@ -284,229 +243,259 @@ fun SleepScreen(container: AppContainer, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SelectedNightCard(
+private fun longDate(episode: SleepEpisode, isNap: Boolean): String {
+    val weekday = episode.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.FRENCH).replaceFirstChar { it.uppercase() }
+    val month = episode.date.month.getDisplayName(TextStyle.FULL, Locale.FRENCH)
+    val date = "$weekday ${episode.date.dayOfMonth} $month"
+    return if (isNap) "${stringResource(R.string.sleep_nap_label)} · $date" else date
+}
+
+/** Previous/next night, as one compact control in the header. */
+@Composable
+private fun NightStepper(hasPrevious: Boolean, hasNext: Boolean, onPrevious: () -> Unit, onNext: () -> Unit) {
+    val colors = HelionThemeTokens.colors
+    Row(modifier = Modifier.helionWell(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPrevious, enabled = hasPrevious, modifier = Modifier.size(44.dp)) {
+            Icon(
+                HelionIcons.ChevronLeft,
+                contentDescription = stringResource(R.string.sleep_previous_night),
+                tint = if (hasPrevious) colors.textPrimary else colors.textTertiary.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Box(Modifier.size(width = 1.dp, height = 20.dp).helionWell(0.dp))
+        IconButton(onClick = onNext, enabled = hasNext, modifier = Modifier.size(44.dp)) {
+            Icon(
+                HelionIcons.ChevronRight,
+                contentDescription = stringResource(R.string.sleep_next_night),
+                tint = if (hasNext) colors.textPrimary else colors.textTertiary.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectedNight(
     episode: SleepEpisode,
     baseline: Baseline?,
-    hasPrevious: Boolean,
-    hasNext: Boolean,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
     showRespiratoryOverlay: Boolean,
     onShowRespiratoryOverlayChange: (Boolean) -> Unit,
     showMovementOverlay: Boolean,
     onShowMovementOverlayChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = HelionThemeTokens.colors
-    val hours = episode.durationAsleepMinutes / 60
-    val minutes = episode.durationAsleepMinutes % 60
-    val weekdays = stringArrayResource(R.array.weekday_short).toList()
+    val phaseSource = remember(episode) { resolveSleepPhases(episode) }
+    val phaseMinutes = when (phaseSource) {
+        is SleepPhaseSource.Measured -> phaseSource.minutes
+        is SleepPhaseSource.Estimated -> phaseSource.minutes
+        SleepPhaseSource.NotEstimable -> emptyList()
+    }
+    // Minutes per phase across the whole night, time awake included -- the same count the
+    // history bar's composition uses (see nightStageComposition), so the bar, the legend and
+    // the hypnogram's shares all describe the night as it was.
+    val breakdown = remember(phaseSource) { phaseMinutes.groupingBy { it.phase }.eachCount() }
+    val segments = remember(phaseSource) { phaseSegments(phaseSource) }
+    // One cursor shared by the hypnogram and the heart-rate chart.
+    var cursor by remember(episode) { mutableStateOf<Long?>(null) }
 
-    // One rectangle, one idea: the night used to be a single card carrying the duration
-    // hero, the bedtime/wake pair, the phase breakdown, the chart and both the awakening
-    // count and the efficiency percentage -- none of which form one whole with each other.
-    // This is now a stack of surfaces, each holding either one measure or a genuine whole
-    // (bedtime+wake are the two ends of the same night; the three stages sum to the night's
-    // duration), sized so the duration -- the answer to "how did he sleep" -- reads as the
-    // most important figure on the screen.
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            // Now that this card holds only the headline and not the chart too, it can
-            // carry the screen's colour without becoming a slab -- see HelionSurface on why
-            // the tint is a gradient rather than a flat wash.
-            tint = colors.accentViolet,
-        ) {
-            // The date is centred by giving it the row's spare width and centring inside
-            // it, not by relying on the two icon buttons happening to be equally wide --
-            // the day timeline's copy of this control relied on that and drifted left.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onPrevious, enabled = hasPrevious) {
-                    Icon(
-                        Icons.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.sleep_previous_night),
-                        tint = if (hasPrevious) colors.textSecondary else colors.textTertiary,
-                    )
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
+        SummaryCard(episode, baseline, phaseSource, breakdown)
+
+        if (phaseSource !is SleepPhaseSource.NotEstimable) {
+            HelionSurface(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.sleep_hypnogram_title), style = HelionType.title, color = colors.textPrimary, modifier = Modifier.weight(1f))
+                    if (phaseSource is SleepPhaseSource.Estimated) {
+                        Text(stringResource(R.string.sleep_history_estimated_tag), style = HelionType.labelSmall, color = colors.textTertiary)
+                    }
                 }
                 Text(
-                    weekdayDateText(episode.date, weekdays),
-                    style = HelionType.label,
-                    color = colors.textSecondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
+                    cursor?.let { cursorReadout(episode, segments, it) } ?: stringResource(R.string.sleep_cursor_hint),
+                    style = HelionType.labelSmall,
+                    color = if (cursor != null) colors.textPrimary else colors.textTertiary,
                 )
-                IconButton(onClick = onNext, enabled = hasNext) {
-                    Icon(
-                        Icons.Filled.ArrowForward,
-                        contentDescription = stringResource(R.string.sleep_next_night),
-                        tint = if (hasNext) colors.textSecondary else colors.textTertiary,
-                    )
-                }
+                Hypnogram(episode, segments, breakdown, cursor = cursor, onCursor = { cursor = it })
             }
-
-            Text(
-                stringResource(R.string.sleep_duration_format, hours.toInt(), minutes.toInt()),
-                style = SLEEP_DURATION_STYLE,
-                color = colors.accentViolet,
-                softWrap = false,
-            )
-
-            if (episode.isInProgress) {
-                Text(
-                    stringResource(R.string.sleep_in_progress_note),
-                    style = HelionType.bodySmall,
-                    color = colors.accentAmber,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            if (episode.hasDataGap) {
-                Text(
-                    stringResource(R.string.sleep_data_gap_note),
-                    style = HelionType.bodySmall,
-                    color = colors.accentAmber,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-
-            // Nights only. Both comparisons are defined over a night's duration -- the
-            // owner's own 30-night baseline, and the 7-9h reference range -- so applying
-            // them to a nap would report a forty-minute doze as "below the recommended
-            // range" and count it against his usual, which is nonsense in both directions.
-            if (episode.kind == SleepEpisodeKind.NIGHT && !episode.isInProgress && !episode.hasDataGap) {
-                val (personalRes, personalAmber) = personalBaselineMessage(
-                    placeAgainstBaseline(episode.durationAsleepMinutes / 60.0, baseline),
-                )
-                val (referenceRes, referenceAmber) = referenceMessage(
-                    "sleep_duration",
-                    referenceForSleepDuration(episode.durationAsleepMinutes / 60.0),
-                )
-                Text(
-                    stringResource(personalRes),
-                    style = HelionType.bodySmall,
-                    color = if (personalAmber) colors.accentAmber else colors.textSecondary,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                Text(stringResource(referenceRes), style = HelionType.bodySmall, color = if (referenceAmber) colors.accentAmber else colors.textTertiary)
-            }
-
         }
 
-        // The chart has its own card rather than riding along under the duration. Together
-        // they were a single surface running almost the whole screen, which read as one
-        // slab of background regardless of what colour it was: they are two different
-        // questions -- how long, and what the night looked like -- so they are two cards.
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-        ) {
-            NightChartSection(
+        HelionSurface(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.sleep_night_heart_rate_title), style = HelionType.title, color = colors.textPrimary)
+            NightHeartRate(
                 episode = episode,
                 showRespiratory = showRespiratoryOverlay,
                 onShowRespiratoryChange = onShowRespiratoryOverlayChange,
                 showMovement = showMovementOverlay,
                 onShowMovementChange = onShowMovementOverlayChange,
+                cursor = cursor,
+                onCursor = { cursor = it },
             )
+            if (phaseSource is SleepPhaseSource.NotEstimable) {
+                Text(stringResource(R.string.sleep_phase_not_estimable), style = HelionType.bodySmall, color = colors.textSecondary)
+            }
         }
+    }
+}
 
-        // Bedtime and wake time: the two ends of the same night, so they keep sharing one
-        // surface rather than each getting its own.
-        HelionSurface(
+/**
+ * The night at a glance: total sleep as the dominant figure with the bedtime window beside
+ * it, how it compares (to the owner's own nights, and to the recommended range), then the
+ * phase split as one bar with its legend, and the night's awakenings and efficiency.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SummaryCard(episode: SleepEpisode, baseline: Baseline?, phaseSource: SleepPhaseSource, breakdown: Map<SleepPhase, Int>) {
+    val colors = HelionThemeTokens.colors
+    val hours = episode.durationAsleepMinutes / 60
+    val minutes = episode.durationAsleepMinutes % 60
+    HelionSurface(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // The window sits beside the duration while both fit, and drops underneath at large
+        // font scales -- the duration itself never wraps (see DurationTextWidthTest).
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            itemVerticalAlignment = Alignment.Bottom,
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HelionStatItem(stringResource(R.string.sleep_fell_asleep), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)), Modifier.weight(1f), centred = true)
-                HelionStatItem(stringResource(R.string.sleep_woke_at), CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)), Modifier.weight(1f), centred = true)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(stringResource(R.string.sleep_total_label), style = HelionType.labelSmall, color = colors.textTertiary)
+                Text(
+                    stringResource(R.string.sleep_duration_format, hours.toInt(), minutes.toInt()),
+                    style = SLEEP_DURATION_STYLE,
+                    color = colors.textPrimary,
+                    softWrap = false,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "${stringResource(R.string.sleep_fell_asleep)} – ${stringResource(R.string.sleep_woke_at)}",
+                    style = HelionType.labelSmall,
+                    color = colors.textTertiary,
+                )
+                Text(
+                    stringResource(
+                        R.string.sleep_window_value,
+                        CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.fellAsleepAt)),
+                        CLOCK_FORMAT.format(Instant.ofEpochSecond(episode.wokeAt)),
+                    ),
+                    style = HelionType.valueSmall,
+                    color = colors.textPrimary,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
             }
         }
 
-        // Computed once here (rather than inside NightChartSection, which resolves its own
-        // copy for the chart) so the per-stage breakdown below uses the same source.
-        val phaseSource = remember(episode) { resolveSleepPhases(episode) }
-        // Deep/REM/light: three stages that together make up the night's duration, so they
-        // stay on one surface -- the same rule that splits awakenings and efficiency apart.
-        when (phaseSource) {
-            is SleepPhaseSource.Measured -> HelionSurface(
-                modifier = Modifier.fillMaxWidth(),
-                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-            ) { SleepPhaseBreakdown(phaseSource.minutes) }
-            is SleepPhaseSource.Estimated -> HelionSurface(
-                modifier = Modifier.fillMaxWidth(),
-                padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-            ) { SleepPhaseBreakdown(phaseSource.minutes) }
-            SleepPhaseSource.NotEstimable -> Unit
+        // What the duration means: provisional or unreliable first, then the comparisons.
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (episode.isInProgress) SummaryLine(stringResource(R.string.sleep_in_progress_note), attention = true)
+            if (episode.hasDataGap) SummaryLine(stringResource(R.string.sleep_data_gap_note), attention = true)
+            if (episode.kind == SleepEpisodeKind.NIGHT && !episode.isInProgress && !episode.hasDataGap) {
+                val hoursAsleep = episode.durationAsleepMinutes / 60.0
+                val (personalRes, personalNotable) = personalBaselineMessage(placeAgainstBaseline(hoursAsleep, baseline))
+                val (referenceRes, referenceNotable) = referenceMessage("sleep_duration", referenceForSleepDuration(hoursAsleep))
+                SummaryLine(stringResource(personalRes), attention = personalNotable)
+                SummaryLine(stringResource(referenceRes), attention = referenceNotable)
+            }
         }
 
-        // The awakening count and the sleep efficiency are different kinds of measure -- an
-        // event count and a ratio -- but each is a single figure, and a whole card apiece
-        // for one figure was mostly empty space. They share one card as two columns of the
-        // same row: the row is what makes a set of them, the way the phase trio above
-        // already works. "12 · 24 min" is the widest thing that has to fit a half-width
-        // column here; SleepScreenWidthTest holds that bound.
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HelionStatItem(
+        if (phaseSource !is SleepPhaseSource.NotEstimable && breakdown.values.sum() > 0) {
+            HorizontalRule()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.sleep_phases_title), style = HelionType.labelSmall, color = colors.textTertiary, modifier = Modifier.weight(1f))
+                if (phaseSource is SleepPhaseSource.Estimated) {
+                    Text(stringResource(R.string.sleep_phase_title_estimated), style = HelionType.labelSmall, color = colors.textTertiary)
+                }
+            }
+            PhaseBar(breakdown, colors)
+            PhaseLegend(breakdown)
+        }
+
+        HorizontalRule()
+        HelionStatRow(
+            listOf(
+                StatCell(
                     stringResource(R.string.sleep_awakenings),
                     stringResource(R.string.sleep_awakenings_value, episode.awakenings, episode.awakeningsDurationMinutes),
-                    Modifier.weight(1f),
-                    centred = true,
-                )
-                HelionStatItem(
-                    stringResource(R.string.sleep_efficiency),
-                    "${(episode.sleepEfficiency * 100).toInt()} %",
-                    Modifier.weight(1f),
-                    centred = true,
-                )
+                ),
+                StatCell(stringResource(R.string.sleep_efficiency), "${(episode.sleepEfficiency * 100).toInt()} %"),
+            ),
+        )
+    }
+}
+
+@Composable
+private fun SummaryLine(text: String, attention: Boolean) {
+    val colors = HelionThemeTokens.colors
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        StatusDot(if (attention) colors.attention else colors.textTertiary, modifier = Modifier.padding(top = 6.dp))
+        Text(text, style = HelionType.bodySmall, color = if (attention) colors.attention else colors.textSecondary)
+    }
+}
+
+/** The night's phases as one continuous bar in night order of depth: deep, light, REM, awake. */
+@Composable
+private fun PhaseBar(breakdown: Map<SleepPhase, Int>, colors: HelionColors) {
+    val phaseColor = phaseColors(colors)
+    val order = listOf(SleepPhase.DEEP, SleepPhase.LIGHT, SleepPhase.REM, SleepPhase.AWAKE)
+    val total = breakdown.values.sum().coerceAtLeast(1).toFloat()
+    Canvas(modifier = Modifier.fillMaxWidth().height(10.dp)) {
+        val radius = CornerRadius(size.height / 2f)
+        clipPath(Path().apply { addRoundRect(RoundRect(0f, 0f, size.width, size.height, radius)) }) {
+            var left = 0f
+            val gap = 2.dp.toPx()
+            order.forEach { phase ->
+                val width = (breakdown[phase] ?: 0) / total * size.width
+                if (width > 0f) {
+                    drawRect(phaseColor.getValue(phase), Offset(left, 0f), Size((width - gap).coerceAtLeast(1f), size.height))
+                    left += width
+                }
             }
         }
     }
 }
 
-/**
- * The per-stage breakdown (profond, paradoxal, léger) for either [SleepPhaseSource.Measured]
- * or [SleepPhaseSource.Estimated] -- the hypnogram itself now lives inside
- * [NightChartSection], stacked directly under the heart-rate line on the same time axis, so
- * this breakdown is the only phase content left in [SelectedNightCard]'s upper section.
- *
- * Two columns, not three: at this value size, a single phase's widest
- * plausible duration ("23 h 59", the same bound DurationTextWidthTest uses
- * for the whole night) does not fit a third-width column -- see
- * SleepScreenWidthTest. Two rows of two, the same fix already used above,
- * one column short: three items into two columns leaves the third
- * ([SleepPhase.LIGHT]) alone on its own full-width row.
- */
+/** Each phase's duration and share of the night, two to a row. */
 @Composable
-private fun SleepPhaseBreakdown(minutes: List<PhaseMinute>) {
-    val breakdown = sleepPhaseBreakdown(minutes)
-    // One row of three, full width: the three phases are one quantity split three ways and
-    // read as a comparison, which a two-plus-one layout breaks. Fits at a third width only
-    // because phaseDurationText is compact ("1h36", not "1 h 36") -- see SleepScreenWidthTest.
-    Row(
-        // 6dp, not the 8dp used elsewhere: "PARADOXAL" is the widest label in the app and
-        // overflows a third-width column by under a dp at an enlarged font scale with 8dp
-        // gaps. Tightening the gap keeps the word whole -- see DurationTextWidthTest.
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        HelionStatItem(stringResource(R.string.sleep_phase_deep), phaseDurationText(breakdown[SleepPhase.DEEP] ?: 0), Modifier.weight(1f), centred = true)
-        HelionStatItem(stringResource(R.string.sleep_phase_rem), phaseDurationText(breakdown[SleepPhase.REM] ?: 0), Modifier.weight(1f), centred = true)
-        HelionStatItem(stringResource(R.string.sleep_phase_light), phaseDurationText(breakdown[SleepPhase.LIGHT] ?: 0), Modifier.weight(1f), centred = true)
+private fun PhaseLegend(breakdown: Map<SleepPhase, Int>) {
+    val colors = HelionThemeTokens.colors
+    val phaseColor = phaseColors(colors)
+    val total = breakdown.values.sum().coerceAtLeast(1)
+    val order = listOf(SleepPhase.DEEP, SleepPhase.LIGHT, SleepPhase.REM, SleepPhase.AWAKE)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        order.chunked(2).forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth()) {
+                row.forEach { phase ->
+                    val minutes = breakdown[phase] ?: 0
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatusDot(phaseColor.getValue(phase), size = 8.dp, modifier = Modifier.padding(top = 4.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(stringResource(phaseLabelRes(phase)), style = HelionType.labelSmall, color = colors.textSecondary)
+                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(phaseDurationText(minutes), style = HelionType.valueSmall, color = colors.textPrimary, modifier = Modifier.alignByBaseline())
+                                Text(
+                                    stringResource(R.string.sleep_phase_share, (minutes * 100f / total).roundToInt()),
+                                    style = HelionType.labelSmall,
+                                    color = colors.textTertiary,
+                                    modifier = Modifier.alignByBaseline(),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
-/**
- * What each phase colour on the hypnogram means -- see [HelionColors]'s kdoc on
- * [HelionColors.phaseAwake]/[HelionColors.phaseLight]/[HelionColors.phaseRem]/
- * [HelionColors.phaseDeep] for why these four exist and are not [HelionColors.accentViolet]
- * or [HelionColors.accentAmber].
- */
+/** A titled card of rows: the recent nights, the naps. */
+@Composable
+private fun EpisodeList(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HelionSectionLabel(title)
+        HelionSurface(modifier = Modifier.fillMaxWidth(), padding = PaddingValues(0.dp)) { content() }
+    }
+}
+
 internal fun phaseColors(colors: HelionColors) = mapOf(
     SleepPhase.AWAKE to colors.phaseAwake,
     SleepPhase.LIGHT to colors.phaseLight,
@@ -524,148 +513,79 @@ internal fun phaseLabelRes(phase: SleepPhase): Int = when (phase) {
 private fun phaseDurationText(minutesInPhase: Int): String {
     val hours = minutesInPhase / 60
     val minutes = minutesInPhase % 60
-    // Always the hours form, even under an hour ("0h47"): the three phases sit side by side
-    // as a comparison, so their digits should align column to column, and "59 min" does not
-    // fit a third-width column at this value size anyway -- see DurationTextWidthTest.
     return "%dh%02d".format(hours, minutes)
 }
 
-
 /**
- * Sommeil's averages panel: a window selector -- the same visual pattern
- * [ch.kevinjordil.helion.ui.metric.MetricScreen]'s own `RangeSelector` uses for Jour/Semaine/Mois,
- * reused here rather than inventing a second control -- and the figures [computeSleepAverages]
- * hands back for that window.
- *
- * Every "how many nights" figure [SleepAverages] carries is shown, never only the number
- * itself: [SleepAverages.consideredNights] against [SleepAverages.totalNights] right under
- * the header (so "30 dernières nuits" against an archive with only four recorded nights
- * reads honestly), and [SleepAverages.stageNights] again next to the phase breakdown, since
- * that count can be smaller still. A `null` average (its own denominator empty) renders as
- * [R.string.sleep_average_value_missing], never a fabricated zero.
+ * Averages over the last few nights, with how many nights each figure actually rests on --
+ * a window of seven with two usable nights says so rather than passing off two as seven.
  */
 @Composable
-private fun SleepAveragesSection(nights: List<SleepEpisode>, window: SleepAverageWindow, onWindowChange: (SleepAverageWindow) -> Unit) {
+private fun SleepAveragesSection(
+    nights: List<SleepEpisode>,
+    window: SleepAverageWindow,
+    onWindowChange: (SleepAverageWindow) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = HelionThemeTokens.colors
     val averages = remember(nights, window) { computeSleepAverages(nights, window) }
+    val missing = stringResource(R.string.sleep_average_value_missing)
 
-    // The section title, window selector and "N nuits sur M" line are the section's own
-    // header, not a measure, so they sit above the cards the same way Sommeil's own history
-    // title does -- see HistoryRow's Text just below in this file. Each average below then
-    // gets its own surface (or, for the three stages, one shared surface for the whole they
-    // form together) instead of three unrelated averages sharing one row on one card.
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(HelionCardSpacing)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = HelionSurfacePadding),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                stringResource(R.string.sleep_average_section_title),
-                style = HelionType.title,
-                color = colors.textPrimary,
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HelionSectionLabel(stringResource(R.string.sleep_average_section_title))
+        HelionSurface(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            HelionSegmentedControl(
+                options = SleepAverageWindow.entries.map { stringResource(it.labelRes) },
+                selectedIndex = SleepAverageWindow.entries.indexOf(window),
+                onSelect = { onWindowChange(SleepAverageWindow.entries[it]) },
             )
-            AverageWindowSelector(selected = window, onSelect = onWindowChange)
             if (averages.consideredNights == 0) {
                 Text(stringResource(R.string.sleep_average_no_nights), style = HelionType.bodySmall, color = colors.textTertiary)
-                return@Column
+                return@HelionSurface
             }
             Text(
-                // A plural, not a format string: a single night read as "1 nuits sur 1".
                 pluralStringResource(
                     R.plurals.sleep_average_nights_basis,
                     averages.consideredNights,
                     averages.consideredNights,
                     averages.totalNights,
                 ),
-                style = HelionType.bodySmall,
+                style = HelionType.labelSmall,
                 color = colors.textTertiary,
             )
-        }
-
-        if (averages.consideredNights == 0) return@Column
-
-        // Four single figures had a card each, and four cards holding one figure apiece is
-        // mostly padding. They share one card as two rows of columns -- the row is what
-        // makes a set of them, exactly as it does for the phase trio below.
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-            verticalArrangement = Arrangement.spacedBy(HelionCardSpacing),
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HelionStatItem(
-                    stringResource(R.string.sleep_average_duration_label),
-                    averageDurationText(averages.avgDurationMinutes),
-                    Modifier.weight(1f),
-                    centred = true,
-                )
-                HelionStatItem(
-                    stringResource(R.string.sleep_awakenings),
-                    averages.avgAwakenings?.let {
-                        stringResource(
-                            R.string.sleep_awakenings_value,
-                            it.roundToInt(),
-                            (averages.avgAwakeningsDurationMinutes ?: 0.0).roundToInt(),
-                        )
-                    } ?: stringResource(R.string.sleep_average_value_missing),
-                    Modifier.weight(1f),
-                    centred = true,
-                )
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HelionStatItem(
-                    stringResource(R.string.sleep_efficiency),
-                    averages.avgEfficiency?.let { "${(it * 100).toInt()} %" } ?: stringResource(R.string.sleep_average_value_missing),
-                    Modifier.weight(1f),
-                    centred = true,
-                )
-                HelionStatItem(
-                    stringResource(R.string.metric_respiratory_rate),
-                    averages.avgRespiratoryRate?.let { "${it.roundToInt()}" } ?: stringResource(R.string.sleep_average_value_missing),
-                    Modifier.weight(1f),
-                    // A bare "16" says nothing on its own -- this is the only figure in the
-                    // panel whose unit is not implied by its label. Dropped when there is no
-                    // value: "resp/min" under a dash is a unit for nothing.
-                    unit = averages.avgRespiratoryRate?.let { stringResource(R.string.unit_breaths_per_minute) },
-                    centred = true,
-                )
-            }
-        }
-
-        // The three stages together make up the night's duration, so they keep sharing one
-        // surface -- the same rule SelectedNightCard's own phase breakdown follows.
-        HelionSurface(
-            modifier = Modifier.fillMaxWidth(),
-            padding = androidx.compose.foundation.layout.PaddingValues(HelionSurfacePadding),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                HelionStatItem(stringResource(R.string.sleep_phase_deep), averagePhaseDurationText(averages.avgDeepMinutes), Modifier.weight(1f), centred = true)
-                HelionStatItem(stringResource(R.string.sleep_phase_rem), averagePhaseDurationText(averages.avgRemMinutes), Modifier.weight(1f), centred = true)
-                HelionStatItem(stringResource(R.string.sleep_phase_light), averagePhaseDurationText(averages.avgLightMinutes), Modifier.weight(1f), centred = true)
-            }
+            HelionStatRow(
+                listOf(
+                    StatCell(stringResource(R.string.sleep_average_duration_label), averageDurationText(averages.avgDurationMinutes)),
+                    StatCell(
+                        stringResource(R.string.sleep_awakenings),
+                        averages.avgAwakenings?.let {
+                            stringResource(R.string.sleep_awakenings_value, it.roundToInt(), (averages.avgAwakeningsDurationMinutes ?: 0.0).roundToInt())
+                        } ?: missing,
+                    ),
+                ),
+            )
+            HelionStatRow(
+                listOf(
+                    StatCell(stringResource(R.string.sleep_efficiency), averages.avgEfficiency?.let { "${(it * 100).toInt()} %" } ?: missing),
+                    StatCell(
+                        stringResource(R.string.metric_respiratory_rate),
+                        averages.avgRespiratoryRate?.let { "${it.roundToInt()}" } ?: missing,
+                        unit = averages.avgRespiratoryRate?.let { stringResource(R.string.unit_breaths_per_minute) },
+                    ),
+                ),
+            )
+            HorizontalRule()
+            HelionStatRow(
+                listOf(
+                    StatCell(stringResource(R.string.sleep_phase_deep), averagePhaseDurationText(averages.avgDeepMinutes)),
+                    StatCell(stringResource(R.string.sleep_phase_rem), averagePhaseDurationText(averages.avgRemMinutes)),
+                    StatCell(stringResource(R.string.sleep_phase_light), averagePhaseDurationText(averages.avgLightMinutes)),
+                ),
+            )
             Text(
                 stringResource(R.string.sleep_average_stage_basis, averages.stageNights, averages.consideredNights),
-                style = HelionType.bodySmall,
+                style = HelionType.labelSmall,
                 color = colors.textTertiary,
-            )
-        }
-
-    }
-}
-
-@Composable
-private fun AverageWindowSelector(selected: SleepAverageWindow, onSelect: (SleepAverageWindow) -> Unit) {
-    val colors = HelionThemeTokens.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        SleepAverageWindow.entries.forEach { option ->
-            Text(
-                stringResource(option.labelRes),
-                style = HelionType.label,
-                color = if (option == selected) colors.accentViolet else colors.textTertiary,
-                modifier = Modifier
-                    .clickable { onSelect(option) }
-                    .padding(vertical = 4.dp),
             )
         }
     }
@@ -684,6 +604,3 @@ private fun averagePhaseDurationText(minutes: Double?): String {
     val total = minutes.toLong()
     return "%dh%02d".format(total / 60, total % 60)
 }
-
-// HistoryRow now lives in SleepHistory.kt, alongside the per-row stage composition bar and
-// the pure geometry it draws from -- see that file's own kdoc for why it was split out.

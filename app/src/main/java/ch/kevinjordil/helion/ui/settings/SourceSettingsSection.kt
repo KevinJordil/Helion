@@ -1,9 +1,9 @@
 package ch.kevinjordil.helion.ui.settings
 
+import ch.kevinjordil.helion.ui.theme.HelionButton
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,14 +86,14 @@ fun SourceSettingsSection(container: AppContainer) {
         style = HelionType.bodySmall,
         color = colors.textSecondary,
     )
-    Button(onClick = { pickExportFile.launch(arrayOf("*/*")) }) {
+    HelionButton(onClick = { pickExportFile.launch(arrayOf("*/*")) }) {
         Text(stringResource(R.string.choose_export_file))
     }
     if (pickRefused) {
         SettingsWarning(stringResource(R.string.export_location_grant_refused))
     }
 
-    Button(
+    HelionButton(
         enabled = !syncing,
         onClick = {
             syncing = true

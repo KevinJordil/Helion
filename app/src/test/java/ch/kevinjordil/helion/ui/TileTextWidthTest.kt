@@ -118,8 +118,10 @@ class TileTextWidthTest {
  * prompted this file's twin: Sommeil's duration numeral wrapping onto a second line for a
  * ten-hour-plus night (see `SLEEP_DURATION_STYLE` in `SleepScreen.kt`).
  *
- * Budget: the app's narrowest supported screen (320dp) minus Sommeil's own horizontal
- * padding (20dp each side, see `SleepScreen`'s root `Column`): `320 - 2*20 = 280`dp.
+ * Budget: the app's narrowest supported screen (320dp) minus the 14dp screen gutter and the
+ * 14dp card padding on each side: `320 - 2*28 = 264`dp. The duration shares its row with the
+ * bedtime window only while both fit; a FlowRow puts the window underneath otherwise, so the
+ * figure alone is what must fit the line.
  *
  * Widest value: "23 h 59" -- the format is `"%d h %02d"`, and a night's *asleep* duration
  * cannot exceed its own span, which itself cannot exceed a calendar day's worth of
@@ -130,10 +132,11 @@ class TileTextWidthTest {
  */
 class DurationTextWidthTest {
 
-    private val screenContentWidthDp = 280f
+    private val screenContentWidthDp = 264f
     private val fontScale = 1.3f
     private val fontSizeSp = 40f
-    private val letterSpacingSp = -1f
+    // HelionType.hero's tracking (-0.03em) at this size.
+    private val letterSpacingSp = -1.2f
 
     private val font: TrueTypeFont by lazy {
         val file = File("src/main/res/font/ibmplexsans_semibold.ttf")
@@ -155,18 +158,16 @@ class DurationTextWidthTest {
     }
 
     /**
-     * The three phase durations share one row across the screen (see `SleepPhaseBreakdown`),
-     * so each gets a third of the content width minus the two 6dp gaps:
-     * `(280 - 2*6) / 3 = 89.3`dp. Measured at StatItem's own two styles: `valueMedium` (22sp
-     * mono) for the figure, `labelSmall` (12sp, sentence-case [ch.kevinjordil.helion.ui.theme.PlexSans],
-     * no letter-spacing) for its caption -- see Type.kt and StatItem.
+     * The three average phase durations share one HelionStatRow, so each gets a third of the
+     * content width minus the two 1dp rules: `(264 - 2) / 3 = 87.3`dp. Measured at the stat's
+     * own two styles: `valueMedium` (20sp) for the figure, `labelSmall` (12sp) for its caption.
      */
     @Test
     fun `each phase duration and label fits a third-width column`() {
-        val columnWidthDp = (screenContentWidthDp - 2 * 6f) / 3f
+        val columnWidthDp = (screenContentWidthDp - 2 * 1f) / 3f
 
         listOf("23h59", "8h07", "0h59").forEach { value ->
-            val width = (value.map { font.advanceWidthEm(it) }.sum() * 22f) * fontScale
+            val width = (value.map { font.advanceWidthEm(it) }.sum() * 20f) * fontScale
             assertTrue(
                 "value \"$value\" measured ${width}dp, a third-width column is ${columnWidthDp}dp",
                 width <= columnWidthDp,
@@ -272,25 +273,26 @@ private fun unitFor(metricId: String): String = when (metricId) {
  * The gap that let "15 resp/min" wrap through four reports: [TileTextWidthTest] and its
  * siblings only measure strings pulled straight from `strings.xml`, never text composed at
  * runtime from a formatted value plus a unit. MetricScreen's own header value is exactly
- * that composition (see `DETAIL_VALUE_STYLE`'s Row in `MetricScreen.kt`): a big value in
- * `DETAIL_VALUE_STYLE` (56sp, `ibmplexsans_semibold`) next to its unit in the much smaller
- * `label` style (12sp, `ibmplexsans_medium`), 8dp apart. This generates that composed text
+ * that composition (the readout above the chart in `MetricScreen.kt`): a big value in
+ * `HelionType.hero` (48sp, `ibmplexsans_semibold`) next to its unit in the much smaller
+ * `label` style (13sp, `ibmplexsans_medium`), 6dp apart. This generates that composed text
  * for every metric in [MetricCatalog] at its widest plausible value (see
  * [widestMetricValues]) and measures both pieces for real, the same glyph-table approach as
  * [TileTextWidthTest].
  *
- * Budget: the app's narrowest supported screen (320dp) minus MetricScreen's own horizontal
- * padding (20dp each side, see `MetricScreen`'s root `Column`): `320 - 2*20 = 280`dp.
+ * Budget: the app's narrowest supported screen (320dp) minus the content inset (the 14dp
+ * gutter plus 14dp) on each side, where the readout's text starts: `320 - 2*28 = 264`dp.
  */
 class MetricHeaderWidthTest {
 
-    private val screenContentWidthDp = 280f
+    private val screenContentWidthDp = 264f
     private val fontScale = 1.3f
-    private val valueFontSizeSp = 56f
-    private val valueLetterSpacingSp = -1f
+    private val valueFontSizeSp = 48f
+    // HelionType.hero's tracking (-0.03em) at this size.
+    private val valueLetterSpacingSp = -1.44f
     private val unitFontSizeSp = 13f
     private val unitLetterSpacingSp = 0f
-    private val spacingDp = 8f
+    private val spacingDp = 6f
 
     private val valueFont: TrueTypeFont by lazy {
         val file = File("src/main/res/font/ibmplexsans_semibold.ttf")
@@ -335,20 +337,19 @@ class MetricHeaderWidthTest {
 
 /**
  * Same composed-string gap as [MetricHeaderWidthTest], for the min/max/average row
- * (`StatsRow`/`StatItem` in `MetricScreen.kt`). Each `StatItem` is an equal-weight column of
- * the row (three columns, 8dp apart) with the value (`valueMedium`, 22sp,
- * `ibmplexsans_semibold`) and its unit (`labelSmall`, 11sp, `ibmplexsans_medium`) stacked on
- * separate lines rather than side by side, so what has to fit a column is the value alone
- * and the unit alone, not the two concatenated.
+ * (`HelionStatRow` in `StatPrimitives.kt`). Each cell is an equal-weight column with the
+ * value (`valueMedium`, 20sp, `ibmplexsans_semibold`) and its unit (`labelSmall`, 12sp) on one
+ * baseline when they fit, the unit wrapping under the value when they do not (a FlowRow), so
+ * what must fit a column is the value alone and the unit alone.
  *
- * Budget: the same 280dp content width as [MetricHeaderWidthTest], split across three
- * columns with two 8dp gaps between them: `(280 - 2*8) / 3 = 88`dp per column.
+ * Budget: the stats card's content width (`320 - 2*14 - 2*14 = 264`dp), split across three
+ * columns separated by two 1dp rules: `(264 - 2) / 3 = 87.3`dp per column.
  */
 class MetricStatsWidthTest {
 
-    private val columnWidthDp = 88f
+    private val columnWidthDp = (264f - 2f) / 3f
     private val fontScale = 1.3f
-    private val valueFontSizeSp = 22f
+    private val valueFontSizeSp = 20f
     private val unitFontSizeSp = 12f
     private val unitLetterSpacingSp = 0f
 
