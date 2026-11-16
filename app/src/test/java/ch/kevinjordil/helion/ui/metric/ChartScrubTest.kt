@@ -159,8 +159,16 @@ class ChartScrubTest {
     }
 
     @Test
-    fun `a week-long span formats as a compact day-month figure`() {
+    fun `a week-long span formats as the weekday over the day of the month`() {
+        val t = epoch("2026-03-06T00:00:00Z") // a Friday
+        assertEquals("ven\n6", formatAxisTimestamp(t, spanSeconds = 7 * 86_400L, zone = utc))
+        assertTrue(axisLabelsAreTwoLine(7 * 86_400L))
+    }
+
+    @Test
+    fun `a month-long span formats as a compact day-month figure`() {
         val t = epoch("2026-03-06T00:00:00Z")
-        assertEquals("6/3", formatAxisTimestamp(t, spanSeconds = 7 * 86_400L, zone = utc))
+        assertEquals("6/3", formatAxisTimestamp(t, spanSeconds = 30 * 86_400L, zone = utc))
+        assertTrue(!axisLabelsAreTwoLine(30 * 86_400L) && !axisLabelsAreTwoLine(86_400L))
     }
 }

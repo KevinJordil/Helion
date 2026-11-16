@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ch.kevinjordil.helion.ui.theme.CHART_LINE_WIDTH
 import ch.kevinjordil.helion.ui.theme.HelionMotion
@@ -154,11 +155,16 @@ fun DetailChart(
     val minWidth = (minVisibleSeconds.toFloat() / span).coerceIn(0.01f, 1f)
     val gap = remember(readings) { lineGapThreshold(readings) }
     val currentViewport by androidx.compose.runtime.rememberUpdatedState(viewport)
+    // The gesture handlers outlive a zoom (they are keyed on the data, not the viewport), so
+    // they must read the window as it is now: a captured window would pick the reading under
+    // the finger in the old, unzoomed span while the canvas draws the new one.
+    val currentWindow by androidx.compose.runtime.rememberUpdatedState(visibleStart to visibleEnd)
 
     fun readingAt(x: Float): Reading? {
         if (plotWidthPx <= 0f) return null
-        val t = visibleStart + (x / plotWidthPx).coerceIn(0f, 1f) * (visibleEnd - visibleStart)
-        val visible = readings.filter { it.timestamp in visibleStart..visibleEnd }.ifEmpty { readings }
+        val (start, end) = currentWindow
+        val t = start + (x / plotWidthPx).coerceIn(0f, 1f) * (end - start)
+        val visible = readings.filter { it.timestamp in start..end }.ifEmpty { readings }
         return visible.minByOrNull { abs(barCentre(it, style) - t) }
     }
 
@@ -234,7 +240,10 @@ fun DetailChart(
             },
     ) {
         val axisLabelStyle = HelionType.axisLabel.copy(color = colors.textTertiary)
-        val axisHeight = 20.dp.toPx()
+        // Day marks carry the weekday over the date: two lines, centred on their tick.
+        val twoLineAxis = axisLabelsAreTwoLine(visibleEnd - visibleStart)
+        val timeLabelStyle = axisLabelStyle.copy(textAlign = TextAlign.Center)
+        val axisHeight = (if (twoLineAxis) 32.dp else 20.dp).toPx()
         val yLabelWidth = 40.dp.toPx()
         val plotWidth = (size.width - yLabelWidth).coerceAtLeast(1f)
         plotWidthPx = plotWidth
@@ -285,7 +294,7 @@ fun DetailChart(
             val x = xOf(timestamp.toDouble())
             if (x < 0f || x > plotWidth) return@forEach
             drawLine(colors.divider, Offset(x, topPad + plotHeight), Offset(x, topPad + plotHeight + 4.dp.toPx()), strokeWidth = 1f)
-            val label = textMeasurer.measure(formatAxisTime(timestamp, spanSeconds), axisLabelStyle)
+            val label = textMeasurer.measure(formatAxisTime(timestamp, spanSeconds), timeLabelStyle)
             // Each label sits centred under its tick. One that would spill past an edge is left
             // out rather than shoved inwards, where it would crowd out its neighbour.
             val left = x - label.size.width / 2f

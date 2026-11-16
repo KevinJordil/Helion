@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,8 @@ sealed interface TileChart {
     data class Line(val points: List<TilePoint?>) : TileChart
     data class Bars(val points: List<TilePoint?>) : TileChart
     data class Goal(val fraction: Float, val caption: String) : TileChart
+    /** Nothing measured in the tile's window: how old the value above is, in place of a chart. */
+    data class Stale(val text: String) : TileChart
     data object None : TileChart
 }
 
@@ -108,7 +111,8 @@ fun MetricTile(
             }
         }
         Spacer(Modifier.weight(1f))
-        Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(TILE_CHART_HEIGHT), contentAlignment = Alignment.BottomStart) {
+        // At least the chart's height, and more if a text in its place wraps at a large font.
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(min = TILE_CHART_HEIGHT), contentAlignment = Alignment.BottomStart) {
             when (chart) {
                 is TileChart.Line -> TileSparkline(chart.points, hue, Modifier.fillMaxWidth().height(TILE_CHART_HEIGHT))
                 is TileChart.Bars -> TileBars(chart.points, hue, Modifier.fillMaxWidth().height(TILE_CHART_HEIGHT))
@@ -116,10 +120,10 @@ fun MetricTile(
                     Text(chart.caption, style = HelionType.labelSmall, color = colors.textSecondary)
                     GoalTrack(chart.fraction, hue)
                 }
+                is TileChart.Stale -> Text(chart.text, style = HelionType.labelSmall, color = colors.textTertiary)
                 TileChart.None -> Unit
             }
         }
-        // The contextual reading on the left, the window the chart covers on the right.
         // The contextual reading on the left, the window the chart covers on the right. Both
         // are kept short ("Plus bas", "7 j") so they share the line even on a 320dp screen.
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {

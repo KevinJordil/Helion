@@ -475,8 +475,9 @@
 
     <!-- Redesigned Accueil: the window a day-long tile chart covers, a goal caption for a
          target other than the steps goal, the header's freshness line and sync control. -->
-    <string name="tile_window_day">24 h</string>
-    <string name="tile_window_week">7 j</string>
+    <string name="tile_window_recent">6 h</string>
+    <string name="tile_window_night">Nuit</string>
+    <string name="tile_last_measured">Dernière mesure il y a %1$s</string>
     <string name="tile_goal_target">%1$d %% · obj. %2$d</string>
     <string name="home_freshness">Dernière mesure il y a %1$d min</string>
     <string name="home_sync_action">Synchroniser</string>

@@ -146,7 +146,7 @@ fun chartTimeMarkers(startTimestamp: Long, endTimestamp: Long, zone: ZoneId = Zo
 
     return when {
         spanSeconds <= AXIS_HOUR_SPAN_CEILING_SECONDS -> hourMarkers(startTimestamp, endTimestamp, zone)
-        spanSeconds <= oneDaySeconds * 10 -> dayMarkers(startTimestamp, endTimestamp, zone, stepDays = 1)
+        spanSeconds <= AXIS_DAILY_SPAN_CEILING_SECONDS -> dayMarkers(startTimestamp, endTimestamp, zone, stepDays = 1)
         else -> {
             val spanDays = (spanSeconds / oneDaySeconds).toInt().coerceAtLeast(1)
             // Roughly five marks across the whole span, never less than a week apart --
@@ -216,9 +216,21 @@ const val AXIS_HOUR_SPAN_CEILING_SECONDS = 86_400L * 3 / 2
  */
 fun formatAxisTimestamp(timestamp: Long, spanSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String {
     val zoned = Instant.ofEpochSecond(timestamp).atZone(zone)
-    return if (spanSeconds <= AXIS_HOUR_SPAN_CEILING_SECONDS) {
-        "${zoned.hour}h"
-    } else {
-        "${zoned.dayOfMonth}/${zoned.monthValue}"
+    return when {
+        spanSeconds <= AXIS_HOUR_SPAN_CEILING_SECONDS -> "${zoned.hour}h"
+        // One mark per day (Semaine): the weekday over the day of the month, so each day can
+        // be told apart at a glance. Two short lines fit a day's width where "lun 16" would not.
+        axisLabelsAreTwoLine(spanSeconds) -> "${WEEKDAY_SHORT[zoned.dayOfWeek.value - 1]}\n${zoned.dayOfMonth}"
+        else -> "${zoned.dayOfMonth}/${zoned.monthValue}"
     }
 }
+
+/** Whether [formatAxisTimestamp] writes two-line labels for this span -- the axis needs the room. */
+fun axisLabelsAreTwoLine(spanSeconds: Long): Boolean =
+    spanSeconds > AXIS_HOUR_SPAN_CEILING_SECONDS && spanSeconds <= AXIS_DAILY_SPAN_CEILING_SECONDS
+
+/** The span, in seconds, up to which [chartTimeMarkers] places one mark per day. */
+const val AXIS_DAILY_SPAN_CEILING_SECONDS = 86_400L * 10
+
+/** French weekday abbreviations, Monday first, without the trailing full stop. */
+private val WEEKDAY_SHORT = listOf("lun", "mar", "mer", "jeu", "ven", "sam", "dim")

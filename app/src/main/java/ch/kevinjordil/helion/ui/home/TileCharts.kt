@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
@@ -28,9 +29,12 @@ import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.rememberReducedMotion
 
 /**
- * A tile's 24-hour line: one segment per run of consecutive measured buckets, a small dot
- * on the latest bucket so the current value has a place on the line, and a faint baseline
- * for scale. Revealed left to right once, when the tile first appears.
+ * A tile's line: the window's slices joined in order, a small dot on the latest one so the
+ * current value has a place on the line, and a faint baseline for scale. Two measured
+ * slices are joined across up to [TILE_LINE_MAX_BRIDGE] empty ones between them -- spot
+ * readings a few minutes apart read as one trace -- and the line breaks only on a longer
+ * gap, where joining them would draw a trend nothing measured. Revealed left to right
+ * once, when the tile first appears.
  */
 @Composable
 fun TileSparkline(points: List<TilePoint?>, color: Color, modifier: Modifier = Modifier) {
@@ -44,32 +48,27 @@ fun TileSparkline(points: List<TilePoint?>, color: Color, modifier: Modifier = M
         drawLine(colors.hairline, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), strokeWidth = 1f)
 
         val clipRight = size.width * reveal
-        var path: Path? = null
-        var last: TilePoint? = null
         val stroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-        points.forEach { point ->
-            if (point == null || point.x * size.width > clipRight) {
-                path?.let { drawPath(it, color, style = stroke) }
-                path = null
+        val measured = points.withIndex().filter { it.value != null && it.value!!.x * size.width <= clipRight }
+        var path: Path? = null
+        var runLength = 0
+        measured.forEachIndexed { k, (index, point) ->
+            val o = at(point!!)
+            val joined = k > 0 && index - measured[k - 1].index <= TILE_LINE_MAX_BRIDGE + 1
+            if (joined) {
+                path!!.lineTo(o.x, o.y)
+                runLength++
             } else {
-                val o = at(point)
-                val current = path
-                if (current == null) {
-                    path = Path().apply { moveTo(o.x, o.y) }
-                } else {
-                    current.lineTo(o.x, o.y)
-                }
-                last = point
+                // Close the previous run; one that is a single slice draws as a small dot.
+                path?.let { if (runLength > 1) drawPath(it, color, style = stroke) }
+                if (runLength == 1) drawCircle(color, radius = 1.6.dp.toPx(), center = at(measured[k - 1].value!!))
+                path = Path().apply { moveTo(o.x, o.y) }
+                runLength = 1
             }
         }
-        path?.let { drawPath(it, color, style = stroke) }
-        // A lone bucket between gaps draws as a dot rather than vanishing.
-        points.forEachIndexed { i, p ->
-            if (p != null && points.getOrNull(i - 1) == null && points.getOrNull(i + 1) == null && p.x * size.width <= clipRight) {
-                drawCircle(color, radius = 1.6.dp.toPx(), center = at(p))
-            }
-        }
-        last?.takeIf { reveal >= 1f }?.let { p ->
+        path?.let { if (runLength > 1) drawPath(it, color, style = stroke) }
+        if (runLength == 1) drawCircle(color, radius = 1.6.dp.toPx(), center = at(measured.last().value!!))
+        measured.lastOrNull()?.value?.takeIf { reveal >= 1f }?.let { p ->
             drawCircle(colors.surface, radius = 3.6.dp.toPx(), center = at(p))
             drawCircle(color, radius = 2.4.dp.toPx(), center = at(p))
         }
@@ -87,7 +86,9 @@ fun TileBars(points: List<TilePoint?>, color: Color, modifier: Modifier = Modifi
     Canvas(modifier = modifier) {
         if (points.isEmpty()) return@Canvas
         val slot = size.width / points.size
-        val barWidth = (slot * 0.58f).coerceIn(2.dp.toPx(), 9.dp.toPx())
+        // A share of each slot, so seven daily bars read as a week rather than thin sticks,
+        // capped so a short bar in the low chart band still reads as a bar, not a square.
+        val barWidth = (slot * 0.55f).coerceIn(2.dp.toPx(), 12.dp.toPx())
         val radius = CornerRadius(minOf(barWidth / 2f, 2.dp.toPx()))
         val minHeight = 2.dp.toPx()
         // Empty slots get a faint stub so the window's extent stays readable.
@@ -125,10 +126,16 @@ fun GoalTrack(fraction: Float, color: Color, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Whether tile charts draw themselves in when they appear. Accueil turns it off when it
+ * reopens from its cached snapshot: the owner has already seen these charts drawn.
+ */
+val LocalTileReveal = staticCompositionLocalOf { true }
+
 /** 0 to 1 once, when the chart first appears; immediately 1 when animations are off. */
 @Composable
 private fun rememberReveal(): Float {
-    val reduced = rememberReducedMotion()
+    val reduced = rememberReducedMotion() || !LocalTileReveal.current
     val progress = remember { Animatable(if (reduced) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (!reduced) progress.animateTo(1f, tween(HelionMotion.LONG, delayMillis = 120, easing = HelionMotion.Emphasized))

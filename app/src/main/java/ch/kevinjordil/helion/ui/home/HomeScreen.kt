@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +50,7 @@ import ch.kevinjordil.helion.ui.metric.Range
 import ch.kevinjordil.helion.ui.metric.Reading
 import ch.kevinjordil.helion.ui.minutesSinceLastSample
 import ch.kevinjordil.helion.ui.quality.computeBaseline
+import ch.kevinjordil.helion.ui.sleep.SleepReader
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.theme.HelionButton
 import ch.kevinjordil.helion.ui.theme.HelionControlRadius
@@ -72,12 +74,9 @@ import kotlinx.coroutines.launch
 /** The one metric with a goal set in Réglages -- see [ch.kevinjordil.helion.ui.settings.StepsGoal]. */
 private const val STEPS_ID = "steps"
 
-/** Buckets across the day for a line, and for bars. */
-private const val DAY_LINE_BUCKETS = 36
-private const val DAY_BAR_BUCKETS = 24
+/** How far back to look for the last night: a couple of days covers a missed night. */
+private const val LAST_NIGHT_LOOKBACK_DAYS = 2L
 
-private const val WEEK_DAYS = 7
-private const val WEEK_SECONDS = WEEK_DAYS * 24L * 3600
 
 private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRENCH)
 
@@ -95,12 +94,17 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val reader = remember(container) { MetricReader(container.database) }
+    val sleepReader = remember(container) { SleepReader(container.database) }
     val scope = rememberCoroutineScope()
 
-    var loaded by remember { mutableStateOf(false) }
-    var latestByMetricId by remember { mutableStateOf<Map<String, Reading?>>(emptyMap()) }
-    var dayReadingsByMetricId by remember { mutableStateOf<Map<String, List<Reading>>>(emptyMap()) }
-    var monthReadingsByMetricId by remember { mutableStateOf<Map<String, List<Reading>>>(emptyMap()) }
+    // Coming back to the tab shows the last snapshot at once; the reload below then swaps in
+    // fresh numbers without a blank screen in between.
+    val cached = remember(container) { lastHomeSnapshot?.takeIf { it.owner === container } }
+    var snapshot by remember { mutableStateOf(cached) }
+    val loaded = snapshot != null
+    val latestByMetricId = snapshot?.latest.orEmpty()
+    val lastNight = snapshot?.lastNight
+    val monthReadingsByMetricId = snapshot?.month.orEmpty()
     // The sync itself lives on AppContainer (see ForegroundSync): started when the app comes
     // to the foreground, wherever it lands, and not cancelled by leaving this screen. This
     // screen only shows its progress and reloads when a pass lands.
@@ -119,22 +123,28 @@ fun HomeScreen(
 
     suspend fun loadAll() {
         val now = System.currentTimeMillis() / 1000
-        latestByMetricId = MetricCatalog.all.associate { metric ->
-            metric.id to reader.load(metric, Range.YEAR, now).latest
-        }
-        dayReadingsByMetricId = MetricCatalog.all.associate { metric ->
-            metric.id to reader.load(metric, Range.DAY, now).readings
-        }
-        // Range.MONTH is exactly the "roughly the last 30 days" window the personal
-        // baseline is defined over (see ui.quality.computeBaseline), and it also covers the
-        // week a nightly metric's bars span.
-        monthReadingsByMetricId = MetricCatalog.all.associate { metric ->
-            metric.id to reader.load(metric, Range.MONTH, now).readings
-        }
-        loaded = true
+        // One month per metric is all a tile needs: Range.MONTH is exactly the "roughly the
+        // last 30 days" window the personal baseline is defined over (see
+        // ui.quality.computeBaseline), and both a tile's last six hours and its last night
+        // are slices of it. Only a metric with nothing in that month goes
+        // back a year for its latest value -- reading a year of minute samples for every
+        // metric was what made Accueil slow to open.
+        val month = MetricCatalog.all.associate { metric -> metric.id to reader.load(metric, Range.MONTH, now) }
+        val fresh = HomeSnapshot(
+            owner = container,
+            latest = MetricCatalog.all.associate { metric ->
+                metric.id to (month.getValue(metric.id).latest ?: reader.load(metric, Range.YEAR, now).latest)
+            },
+            // The last night's sleep, for the tiles of what the strap only measures asleep.
+            lastNight = sleepReader.loadNights(now, lookbackDays = LAST_NIGHT_LOOKBACK_DAYS).lastOrNull()
+                ?.let { it.fellAsleepAt..it.wokeAt },
+            month = month.mapValues { it.value.readings },
+        )
+        lastHomeSnapshot = fresh
+        snapshot = fresh
     }
 
-    /** Pull-to-refresh and the header button: the spinner shows until the pass ends. */
+    /** Pull-to-refresh and the header button: the header glyph turns until the pass ends. */
     fun refresh() {
         isRefreshing = true
         scope.launch {
@@ -170,8 +180,11 @@ fun HomeScreen(
             onAction = { refresh() },
         )
 
+        // The pull only starts a pass: its indicator springs back on release instead of
+        // spinning, since the header's sync glyph and status line already show the pass --
+        // two spinners for one sync read as two things happening.
         HomeStatus.Nominal -> PullToRefreshBox(
-            isRefreshing = isRefreshing,
+            isRefreshing = false,
             onRefresh = { refresh() },
             modifier = modifier.fillMaxSize(),
         ) {
@@ -180,64 +193,70 @@ fun HomeScreen(
             val stepsGoal = container.stepsGoal.value
             val now = System.currentTimeMillis() / 1000
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().testTag("home-dashboard"),
-                contentPadding = PaddingValues(bottom = 14.dp),
-            ) {
-                item {
-                    HelionScreenHeader(
-                        title = stringResource(R.string.home_heading),
-                        subtitle = {
-                            HomeStatusLine(
-                                phaseRes = refreshPhase?.let(::refreshPhaseLabel),
-                                banner = banner,
-                                newestSample = newestSample,
-                            )
-                        },
-                        trailing = {
-                            SyncButton(syncing = refreshPhase != null || isRefreshing, onClick = { refresh() })
-                        },
-                    )
-                }
-                itemsIndexed(MetricCatalog.all.chunked(2)) { rowIndex, pair ->
-                    // Intrinsic height so the two tiles in a row match whatever they hold.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(IntrinsicSize.Min)
-                            .padding(horizontal = HelionScreenEdgeMargin)
-                            .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        pair.forEachIndexed { column, metric ->
-                            val latest = latestByMetricId[metric.id]?.value
-                            MetricTile(
-                                metric = metric,
-                                latestValue = latest,
-                                chart = tileChart(
+            CompositionLocalProvider(LocalTileReveal provides (cached == null)) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().testTag("home-dashboard"),
+                    contentPadding = PaddingValues(bottom = 14.dp),
+                ) {
+                    item {
+                        HelionScreenHeader(
+                            title = stringResource(R.string.home_heading),
+                            subtitle = {
+                                HomeStatusLine(
+                                    phaseRes = refreshPhase?.let(::refreshPhaseLabel),
+                                    banner = banner,
+                                    newestSample = newestSample,
+                                )
+                            },
+                            trailing = {
+                                SyncButton(syncing = refreshPhase != null || isRefreshing, onClick = { refresh() })
+                            },
+                        )
+                    }
+                    itemsIndexed(MetricCatalog.all.chunked(2)) { rowIndex, pair ->
+                        // Intrinsic height so the two tiles in a row match whatever they hold.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min)
+                                .padding(horizontal = HelionScreenEdgeMargin)
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            pair.forEachIndexed { column, metric ->
+                                val latestReading = latestByMetricId[metric.id]
+                                val latest = latestReading?.value
+                                val month = monthReadingsByMetricId[metric.id].orEmpty()
+                                // The chart follows what was actually recorded, not just the metric.
+                                val plan = planTile(tileSpec(metric), month, now, lastNight)
+                                MetricTile(
                                     metric = metric,
-                                    latest = latest,
-                                    day = dayReadingsByMetricId[metric.id].orEmpty(),
-                                    month = monthReadingsByMetricId[metric.id].orEmpty(),
-                                    stepsGoal = stepsGoal,
-                                    now = now,
-                                ),
-                                chartCaption = when (tileSpec(metric).visual) {
-                                    TileVisual.BARS_WEEK -> stringResource(R.string.tile_window_week)
-                                    TileVisual.LINE_DAY, TileVisual.BARS_DAY -> stringResource(R.string.tile_window_day)
-                                    TileVisual.GOAL -> null
-                                },
-                                personalBaseline = latest?.let { value ->
-                                    placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
-                                },
-                                onClick = { onOpenMetric(metric.id) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .entrance(index = rowIndex * 2 + column),
-                            )
+                                    latestValue = latest,
+                                    chart = tileChart(
+                                        metric = metric,
+                                        plan = plan,
+                                        latest = latestReading,
+                                        readings = month,
+                                        stepsGoal = stepsGoal,
+                                        now = now,
+                                    ),
+                                    chartCaption = when {
+                                        plan.visual == TileVisual.GOAL || plan.visual == TileVisual.NONE -> null
+                                        plan.window == TileWindow.LAST_NIGHT -> stringResource(R.string.tile_window_night)
+                                        else -> stringResource(R.string.tile_window_recent)
+                                    },
+                                    personalBaseline = latest?.let { value ->
+                                        placeAgainstBaseline(value, computeBaseline(monthReadingsByMetricId[metric.id].orEmpty()))
+                                    },
+                                    onClick = { onOpenMetric(metric.id) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .entrance(index = rowIndex * 2 + column, enabled = cached == null),
+                                )
+                            }
+                            if (pair.size == 1) Box(modifier = Modifier.weight(1f))
                         }
-                        if (pair.size == 1) Box(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -247,16 +266,26 @@ fun HomeScreen(
 
 /** The chart a tile draws, built from the readings already loaded for it. */
 @Composable
-private fun tileChart(metric: Metric, latest: Double?, day: List<Reading>, month: List<Reading>, stepsGoal: Int, now: Long): TileChart {
+private fun tileChart(
+    metric: Metric,
+    plan: TilePlan,
+    latest: Reading?,
+    readings: List<Reading>,
+    stepsGoal: Int,
+    now: Long,
+): TileChart {
     val spec = tileSpec(metric)
-    return when (spec.visual) {
-        TileVisual.LINE_DAY -> TileChart.Line(tileSeries(day, now - Range.DAY.seconds, now, DAY_LINE_BUCKETS, spec))
-        TileVisual.BARS_DAY -> TileChart.Bars(tileSeries(day, now - Range.DAY.seconds, now, DAY_BAR_BUCKETS, spec))
-        TileVisual.BARS_WEEK -> TileChart.Bars(tileSeries(month, now - WEEK_SECONDS, now, WEEK_DAYS, spec))
+    return when (plan.visual) {
+        // Nothing in the window: say how old the value above is rather than draw an empty frame.
+        TileVisual.NONE -> latest?.let {
+            TileChart.Stale(stringResource(R.string.tile_last_measured, formatAge(now - it.timestamp)))
+        } ?: TileChart.None
+        TileVisual.LINE -> TileChart.Line(tileSeries(readings, plan.start, plan.end, TILE_LINE_BUCKETS, spec))
+        TileVisual.BARS -> TileChart.Bars(tileSeries(readings, plan.start, plan.end, TILE_BAR_BUCKETS, spec))
         TileVisual.GOAL -> {
             val target = if (metric.id == STEPS_ID) stepsGoal else spec.target?.roundToInt() ?: 0
-            val fraction = goalProgressFraction(latest, target) ?: return TileChart.None
-            val percent = ((latest ?: 0.0) / target * 100).roundToInt()
+            val fraction = goalProgressFraction(latest?.value, target) ?: return TileChart.None
+            val percent = ((latest?.value ?: 0.0) / target * 100).roundToInt()
             val caption = if (metric.id == STEPS_ID) {
                 stringResource(R.string.goal_progress_compact, percent, target)
             } else {
@@ -264,6 +293,16 @@ private fun tileChart(metric: Metric, latest: Double?, day: List<Reading>, month
             }
             TileChart.Goal(fraction, caption)
         }
+    }
+}
+
+/** A compact age: "35 min", "11 h", "3 j". */
+internal fun formatAge(seconds: Long): String {
+    val minutes = (seconds / 60).coerceAtLeast(1)
+    return when {
+        minutes < 60 -> "$minutes min"
+        minutes < 48 * 60 -> "${minutes / 60} h"
+        else -> "${minutes / (24 * 60)} j"
     }
 }
 
@@ -324,10 +363,28 @@ private fun SyncButton(syncing: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Tiles rise into place one after another on first display, quickly; never with motion off. */
+/**
+ * What Accueil last showed, kept for the life of the process so switching back to the tab
+ * draws it immediately. Small: one month of readings per metric.
+ */
+private class HomeSnapshot(
+    /** The app container the numbers were read from: a snapshot never crosses to another. */
+    val owner: AppContainer,
+    val latest: Map<String, Reading?>,
+    /** Falling asleep to waking on the last night, when one is known. */
+    val lastNight: LongRange?,
+    val month: Map<String, List<Reading>>,
+)
+
+private var lastHomeSnapshot: HomeSnapshot? = null
+
+/**
+ * Tiles rise into place one after another on first display, quickly; never with motion off,
+ * and not again when the tab is reopened from its cached snapshot.
+ */
 @Composable
-private fun Modifier.entrance(index: Int): Modifier {
-    val reduced = rememberReducedMotion()
+private fun Modifier.entrance(index: Int, enabled: Boolean): Modifier {
+    val reduced = rememberReducedMotion() || !enabled
     val progress = remember { Animatable(if (reduced) 1f else 0f) }
     LaunchedEffect(Unit) {
         if (!reduced && progress.value < 1f) {

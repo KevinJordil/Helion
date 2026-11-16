@@ -1781,13 +1781,10 @@ class ChartAxisLabelWidthTest {
     private fun hourLabels() = (0..23).map { "${it}h" }
 
     /**
-     * A generous sample of the day/month figures a week actually shows: at most one month
-     * boundary crossing per seven-day window, so a two-digit day pairs with at most one
-     * two-digit month in that window, never two two-digit fields on both marks either side
-     * of the boundary at once except right at a year turnover ("31/12" next to "1/1") --
-     * see the dedicated test below for that one case.
+     * Every line a Semaine day mark can show: the weekday abbreviation over the day of the
+     * month, drawn as two lines, so each line on its own has to fit a day's width.
      */
-    private fun dateLabels() = listOf("1/1", "9/9", "15/6", "30/6", "28/2")
+    private fun dateLabels() = listOf("lun", "mar", "mer", "jeu", "ven", "sam", "dim") + (1..31).map { "$it" }
 
     @Test
     fun `every hour axis label fits comfortably within a day span's per-mark budget`() {
@@ -1806,24 +1803,6 @@ class ChartAxisLabelWidthTest {
             val width = widthDp(label)
             assertTrue("\"$label\" measured ${width}dp, per-mark budget is ${perMarkBudget}dp", width <= perMarkBudget)
         }
-    }
-
-    /**
-     * "31/12" beside "1/1" -- the one week of the year with a two-digit day *and* a
-     * two-digit month on one mark right next to the year's shortest label on the other --
-     * measures over the per-mark budget above. This is exactly what [ScrubbableChart]'s and
-     * [ch.kevinjordil.helion.ui.ribbon.DayRibbon]'s own collision-skip exists for: rather
-     * than let two labels overlap, one is silently dropped for that one week of the year.
-     * Documented here as an accepted, deliberately-handled case, not a gap.
-     */
-    @Test
-    fun `the year-turnover date label does not fit the per-mark budget, which is why the collision-skip exists`() {
-        val perMarkBudget = chartContentWidthDp / 7f
-        val width = widthDp("31/12")
-        assertTrue(
-            "\"31/12\" measured ${width}dp, expected it to exceed the ${perMarkBudget}dp per-mark budget",
-            width > perMarkBudget,
-        )
     }
 
     @Test
