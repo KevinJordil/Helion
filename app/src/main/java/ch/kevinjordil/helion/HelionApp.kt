@@ -30,7 +30,7 @@ class HelionApp : Application(), Configuration.Provider {
         // Scheduled unconditionally, not only once a location has been chosen: this is
         // the only place guaranteed to run on every process start regardless of which
         // entry point (if any beyond MainActivity ever exists) brought the app up, it is
-        // idempotent (KEEP policy, see SyncScheduler), and SyncWorker already treats "no
+        // idempotent (UPDATE policy keeps the existing schedule, see SyncScheduler), and SyncWorker already treats "no
         // location configured" as a harmless no-op (Result.success() with nothing done).
         // Gating this on a chosen location would just mean re-deriving that same
         // "has a location been chosen" check here *and* re-running schedule() the moment

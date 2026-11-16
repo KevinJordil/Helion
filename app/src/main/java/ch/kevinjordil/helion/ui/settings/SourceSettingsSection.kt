@@ -18,9 +18,7 @@ import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.theme.HelionThemeTokens
 import ch.kevinjordil.helion.ui.theme.HelionType
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Where the Gadgetbridge export file is chosen, and where a sync against it can be
@@ -101,16 +99,10 @@ fun SourceSettingsSection(container: AppContainer) {
             syncing = true
             resultMessage = null
             scope.launch {
-                val outcome = withContext(Dispatchers.IO) {
-                    runSync(
-                        copyToCache = { container.exportLocation.copyToCache() },
-                        // A manual tap always attempts to trigger a refresh, backoff or
-                        // not: the user is actively waiting for the result, and this is
-                        // also how they find out the moment triggering starts working
-                        // again (a Gadgetbridge update, enabling the Intent API).
-                        ingest = { path -> container.ingestor.ingest(path, force = true) },
-                    )
-                }
+                // The same pass the app runs when it opens (see ForegroundSync): waits for
+                // Gadgetbridge's Bluetooth sync, then the export, then reads it. If one is
+                // already running, this waits for that one rather than starting a second.
+                val outcome = container.foregroundSync.syncNow().await()
                 resultMessage = syncMessage(outcome)
                 syncing = false
             }

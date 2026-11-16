@@ -95,6 +95,15 @@
             </intent-filter>
         </activity>
 
+        <!--
+          The candidate notification's action buttons (Publier sur Strava, Confirmer,
+          Ignorer), see ch.kevinjordil.helion.notification.CandidateActionReceiver. Not
+          exported: only Helion's own PendingIntents reach it.
+        -->
+        <receiver
+            android:name=".notification.CandidateActionReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

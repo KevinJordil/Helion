@@ -125,6 +125,25 @@
     <string name="activity_list_empty_action">Nouvelle activité</string>
 
     <string name="activity_detail_title">Activité</string>
+    <string name="activity_review_sport_missing">Sport à choisir</string>
+    <string name="activity_review_decision_title">Valider cette activité</string>
+    <string name="activity_review_sport_question">Quel sport ?</string>
+    <string name="activity_review_details_title">Détails</string>
+    <string name="activity_review_heart_rate_title">Fréquence cardiaque</string>
+    <string name="activity_stat_duration">Durée</string>
+    <string name="activity_stat_heart_rate_average">FC moyenne</string>
+    <string name="activity_stat_heart_rate_max">FC max</string>
+    <string name="activity_stat_calories">Calories</string>
+    <string name="activity_stat_calories_value">≈ %1$d</string>
+    <string name="unit_kcal">kcal</string>
+    <string name="activity_action_confirm_publish">Confirmer et publier sur Strava</string>
+    <string name="activity_action_confirm_only">Confirmer sans publier</string>
+    <string name="activity_action_publish">Publier sur Strava</string>
+    <string name="activity_action_republish">Renvoyer vers Strava</string>
+    <string name="activity_publish_needs_sport">Choisissez le sport pour pouvoir publier sur Strava.</string>
+    <string name="activity_publish_needs_server">Pour publier sur Strava, renseignez l\'adresse et le jeton de votre serveur dans Réglages.</string>
+    <string name="activity_publish_sending">Envoi vers Strava…</string>
+    <string name="activity_publish_not_yet">Confirmée, pas encore publiée sur Strava.</string>
     <string name="activity_not_found">Cette activité n\'existe plus.</string>
     <string name="activity_title_label">Titre</string>
     <string name="activity_detection_context_label">Contexte de détection (non publié)</string>
@@ -385,8 +404,20 @@
 
     <string name="notification_channel_name">Activités détectées</string>
     <string name="notification_channel_description">Propose une activité candidate à vérifier ; ne signale jamais rien d\'autre.</string>
-    <string name="notification_candidate_title">Nouvelle activité détectée</string>
-    <string name="notification_candidate_text">Une séance a été repérée sur votre bracelet. Appuyez pour la confirmer, la modifier ou l\'ignorer.</string>
+    <string name="notification_candidate_title">Activité détectée</string>
+    <string name="notification_candidate_hint_publish">Publiez-la sur Strava, ou ignorez-la si ce n\'était pas une séance.</string>
+    <string name="notification_candidate_hint_no_sport">Choisissez le sport pour pouvoir la publier sur Strava.</string>
+    <string name="notification_candidate_hint_no_server">Confirmez-la ou ignorez-la. Pour publier sur Strava, configurez votre serveur dans Réglages.</string>
+    <string name="notification_action_publish">Publier sur Strava</string>
+    <string name="notification_action_confirm">Confirmer</string>
+    <string name="notification_action_choose_sport">Choisir le sport</string>
+    <string name="notification_action_dismiss">Ignorer</string>
+    <string name="notification_publish_sending">Envoi vers Strava…</string>
+    <string name="notification_publish_done_title">Envoyée vers Strava</string>
+    <string name="notification_publish_failed_title">Échec de l\'envoi vers Strava</string>
+    <string name="notification_day_today">Aujourd\'hui</string>
+    <string name="notification_day_yesterday">Hier</string>
+    <string name="notification_heart_rate">FC moy. %1$d, max %2$d bpm</string>
     <string name="notification_candidate_batch_title">Activités à vérifier</string>
     <string name="notification_candidate_batch_text">%1$d activités ont été repérées depuis votre dernière visite. Appuyez pour les consulter.</string>
 

@@ -177,7 +177,7 @@ class IngestorTest {
         val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
         val signal = FakeExportSignal(ExportOutcome.Success)
 
-        val result = ingestor(reader, signal).ingest("/tmp/export.db", force = true, skipSyncRequest = true)
+        val result = ingestor(reader, signal).ingest("/tmp/export.db", skipSyncRequest = true)
 
         assertEquals(listOf("nodomain.freeyourgadget.gadgetbridge.command.TRIGGER_DATABASE_EXPORT"), sent)
         assertTrue(result is IngestResult.Ingested)
@@ -185,9 +185,9 @@ class IngestorTest {
     }
 
     @Test
-    fun `without skipSyncRequest a forced ingest still sends the sync request as before`() = runTest {
+    fun `without skipSyncRequest the pass sends the sync request first`() = runTest {
         val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
-        ingestor(reader).ingest("/tmp/export.db", force = true, skipSyncRequest = false)
+        ingestor(reader).ingest("/tmp/export.db", skipSyncRequest = false)
 
         assertEquals(2, sent.size)
         assertTrue(sent[0].endsWith("ACTIVITY_SYNC"))
@@ -234,54 +234,6 @@ class IngestorTest {
 
         assertTrue(result is IngestResult.Failed)
         assertTrue(storedMinutes().isEmpty())
-    }
-
-    @Test
-    fun `after repeated trigger failures, further periodic passes skip triggering`() = runTest {
-        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
-        val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
-        val ing = ingestor(reader, signal)
-
-        repeat(Ingestor.TRIGGER_FAILURE_THRESHOLD) { ing.ingest("/tmp/export.db") }
-        sent.clear()
-
-        val result = ing.ingest("/tmp/export.db")
-
-        assertTrue(sent.isEmpty())
-        assertTrue(result is IngestResult.Ingested)
-        assertEquals(false, (result as IngestResult.Ingested).refreshTriggered)
-    }
-
-    @Test
-    fun `after backing off, a periodic pass retries once the retry interval has elapsed`() = runTest {
-        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
-        val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
-        var clock = 1_000L
-        val ing = Ingestor(reader, commands(), signal, db) { clock }
-
-        repeat(Ingestor.TRIGGER_FAILURE_THRESHOLD) { ing.ingest("/tmp/export.db") }
-        sent.clear()
-        ing.ingest("/tmp/export.db")
-        assertTrue("still backed off before the interval elapses", sent.isEmpty())
-
-        clock += Ingestor.TRIGGER_RETRY_INTERVAL_SECONDS
-        ing.ingest("/tmp/export.db")
-
-        assertTrue("retries after the interval elapses", sent.isNotEmpty())
-    }
-
-    @Test
-    fun `a forced ingest attempts to trigger even while backed off`() = runTest {
-        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
-        val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
-        val ing = ingestor(reader, signal)
-
-        repeat(Ingestor.TRIGGER_FAILURE_THRESHOLD) { ing.ingest("/tmp/export.db") }
-        sent.clear()
-
-        ing.ingest("/tmp/export.db", force = true)
-
-        assertTrue(sent.isNotEmpty())
     }
 
     @Test
@@ -380,7 +332,7 @@ class IngestorTest {
         val ing = ingestor(reader)
         ing.ingest("/tmp/export.db", background = true)
 
-        ing.ingest("/tmp/export.db", force = true)
+        ing.ingest("/tmp/export.db")
 
         assertEquals(1_000L, db.syncState().get()!!.lastBackgroundSyncAttempt)
     }
@@ -397,5 +349,118 @@ class IngestorTest {
         ingestor(reader).ingest("/tmp/export.db")
 
         assertEquals(500L, db.syncState().get()!!.lastFullDetectionRun)
+    }
+
+    /** Records when it is copied, relative to the commands sent to Gadgetbridge. */
+    private inner class FakeSource(
+        override val isConfigured: Boolean = true,
+        private val failWith: ExportUnavailableException? = null,
+    ) : ExportSource {
+        var copies = 0
+        override fun copyToCache(): String? {
+            failWith?.let { throw it }
+            copies++
+            sent += "copyToCache"
+            return "/tmp/export.db"
+        }
+    }
+
+    /** Records the timeout it was asked to wait with, and always invokes the trigger. */
+    private class FakeSyncSignal(private val outcome: SyncFinishOutcome = SyncFinishOutcome.Finished) : SyncSignal {
+        var awaitedTimeoutMillis: Long? = null
+        override suspend fun awaitSyncFinish(timeoutMillis: Long, trigger: () -> Unit): SyncFinishOutcome {
+            awaitedTimeoutMillis = timeoutMillis
+            trigger()
+            return outcome
+        }
+    }
+
+    @Test
+    fun `the export is copied only after Gadgetbridge has been asked to sync and export`() = runTest {
+        val reader = FakeReader(RawSamples(listOf(minute(100)), emptyList()))
+
+        val result = ingestor(reader).ingest(FakeSource())
+
+        // Copying before the export read the previous export, never the one just requested.
+        assertEquals(
+            listOf(
+                "nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC",
+                "nodomain.freeyourgadget.gadgetbridge.command.TRIGGER_DATABASE_EXPORT",
+                "copyToCache",
+            ),
+            sent,
+        )
+        assertEquals(IngestResult.Ingested(minutes = 1, points = 0), result)
+    }
+
+    @Test
+    fun `an unconfigured source sends nothing to Gadgetbridge`() = runTest {
+        val source = FakeSource(isConfigured = false)
+
+        val result = ingestor(FakeReader(RawSamples(emptyList(), emptyList()))).ingest(source)
+
+        assertEquals(IngestResult.NoSource, result)
+        assertTrue(sent.isEmpty())
+        assertEquals(0, source.copies)
+    }
+
+    @Test
+    fun `an unreadable export comes back as Unavailable and is recorded`() = runTest {
+        val source = FakeSource(failWith = ExportUnavailableException("moved or deleted"))
+
+        val result = ingestor(FakeReader(RawSamples(emptyList(), emptyList()))).ingest(source, background = true)
+
+        assertEquals(IngestResult.Unavailable("moved or deleted"), result)
+        assertEquals("moved or deleted", db.syncState().get()!!.lastError)
+        assertEquals(1_000L, db.syncState().get()!!.lastBackgroundSyncAttempt)
+    }
+
+    @Test
+    fun `with a sync timeout the pass waits for the sync to finish before exporting`() = runTest {
+        val syncSignal = FakeSyncSignal()
+        val ing = ingestor(FakeReader(RawSamples(listOf(minute(100)), emptyList())))
+        ing.syncSignal = syncSignal
+
+        ing.ingest(FakeSource(), syncTimeoutMillis = 180_000L)
+
+        assertEquals(180_000L, syncSignal.awaitedTimeoutMillis)
+        assertEquals("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC", sent.first())
+    }
+
+    @Test
+    fun `a sync that never reports finishing still leads to the export and the read`() = runTest {
+        val ing = ingestor(FakeReader(RawSamples(listOf(minute(100)), emptyList())))
+        ing.syncSignal = FakeSyncSignal(SyncFinishOutcome.Timeout)
+
+        val result = ing.ingest(FakeSource(), syncTimeoutMillis = 180_000L)
+
+        assertEquals(IngestResult.Ingested(minutes = 1, points = 0), result)
+        assertTrue(sent.contains("nodomain.freeyourgadget.gadgetbridge.command.TRIGGER_DATABASE_EXPORT"))
+    }
+
+    @Test
+    fun `without a sync timeout the pass does not wait for the sync`() = runTest {
+        val syncSignal = FakeSyncSignal()
+        val ing = ingestor(FakeReader(RawSamples(listOf(minute(100)), emptyList())))
+        ing.syncSignal = syncSignal
+
+        ing.ingest(FakeSource())
+
+        assertNull(syncSignal.awaitedTimeoutMillis)
+    }
+
+    @Test
+    fun `every pass triggers Gadgetbridge, even after repeated failures`() = runTest {
+        // No backoff: the background pass runs once every four hours, and skipping its
+        // trigger for a day after a few failures would drop the very syncs it exists for.
+        val signal = FakeExportSignal(ExportOutcome.Timeout, invokeTrigger = false)
+        val ing = ingestor(FakeReader(RawSamples(listOf(minute(100)), emptyList())), signal)
+
+        repeat(5) { ing.ingest("/tmp/export.db") }
+        sent.clear()
+        ing.ingest("/tmp/export.db")
+
+        assertEquals(listOf("nodomain.freeyourgadget.gadgetbridge.command.ACTIVITY_SYNC"), sent)
+        assertEquals(6, db.syncState().get()!!.triggerFailureStreak)
     }
 }

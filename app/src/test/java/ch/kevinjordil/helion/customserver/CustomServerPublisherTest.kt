@@ -432,4 +432,23 @@ class CustomServerPublisherTest {
         assertEquals(CustomServerPublisher.Result.Sent(alreadyKnown = false, statusCode = 202, message = null), result)
         assertEquals(1, api.sendCalls)
     }
+
+    @Test
+    fun `an accepted send moves the activity to PUBLISHED`() = runTest {
+        val id = seedActivity()
+
+        publisher.send(id)
+
+        assertEquals(ActivityStatus.PUBLISHED, db.activities().get(id)!!.status)
+    }
+
+    @Test
+    fun `a failed send leaves the activity's status as it was`() = runTest {
+        val id = seedActivity()
+        api.throwOnSend = IOException("Unable to resolve host")
+
+        publisher.send(id)
+
+        assertEquals(ActivityStatus.CONFIRMED, db.activities().get(id)!!.status)
+    }
 }

@@ -17,12 +17,11 @@ import androidx.room.Query
  * rather than kept as a tempting second source of truth. What is left is a report: when the
  * last pass ran, and why it failed if it did. [lastError] is null after a successful pass.
  *
- * [triggerFailureStreak] and [lastTriggerAttempt] back the trigger backoff in
- * [ch.kevinjordil.helion.source.Ingestor]: a phone whose Gadgetbridge cannot be triggered
- * (only exposes the per-device Bluetooth Intent API, not the general one) would otherwise
- * pay a 30 s wake-lock every periodic pass forever. Kept in this row rather than a separate
- * store so the bookkeeping rides along with the write every pass already makes, and survives
- * the process being killed between periodic runs -- an in-memory counter would not.
+ * [triggerFailureStreak] and [lastTriggerAttempt] record how many passes in a row did not
+ * get a confirmed export from Gadgetbridge, and when the last attempt was. They used to drive
+ * a trigger backoff in [ch.kevinjordil.helion.source.Ingestor]; that backoff is gone (every
+ * pass now triggers, see Ingestor's kdoc), and they are kept as a diagnostic -- dropping the
+ * columns would need a migration for no gain.
  *
  * [lastFullDetectionRun] is set only by [ch.kevinjordil.helion.activity.ArchiveReanalyzer],
  * never by [ch.kevinjordil.helion.source.Ingestor]'s own per-pass detection call: it answers

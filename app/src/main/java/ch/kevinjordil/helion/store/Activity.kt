@@ -209,8 +209,13 @@ interface ActivityDao {
      * its one unnotified slot until this query picks it up on a later pass -- exactly the
      * batching this app wants for "several days without opening the app," rather than a
      * silently lost notification.
+     *
+     * A still-[Activity.provisional] candidate is left out: its end sits at the edge of the
+     * data, so the session may still be going on (detection can run mid-training). Notifying
+     * then would announce a truncated duration and offer to publish it; the notification
+     * waits for the pass that sees the session end, which clears the flag.
      */
-    @Query("SELECT * FROM activity WHERE status = 'CANDIDATE' AND notified = 0 ORDER BY startTimestamp")
+    @Query("SELECT * FROM activity WHERE status = 'CANDIDATE' AND notified = 0 AND provisional = 0 ORDER BY startTimestamp")
     suspend fun unnotifiedCandidates(): List<Activity>
 
     /** Marks [ids] as notified -- called only once a notification for them actually posted. */

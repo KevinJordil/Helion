@@ -1,7 +1,6 @@
 package ch.kevinjordil.helion.ui.settings
 
 import ch.kevinjordil.helion.R
-import ch.kevinjordil.helion.source.ExportUnavailableException
 import ch.kevinjordil.helion.source.IngestResult
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -11,27 +10,20 @@ class SyncOutcomeTest {
 
     @Test
     fun `nothing configured yet surfaces as NotConfigured, not as a failure`() = runTest {
-        val outcome = runSync(copyToCache = { null }, ingest = { IngestResult.NoSource })
+        val outcome = runSync(ingest = { IngestResult.NoSource })
         assertEquals(SyncOutcome.NotConfigured, outcome)
     }
 
     @Test
     fun `an unreadable configured file surfaces as Unavailable, distinct from NotConfigured`() = runTest {
-        val outcome = runSync(
-            copyToCache = { throw ExportUnavailableException("moved or deleted") },
-            ingest = { error("must not be called: there is no path to ingest") },
-        )
+        val outcome = runSync(ingest = { IngestResult.Unavailable("moved or deleted") })
         assertEquals(SyncOutcome.Unavailable("moved or deleted"), outcome)
     }
 
     @Test
     fun `a successful pass reports how much arrived`() = runTest {
         val outcome = runSync(
-            copyToCache = { "/cache/export.db" },
-            ingest = { path ->
-                assertEquals("/cache/export.db", path)
-                IngestResult.Ingested(minutes = 12, points = 34)
-            },
+            ingest = { IngestResult.Ingested(minutes = 12, points = 34) },
         )
         assertEquals(SyncOutcome.Ingested(12, 34), outcome)
     }
@@ -39,7 +31,6 @@ class SyncOutcomeTest {
     @Test
     fun `a pass that ingested without triggering a refresh carries that through`() = runTest {
         val outcome = runSync(
-            copyToCache = { "/cache/export.db" },
             ingest = { IngestResult.Ingested(minutes = 3, points = 1, refreshTriggered = false) },
         )
         assertEquals(SyncOutcome.Ingested(3, 1, refreshTriggered = false), outcome)
@@ -48,7 +39,6 @@ class SyncOutcomeTest {
     @Test
     fun `a failed ingestion pass carries its reason through`() = runTest {
         val outcome = runSync(
-            copyToCache = { "/cache/export.db" },
             ingest = { IngestResult.Failed("Timed out waiting for Gadgetbridge to export") },
         )
         assertEquals(SyncOutcome.Failed("Timed out waiting for Gadgetbridge to export"), outcome)

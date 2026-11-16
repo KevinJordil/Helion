@@ -1,6 +1,7 @@
 package ch.kevinjordil.helion.customserver
 
 import ch.kevinjordil.helion.store.ActivityDao
+import ch.kevinjordil.helion.store.ActivityStatus
 import ch.kevinjordil.helion.store.MinuteSampleDao
 import ch.kevinjordil.helion.store.Publication
 import ch.kevinjordil.helion.store.PublicationDao
@@ -196,6 +197,7 @@ class CustomServerPublisher(
             val alreadyKnown = response.statusCode == HttpURLConnection.HTTP_OK
             val message = sanitizeServerMessage(response.body)
             markSent(activityId, alreadyKnown, response.statusCode, message)
+            markActivityPublished(activityId)
             Result.Sent(alreadyKnown, response.statusCode, message)
         } catch (e: Exception) {
             val (reason, detail) = classifyFailure(e)
@@ -244,6 +246,20 @@ class CustomServerPublisher(
                 lastMessage = message?.let { "HTTP $statusCode: $it" },
             ),
         )
+    }
+
+    /**
+     * A send the server accepted (202) or already had (200) means the activity is on its way
+     * to Strava: [ch.kevinjordil.helion.store.ActivityStatus.PUBLISHED], whatever it was
+     * before. Sending is the owner's own act (a button on the activity or on its
+     * notification), so this is still a decision he made, never one taken for him. Re-read
+     * rather than reusing the row loaded before the request, so an edit made on screen while
+     * the request was in flight is not overwritten.
+     */
+    private suspend fun markActivityPublished(activityId: Long) {
+        val current = activities.get(activityId) ?: return
+        if (current.status == ActivityStatus.PUBLISHED && !current.provisional) return
+        activities.update(current.copy(status = ActivityStatus.PUBLISHED, provisional = false))
     }
 
     private suspend fun recordFailure(activityId: Long, reason: String, detail: String? = null) {

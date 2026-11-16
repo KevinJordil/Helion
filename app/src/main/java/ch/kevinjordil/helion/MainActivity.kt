@@ -33,6 +33,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Every return to the foreground -- launcher, recents, a notification tap -- asks for the
+     * opening sync, whichever screen the app lands on. [ch.kevinjordil.helion.ui.home.ForegroundSync]
+     * decides whether one is actually due (debounced, and only once an export file is chosen).
+     */
+    override fun onResume() {
+        super.onResume()
+        (application as HelionApp).container.foregroundSync.onAppOpened()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleNotificationIntent(intent)

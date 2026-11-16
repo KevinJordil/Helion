@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,7 +75,10 @@ fun ActivityListScreen(
     val colors = HelionThemeTokens.colors
     var activities by remember { mutableStateOf<List<Activity>?>(null) }
 
-    LaunchedEffect(Unit) {
+    // Reloaded whenever a foreground sync lands (see ForegroundSync): a candidate detected by
+    // the opening sync shows up here without leaving and re-entering the screen.
+    val syncState by container.foregroundSync.state.collectAsState()
+    LaunchedEffect(syncState.completedPasses) {
         activities = container.database.activities().all()
     }
 

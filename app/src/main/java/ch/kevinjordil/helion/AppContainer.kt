@@ -20,7 +20,10 @@ import ch.kevinjordil.helion.notification.CandidateNotifier
 import ch.kevinjordil.helion.notification.SleepNightNotifier
 import ch.kevinjordil.helion.store.HELION_MIGRATIONS
 import ch.kevinjordil.helion.store.HelionDatabase
+import ch.kevinjordil.helion.ui.home.ForegroundSync
 import ch.kevinjordil.helion.ui.home.OpenSyncGate
+import ch.kevinjordil.helion.ui.home.performRefresh
+import ch.kevinjordil.helion.ui.settings.SyncOutcome
 import ch.kevinjordil.helion.ui.settings.CustomServerConfig
 import ch.kevinjordil.helion.ui.settings.HealthConnectConfig
 import ch.kevinjordil.helion.ui.settings.NotificationPreference
@@ -29,6 +32,17 @@ import ch.kevinjordil.helion.ui.settings.RecordingDeviceName
 import ch.kevinjordil.helion.ui.settings.SleepNotificationPreference
 import ch.kevinjordil.helion.ui.settings.StepsGoal
 import java.time.ZoneId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+
+/**
+ * How long a foreground sync waits for Gadgetbridge's ACTIVITY_SYNC_FINISH. Longer than the
+ * old 25 s because a pass now has to bring in everything since the last sync (up to four hours
+ * of data, see [ch.kevinjordil.helion.source.SyncWorker]) in one go; the screen shows the
+ * existing data and a progress line meanwhile, never a blocking spinner.
+ */
+private const val FOREGROUND_SYNC_TIMEOUT_MILLIS = 60_000L
 
 /** Manual dependency wiring. The graph is small enough that a framework would cost more than it saves. */
 class AppContainer(context: Context) {
@@ -94,7 +108,12 @@ class AppContainer(context: Context) {
      * so a successful test proves the exact channel and permission path a real candidate
      * notification would use, not a second, separately-wired one.
      */
-    val candidateNotifier = CandidateNotifier(context, notificationPreference)
+    val candidateNotifier = CandidateNotifier(
+        context = context,
+        preference = notificationPreference,
+        heartRateSummary = { from, to -> database.minuteSamples().heartRateSummary(from, to) },
+        canPublish = { customServerConfig.isConfigured },
+    )
 
     /** The Réglages on/off switch for the morning sleep-summary notification -- its own channel, see [SleepNightNotifier]'s own kdoc. */
     val sleepNotificationPreference = SleepNotificationPreference(context)
@@ -114,12 +133,17 @@ class AppContainer(context: Context) {
     val commands = GadgetbridgeCommands(BroadcastCommandSender(context))
 
     /**
-     * Used only by the home screen's pull-to-refresh, to wait for Gadgetbridge's Bluetooth
-     * sync to actually finish before the export is triggered. [Ingestor] itself does not
-     * hold a reference to this -- see [Ingestor]'s kdoc for why its own periodic pass does
-     * not wait on this broadcast.
+     * Waits for Gadgetbridge's ACTIVITY_SYNC_FINISH broadcast: used by [foregroundSync]'s
+     * passes and, through [Ingestor.syncSignal], by the background worker's pass.
      */
     val syncSignal = BroadcastSyncSignal(context)
+
+    /**
+     * Application-wide scope for work that must outlive a screen: [foregroundSync]'s passes
+     * and the notification actions (see [ch.kevinjordil.helion.notification.CandidateActionReceiver]).
+     * IO dispatcher because a pass copies and reads a SQLite file with blocking calls.
+     */
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val ingestor = Ingestor(
         reader = ExportReader(),
@@ -129,8 +153,31 @@ class AppContainer(context: Context) {
         now = { System.currentTimeMillis() / 1000 },
     )
 
-    /** Debounces Accueil's open-sync across remounts of the screen; see [OpenSyncGate]'s kdoc. */
+    /** Debounces the opening sync; see [OpenSyncGate]'s kdoc. */
     val openSyncGate = OpenSyncGate()
+
+    /**
+     * Every foreground sync -- app opened, pull-to-refresh, Réglages' button -- goes through
+     * this one instance; see [ForegroundSync]'s kdoc.
+     */
+    val foregroundSync = ForegroundSync(
+        scope = applicationScope,
+        gate = openSyncGate,
+        isConfigured = { exportLocation.isConfigured },
+        nowSeconds = { System.currentTimeMillis() / 1000 },
+        runPass = { onPhase ->
+            if (!exportLocation.isConfigured) {
+                SyncOutcome.NotConfigured
+            } else {
+                performRefresh(
+                    onPhase = onPhase,
+                    requestSync = { commands.requestSync() },
+                    awaitSyncFinish = { trigger -> syncSignal.awaitSyncFinish(FOREGROUND_SYNC_TIMEOUT_MILLIS, trigger) },
+                    ingest = { ingestor.ingest(exportLocation, skipSyncRequest = true) },
+                )
+            }
+        },
+    )
 
     /**
      * The same [ActivityDetector] instance [ingestor] is wired to below, held here as its
@@ -155,6 +202,7 @@ class AppContainer(context: Context) {
     )
 
     init {
+        ingestor.syncSignal = syncSignal
         ingestor.detector = activityDetector
         ingestor.notifier = candidateNotifier
         ingestor.sleepNotifier = sleepNightNotifier

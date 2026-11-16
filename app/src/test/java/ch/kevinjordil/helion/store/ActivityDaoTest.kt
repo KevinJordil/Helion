@@ -152,4 +152,16 @@ class ActivityDaoTest {
         assertEquals("42", rows.single().remoteId)
         assertEquals(PublicationState.PUBLISHED, rows.single().state)
     }
+
+    @Test
+    fun `a still-provisional candidate is not offered for notification until it has settled`() = runTest {
+        val dao = db.activities()
+        val ongoing = dao.upsert(activityAt(1_000, 2_000, ActivityStatus.CANDIDATE).copy(provisional = true))
+        val finished = dao.upsert(activityAt(5_000, 6_000, ActivityStatus.CANDIDATE))
+
+        assertEquals(listOf(finished), dao.unnotifiedCandidates().map { it.id })
+
+        dao.update(dao.get(ongoing)!!.copy(provisional = false))
+        assertEquals(listOf(ongoing, finished), dao.unnotifiedCandidates().map { it.id })
+    }
 }

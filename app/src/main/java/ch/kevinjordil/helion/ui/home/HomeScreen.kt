@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,8 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import ch.kevinjordil.helion.AppContainer
 import ch.kevinjordil.helion.R
 import ch.kevinjordil.helion.ui.metric.MetricCatalog
@@ -41,7 +40,6 @@ import ch.kevinjordil.helion.ui.minutesSinceLastSample
 import ch.kevinjordil.helion.ui.quality.computeBaseline
 import ch.kevinjordil.helion.ui.quality.placeAgainstBaseline
 import ch.kevinjordil.helion.ui.ribbon.buildRibbon
-import ch.kevinjordil.helion.ui.settings.SyncOutcome
 import ch.kevinjordil.helion.ui.theme.HelionContentInset
 import ch.kevinjordil.helion.ui.theme.HelionScreenEdgeMargin
 import ch.kevinjordil.helion.ui.theme.HelionSurface
@@ -53,8 +51,6 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-/** How long Accueil's pull-to-refresh waits for Gadgetbridge's sync-finish broadcast. */
-private const val SYNC_FINISH_TIMEOUT_MILLIS = 25_000L
 
 /** The one metric with a goal to measure a day against -- see [ch.kevinjordil.helion.ui.settings.StepsGoal]. */
 private const val STEPS_ID = "steps"
@@ -94,9 +90,19 @@ fun HomeScreen(
     var latestByMetricId by remember { mutableStateOf<Map<String, Reading?>>(emptyMap()) }
     var dayReadingsByMetricId by remember { mutableStateOf<Map<String, List<Reading>>>(emptyMap()) }
     var monthReadingsByMetricId by remember { mutableStateOf<Map<String, List<Reading>>>(emptyMap()) }
+    // The sync itself lives on AppContainer (see ForegroundSync): started when the app comes
+    // to the foreground, wherever it lands, and not cancelled by leaving this screen. This
+    // screen only shows its progress and reloads when a pass lands.
+    val syncState by container.foregroundSync.state.collectAsState()
+    // A completed pass' outcome replaces the freshness line only for passes that finished
+    // while this screen was showing, as before: not a stale "N minutes synchronisées" from a
+    // pass that ran an hour ago, before the owner came back to Accueil.
+    val passesAtMount = remember { container.foregroundSync.state.value.completedPasses }
+    val banner = syncState.lastOutcome
+        ?.takeIf { syncState.completedPasses > passesAtMount }
+        ?.let(::refreshBanner)
+    val refreshPhase = syncState.phase
     var isRefreshing by remember { mutableStateOf(false) }
-    var refreshPhase by remember { mutableStateOf<RefreshPhase?>(null) }
-    var banner by remember { mutableStateOf<RefreshBanner?>(null) }
 
     val exportConfigured = container.exportLocation.uri != null
 
@@ -117,89 +123,21 @@ fun HomeScreen(
         loaded = true
     }
 
-    /**
-     * [showSpinner] separates the two callers of the same refresh: a user's pull gesture
-     * wants to see the pull-to-refresh indicator spin, but the automatic open-sync (see
-     * the `LifecycleEventEffect` below) must stay invisible except for the freshness line's
-     * phase text -- "show the existing data immediately... show the refresh in progress in
-     * the freshness line", never a blocking spinner on every launch.
-     */
-    fun refresh(showSpinner: Boolean) {
-        if (showSpinner) isRefreshing = true
+    /** Pull-to-refresh: the spinner shows until the pass (a new one, or one already running) ends. */
+    fun refresh() {
+        isRefreshing = true
         scope.launch {
-            val outcome = performRefresh(
-                onPhase = { phase -> refreshPhase = phase },
-                requestSync = { container.commands.requestSync() },
-                awaitSyncFinish = { trigger -> container.syncSignal.awaitSyncFinish(SYNC_FINISH_TIMEOUT_MILLIS, trigger) },
-                copyToCache = { container.exportLocation.copyToCache() },
-                // skipSyncRequest = true: this call already drove and awaited
-                // ACTIVITY_SYNC_FINISH itself just above, so Ingestor must not request a
-                // second, redundant sync right as the device's just finished -- see
-                // Ingestor's kdoc on `skipSyncRequest`.
-                ingest = { path -> container.ingestor.ingest(path, force = true, skipSyncRequest = true) },
-            )
-            banner = refreshBanner(outcome)
-            if (outcome is SyncOutcome.Ingested) loadAll()
-            refreshPhase = null
-            if (showSpinner) isRefreshing = false
+            try {
+                container.foregroundSync.syncNow().await()
+            } finally {
+                isRefreshing = false
+            }
         }
     }
 
-    /**
-     * The open-sync's own loop (see [runOpenSyncLoop]): unlike [refresh], which is one
-     * pass, this repeats passes -- each one built exactly like [refresh]'s single pass --
-     * until a pass ingests nothing new or a cap is hit. Still invisible except for the
-     * freshness line's phase text, same as before; [loadAll] and the banner are refreshed
-     * after every individual pass, not just once at the end, so the screen visibly updates
-     * as each pass lands rather than only when the whole loop finishes.
-     */
-    fun openSync() {
-        scope.launch {
-            runOpenSyncLoop(
-                runPass = {
-                    performRefresh(
-                        onPhase = { phase -> refreshPhase = phase },
-                        requestSync = { container.commands.requestSync() },
-                        awaitSyncFinish = { trigger -> container.syncSignal.awaitSyncFinish(SYNC_FINISH_TIMEOUT_MILLIS, trigger) },
-                        copyToCache = { container.exportLocation.copyToCache() },
-                        ingest = { path -> container.ingestor.ingest(path, force = true, skipSyncRequest = true) },
-                    )
-                },
-                onPass = { outcome ->
-                    banner = refreshBanner(outcome)
-                    if (outcome is SyncOutcome.Ingested) loadAll()
-                },
-            )
-            refreshPhase = null
-        }
-    }
-
-    LaunchedEffect(Unit) { loadAll() }
-
-    // Sync on every ON_RESUME, not just the first composition: a `LaunchedEffect(Unit)`
-    // here only ever fires once per composition lifetime, which covers a genuine cold
-    // start but NOT the far more common "open the app" -- bringing an already-running
-    // process back to the foreground from recents, which resumes the existing Activity
-    // without recomposing Accueil from scratch, so a mount-only effect would silently
-    // never run again for the rest of the process's life. ON_RESUME fires both on cold
-    // start (the lifecycle replays it immediately since the observer attaches already-
-    // resumed) and on every later foreground return, which is what "kicks off a sync
-    // when the app opens" actually has to mean. OpenSyncGate's debounce (ten minutes) is
-    // what keeps this from re-syncing on every quick foreground bounce.
-    //
-    // This is [openSync] (the repeating loop), not the single-pass [refresh]: an open is
-    // exactly the moment worth catching all the way up, whereas pull-to-refresh stays one
-    // pass -- it is a deliberate, watched gesture, not "make sure everything is current".
-    // scope.launch (inside openSync) is tied to rememberCoroutineScope's composition
-    // lifetime, so leaving Accueil for good (the Activity being torn down) cancels a
-    // loop mid-flight the same way any other coroutine here already is.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        val now = System.currentTimeMillis() / 1000
-        if (exportConfigured && container.openSyncGate.shouldSync(now)) {
-            container.openSyncGate.recordAttempt(now)
-            openSync()
-        }
-    }
+    // Keyed on the completed-pass counter: the first composition loads what is stored, and
+    // every pass that lands afterwards -- the opening sync included -- reloads it.
+    LaunchedEffect(syncState.completedPasses) { loadAll() }
 
     if (!loaded) return
 
@@ -218,12 +156,12 @@ fun HomeScreen(
             titleRes = R.string.accueil_empty_title,
             bodyRes = R.string.accueil_empty_body,
             actionRes = R.string.accueil_empty_action,
-            onAction = { refresh(showSpinner = true) },
+            onAction = { refresh() },
         )
 
         HomeStatus.Nominal -> PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = { refresh(showSpinner = true) },
+            onRefresh = { refresh() },
             modifier = modifier.fillMaxSize(),
         ) {
             val newestSample = latestByMetricId.values.filterNotNull().maxOfOrNull { it.timestamp }

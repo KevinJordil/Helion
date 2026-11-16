@@ -56,12 +56,42 @@ produce inconsistent sleep data.
 
 ### 2. Enable the Gadgetbridge features Helion needs
 
-In Gadgetbridge:
+Checked against Gadgetbridge's source (`IntentApiReceiver`, `GB.signalActivityDataFinish`,
+`DatabaseExportWorker`, `PeriodicExporter`). Every one of these is off by default, and
+each one gates something different. Settings labels are Gadgetbridge's English ones.
 
-- **Settings → Auto export** — enable it and choose an export location. Helion
-  triggers exports on demand, so the interval does not limit how fresh your data is.
-- **Settings → Developer options → Intent API** — enable it, along with the sync and
-  export categories.
+**Settings → Developer options → Intent API**
+
+| Setting | Without it |
+|---|---|
+| Activity sync → **Allow activity sync trigger** | Helion's sync request is ignored. |
+| Activity sync → **Broadcast on activity sync finish** | Helion never hears that the Bluetooth fetch is over, and waits until its timeout (60 s on open, 3 min in the background) before exporting. |
+| Auto export database → **Allow database export** | Helion's export request is ignored. |
+| Auto export database → **Broadcast on database export** | Helion never hears that the export is written, and waits 30 s every pass. |
+
+**Settings → Automations → Auto export**
+
+- **Auto export enabled**: on. Gadgetbridge refuses every export, including the ones
+  Helion asks for, while this is off.
+- **Export location**: the file Helion reads (picked once in Helion's Réglages).
+- **Export interval**: `0`. Gadgetbridge then schedules no export of its own; the
+  exports Helion asks for still work.
+
+**Settings → Automations → Auto fetch**: off. Otherwise Gadgetbridge also syncs every
+time the phone is unlocked, on top of Helion's own schedule.
+
+Gadgetbridge only listens to these requests while its service is running, and Android
+battery management can stop either app: on Samsung, set both Gadgetbridge and Helion to
+**Battery → Unrestricted** (and keep them out of "Sleeping apps").
+
+### When Helion syncs
+
+- **In the background, once every four hours** (WorkManager periodic work): sync from
+  the strap, wait for the fetch to finish, export, read. A failed pass is recorded and not
+  retried before the next period. Android may delay a run, never run it twice in a period.
+- **When the app is opened**, wherever it opens (a notification tap included), at most
+  once every ten minutes: the same pass, with its progress on Accueil.
+- **By hand**: pull to refresh on Accueil, or **Synchroniser maintenant** in Réglages (source section).
 
 ### 3. Enable USB debugging
 
@@ -80,18 +110,16 @@ Run `./scripts/helion.sh` with no arguments to list every command.
 
 ## Verifying the Gadgetbridge link
 
-Helion drives Gadgetbridge with two intents whose exact names come from
-documentation and have not yet been confirmed against a running install. If they are
-wrong, Helion waits, times out, and reports a failure — it never silently pretends
-to have synced. Confirm them once:
+Helion drives Gadgetbridge with two intents (`command.ACTIVITY_SYNC`,
+`command.TRIGGER_DATABASE_EXPORT`) and listens for two broadcasts back
+(`action.ACTIVITY_SYNC_FINISH`, `action.DATABASE_EXPORT_SUCCESS`/`_FAIL`). These names
+match Gadgetbridge's source. To check the whole chain on the phone:
 
     ./scripts/helion.sh gb-check
 
 This broadcasts both intents and shows the export file's timestamp before and after.
 A sync should be visible in Gadgetbridge, and the export file's modification time
-should change. If it does not, the export action name is wrong: try `TRIGGER_EXPORT`
-instead of `TRIGGER_DATABASE_EXPORT` in `GadgetbridgeCommands.kt`. Both names live in
-one place precisely so this is a one-file fix.
+should change. If it does not, one of the settings above is off.
 
 ## First run
 
@@ -99,8 +127,8 @@ Once installed, in this order:
 
 1. Open the settings screen and pick the Gadgetbridge export file. This exercises the
    file picker and the persistable permission.
-2. Tap **Sync now** and check that values appear. This is the real test of the intent
-   names.
+2. Tap **Synchroniser maintenant** and check that values appear. This is the real test
+   of the Gadgetbridge settings above.
 3. Reboot the phone, reopen Helion, sync again. This is the only way to confirm the
    file permission survived — a failure here never shows up on the first run.
 

@@ -130,11 +130,11 @@ sealed interface SyncFinishOutcome {
 
 /**
  * Indirection so a caller can wait for Gadgetbridge's ACTIVITY_SYNC_FINISH broadcast
- * without depending on Android's BroadcastReceiver machinery directly. Used only from the
- * home screen's pull-to-refresh, which is a deliberate, user-watched gesture and can
- * therefore afford to wait for the Bluetooth round trip to actually finish before asking
- * Gadgetbridge to export -- unlike [Ingestor]'s periodic pass, which fires the sync request
- * and moves straight on (see its kdoc for why).
+ * without depending on Android's BroadcastReceiver machinery directly. Used by every pass that
+ * wants the export to include what the Bluetooth sync just fetched: the foreground sync (see
+ * [ch.kevinjordil.helion.ui.home.performRefresh]) and the background worker (through
+ * [Ingestor.syncSignal]). Gadgetbridge only sends this broadcast when its "Broadcast on
+ * activity sync finish" setting is on, and only once every fetch operation has finished.
  */
 interface SyncSignal {
 

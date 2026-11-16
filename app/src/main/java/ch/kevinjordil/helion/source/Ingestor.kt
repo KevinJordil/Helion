@@ -27,7 +27,30 @@ sealed interface IngestResult {
         val stageSegments: Int = 0,
     ) : IngestResult
 
+    /**
+     * A location is configured, but the file behind it could not be copied after the export
+     * (moved, deleted, or the read permission was lost) -- see [ExportUnavailableException].
+     * Distinct from [NoSource] (nothing chosen yet) and from [Failed] (the copy worked but
+     * reading it did not): each needs a different message.
+     */
+    data class Unavailable(val reason: String) : IngestResult
+
     data class Failed(val reason: String) : IngestResult
+}
+
+/**
+ * Where a pass gets Gadgetbridge's export from. Implemented by [ExportLocation]; an interface
+ * only so [Ingestor] can be tested without a Storage Access Framework URI.
+ */
+interface ExportSource {
+    /** Whether a file has been chosen at all. Checked before anything is sent to Gadgetbridge. */
+    val isConfigured: Boolean
+
+    /**
+     * A readable local copy of the export, or null when nothing is configured.
+     * @throws ExportUnavailableException when a file is configured but cannot be read.
+     */
+    fun copyToCache(): String?
 }
 
 /**
@@ -48,29 +71,33 @@ sealed interface IngestResult {
  * idempotent on a timestamp-keyed row, so re-reading a range that was already stored is free
  * of consequence.
  *
- * Passes are serialised. The periodic worker and a manual "Sync now" tap can be triggered
- * at the same moment -- most likely precisely when the data looks stale -- and two
- * overlapping passes would each register a receiver for the same broadcast, each trigger
- * an export, and each read a cache file the other one is replacing. They queue instead.
+ * Passes are serialised. The periodic worker and a foreground sync can be triggered at the
+ * same moment -- most likely precisely when the data looks stale -- and two overlapping
+ * passes would each register a receiver for the same broadcast, each trigger an export, and
+ * each read a cache file the other one is replacing. They queue instead.
  *
- * Trigger backoff: a phone whose Gadgetbridge cannot be triggered would otherwise pay the
- * full 30 s wait every periodic pass, forever, for a trigger that can never succeed. After
- * [TRIGGER_FAILURE_THRESHOLD] consecutive failed or timed-out attempts, periodic passes stop
- * attempting to trigger and go straight to reading the existing file, until
- * [TRIGGER_RETRY_INTERVAL_SECONDS] has passed since the last attempt -- long enough that a
- * Gadgetbridge update or the user enabling the Intent API is noticed within a day, without
- * spending a wake-lock on it every half hour. A manual "Sync now" tap (`force = true`) always
- * attempts to trigger regardless of this backoff: it is a deliberate, user-initiated wait,
- * and it doubles as the immediate way to find out the moment triggering starts working again.
+ * Order of one pass, and why each step waits for the previous one:
+ * 1. ACTIVITY_SYNC: Gadgetbridge fetches the strap's data over Bluetooth. With
+ *    `syncTimeoutMillis > 0` and a [syncSignal] wired, the pass waits for Gadgetbridge's
+ *    ACTIVITY_SYNC_FINISH broadcast (bounded by that timeout) before going on; otherwise it
+ *    only sends the request. Exporting before the fetch has landed would export the database
+ *    as it was *before* the sync, so the new data would only show up one pass later -- four
+ *    hours later for the periodic worker.
+ * 2. TRIGGER_DATABASE_EXPORT: Gadgetbridge writes its database to the chosen file, and the
+ *    pass waits for DATABASE_EXPORT_SUCCESS/FAIL.
+ * 3. Only then is the file copied ([ExportSource.copyToCache]) and read. Copying it before
+ *    the export -- what every caller used to do -- read the previous export, never the one
+ *    this pass had just asked for.
  *
- * [ingest]'s `skipSyncRequest` exists for exactly one caller: Accueil's pull-to-refresh and
- * open-sync, which already drive and await Gadgetbridge's own ACTIVITY_SYNC_FINISH broadcast
- * themselves (see [ch.kevinjordil.helion.ui.home.performRefresh]) before ever calling
- * [ingest]. Without it, this pass would call [GadgetbridgeCommands.requestSync] a second
- * time right as the device's Bluetooth sync had just finished -- harmless (a plain
- * broadcast, not a stateful call) but a needless second round-trip on every such refresh.
- * The periodic worker and a plain manual "Sync now" (Réglages) never set it: they have not
- * pre-waited for a sync, so they still need this pass to request one itself.
+ * Every pass attempts both triggers: there is no backoff any more. The periodic worker runs
+ * once every four hours (see [SyncWorker]), so a Gadgetbridge that does not answer costs at
+ * most one bounded wait per period, and skipping the trigger for a day after a few failures
+ * would silently drop the very syncs the schedule exists for. [SyncState.triggerFailureStreak]
+ * is still recorded, as a diagnostic.
+ *
+ * [ingest]'s `skipSyncRequest` is for [ch.kevinjordil.helion.ui.home.performRefresh], which
+ * drives and awaits ACTIVITY_SYNC_FINISH itself (to show its own progress phases) before
+ * calling [ingest]; without it this pass would request a second, needless sync right after.
  */
 class Ingestor(
     private val reader: ExportReader,
@@ -81,6 +108,14 @@ class Ingestor(
 ) {
 
     private val passLock = Mutex()
+
+    /**
+     * Set by [ch.kevinjordil.helion.AppContainer] after construction, same reasoning as
+     * [detector]. Used only by a pass called with `syncTimeoutMillis > 0`, to wait for
+     * Gadgetbridge's ACTIVITY_SYNC_FINISH before triggering the export. Left null, a pass
+     * only sends the sync request, without waiting.
+     */
+    var syncSignal: SyncSignal? = null
 
     /**
      * Set by [ch.kevinjordil.helion.AppContainer] after construction, not taken as a
@@ -125,77 +160,86 @@ class Ingestor(
     var healthConnectExportTrigger: (() -> Unit)? = null
 
     /**
-     * [background] is true only for [ch.kevinjordil.helion.source.SyncWorker]'s own periodic
-     * calls -- see [ch.kevinjordil.helion.store.SyncState.lastBackgroundSyncAttempt]'s kdoc
-     * for why that one flag is what makes "is background sync actually running" answerable
-     * at all, distinct from every foreground caller (a manual tap, the opening sync,
-     * pull-to-refresh) that leaves it untouched.
+     * One pass over [source]: triggers Gadgetbridge (see this class' kdoc for the order), then
+     * copies and reads the export. [IngestResult.NoSource] without sending anything when no
+     * file has been chosen yet.
+     *
+     * [background] is true only for [SyncWorker]'s periodic calls -- see
+     * [ch.kevinjordil.helion.store.SyncState.lastBackgroundSyncAttempt]'s kdoc for why that
+     * one flag is what makes "is background sync actually running" answerable at all.
      */
     suspend fun ingest(
-        databasePath: String?,
-        force: Boolean = false,
+        source: ExportSource,
         skipSyncRequest: Boolean = false,
         background: Boolean = false,
+        syncTimeoutMillis: Long = 0,
     ): IngestResult {
-        if (databasePath == null) return IngestResult.NoSource
-        return passLock.withLock { runPass(databasePath, force, skipSyncRequest, background) }
+        if (!source.isConfigured) return IngestResult.NoSource
+        return passLock.withLock { runPass(source::copyToCache, skipSyncRequest, background, syncTimeoutMillis) }
     }
 
-    private suspend fun runPass(databasePath: String, force: Boolean, skipSyncRequest: Boolean, background: Boolean): IngestResult {
-        val state = db.syncState().get()
-        val streak = state?.triggerFailureStreak ?: 0
-        val lastAttempt = state?.lastTriggerAttempt ?: 0
-        val nowSeconds = now()
-        val shouldAttempt = force ||
-            streak < TRIGGER_FAILURE_THRESHOLD ||
-            (nowSeconds - lastAttempt) >= TRIGGER_RETRY_INTERVAL_SECONDS
+    /** Same pass over a file that is already a local SQLite copy (tests, tooling): nothing to copy. */
+    suspend fun ingest(
+        databasePath: String?,
+        skipSyncRequest: Boolean = false,
+        background: Boolean = false,
+        syncTimeoutMillis: Long = 0,
+    ): IngestResult {
+        if (databasePath == null) return IngestResult.NoSource
+        return passLock.withLock { runPass({ databasePath }, skipSyncRequest, background, syncTimeoutMillis) }
+    }
 
-        var triggered = false
-        var newStreak = streak
-        var newLastAttempt = lastAttempt
-        if (shouldAttempt) {
-            // Gadgetbridge also broadcasts ACTIVITY_SYNC_FINISH, but this pass does not wait
-            // for it before requesting the export. ACTIVITY_SYNC round-trips to the device
-            // over Bluetooth and is not guaranteed to finish (or to broadcast completion) in
-            // a bounded time if the device is unreachable, whereas TRIGGER_DATABASE_EXPORT
-            // just dumps whatever Gadgetbridge already has locally. The sync is requested as
-            // a best-effort refresh; anything it captures too late for this export is picked
-            // up by the next periodic pass.
-            //
-            // Waiting on the export broadcast bounds the wait and proves that *an* export
-            // completed recently -- it does NOT prove the export matches this request. The
-            // Intent API carries no correlation id, the filter matches on action only, and
-            // Gadgetbridge fires the identical broadcast for its own scheduled auto-export,
-            // so a concurrent auto-export that started before our trigger() can satisfy this
-            // wait. Building a correlation mechanism was considered and rejected: the Intent
-            // API exposes none, so we would be inventing a protocol Gadgetbridge does not
-            // speak. Both ways this can go wrong fail safe: the subsequent read is either
-            // stale (nothing new -> Ingested(0, 0), retried next pass) or partial (throws ->
-            // Failed, nothing stored). Registration is also necessarily
-            // RECEIVER_EXPORTED for cross-app delivery (see BroadcastExportSignal), so in
-            // principle another app could spoof the success broadcast too -- same bounded
-            // harm applies.
-            //
-            // skipSyncRequest omits only this requestSync() call, not the export trigger
-            // below: the caller pre-waited for the sync itself, but Ingestor still owns
-            // triggering and awaiting the export.
-            if (!skipSyncRequest) commands.requestSync()
-            val outcome = signal.awaitExport(EXPORT_TIMEOUT_MILLIS) { commands.requestExport() }
-            newLastAttempt = nowSeconds
-            when (outcome) {
-                ExportOutcome.Success -> {
-                    triggered = true
-                    newStreak = 0
-                }
-                ExportOutcome.Failure, ExportOutcome.Timeout -> {
-                    newStreak = streak + 1
-                }
-            }
+    private suspend fun runPass(
+        locate: () -> String?,
+        skipSyncRequest: Boolean,
+        background: Boolean,
+        syncTimeoutMillis: Long,
+    ): IngestResult {
+        if (!skipSyncRequest) requestSync(syncTimeoutMillis)
+
+        // Waiting on the export broadcast bounds the wait and proves that *an* export
+        // completed recently -- it does NOT prove the export matches this request. The
+        // Intent API carries no correlation id, the filter matches on action only, and
+        // Gadgetbridge fires the identical broadcast for its own scheduled auto-export, so a
+        // concurrent auto-export can satisfy this wait. Both ways this can go wrong fail
+        // safe: the read below is either stale (nothing new, picked up next pass) or partial
+        // (throws -> Failed, nothing stored). Registration is necessarily RECEIVER_EXPORTED
+        // for cross-app delivery (see BroadcastExportSignal), so another app could in
+        // principle spoof the success broadcast too -- same bounded harm.
+        //
+        // A timeout or a reported failure does not short-circuit the read: whatever export
+        // file is on disk is still read, and the result says it was not confirmed fresh.
+        val outcome = signal.awaitExport(EXPORT_TIMEOUT_MILLIS) { commands.requestExport() }
+        val triggered = outcome == ExportOutcome.Success
+        val previousStreak = db.syncState().get()?.triggerFailureStreak ?: 0
+        val streak = if (triggered) 0 else previousStreak + 1
+        val attemptedAt = now()
+
+        // Copied only now, after the export has been written -- see this class' kdoc.
+        val path = try {
+            locate()
+        } catch (e: ExportUnavailableException) {
+            val reason = e.message ?: e::class.simpleName.orEmpty()
+            db.syncState().put(nextSyncState(now(), lastError = reason, streak = streak, lastAttempt = attemptedAt, background = background))
+            return IngestResult.Unavailable(reason)
+        } ?: return IngestResult.NoSource
+
+        return readAndStore(path, triggered, streak, attemptedAt, background)
+    }
+
+    /**
+     * Sends ACTIVITY_SYNC, and -- when [syncTimeoutMillis] is positive and [syncSignal] is
+     * wired -- waits for ACTIVITY_SYNC_FINISH. A timeout is not an error: Gadgetbridge only
+     * broadcasts it when "Broadcast on activity sync finish" is on and the strap actually
+     * answered, so the pass goes on and exports whatever Gadgetbridge has.
+     */
+    private suspend fun requestSync(syncTimeoutMillis: Long) {
+        val waitFor = syncSignal
+        if (syncTimeoutMillis > 0 && waitFor != null) {
+            waitFor.awaitSyncFinish(syncTimeoutMillis) { commands.requestSync() }
+        } else {
+            commands.requestSync()
         }
-
-        // A timeout or a reported failure no longer short-circuits the read: whether or not
-        // triggering worked, whatever export file is already on disk is read and ingested.
-        return readAndStore(databasePath, triggered, newStreak, newLastAttempt, background)
     }
 
     /**
@@ -345,29 +389,9 @@ class Ingestor(
 
     companion object {
         // The export is a local dump of Gadgetbridge's own database, not a Bluetooth
-        // round trip, so it is expected to finish in well under a second even on a
-        // large history. 30 seconds leaves generous headroom for a slow device or a
-        // busy phone while still failing fast enough, relative to a periodic worker
-        // that runs every 30 minutes, for the next scheduled pass to retry promptly
-        // instead of the wait becoming the bottleneck.
+        // round trip, so it is expected to finish in a few seconds even on a large
+        // history. 30 seconds leaves generous headroom for a slow device or a busy phone.
         const val EXPORT_TIMEOUT_MILLIS = 30_000L
-
-        /**
-         * Consecutive failed-or-timed-out trigger attempts before a periodic pass stops
-         * attempting and goes straight to reading the existing file. Three attempts is
-         * enough to rule out a one-off blip (Bluetooth busy, phone briefly asleep) without
-         * dragging out the futile wait for a Gadgetbridge build that simply does not expose
-         * the Intent API.
-         */
-        const val TRIGGER_FAILURE_THRESHOLD = 3
-
-        /**
-         * Once backed off, how long a periodic pass waits before trying to trigger again,
-         * in seconds (matches [now]'s unit). A day is often enough to notice a Gadgetbridge
-         * update or the user flipping the setting, without spending a 30 s wake-lock on it
-         * every half hour in between. A manual "Sync now" tap always attempts regardless.
-         */
-        const val TRIGGER_RETRY_INTERVAL_SECONDS = 24 * 60 * 60L
 
         /**
          * How far before the earliest newly stored minute [runDetectionOver] widens the

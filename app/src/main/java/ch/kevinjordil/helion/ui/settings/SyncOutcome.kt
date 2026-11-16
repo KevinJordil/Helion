@@ -1,14 +1,14 @@
 package ch.kevinjordil.helion.ui.settings
 
 import ch.kevinjordil.helion.R
-import ch.kevinjordil.helion.source.ExportUnavailableException
 import ch.kevinjordil.helion.source.IngestResult
 
 /**
  * Result of one "Sync now" tap, already resolved down to what the user needs to be told.
  * Deliberately distinguishes [NotConfigured] from [Unavailable]: the former means nothing
  * has been chosen yet, the latter means something was chosen but can no longer be read
- * (moved, deleted, or the permission was lost) -- see [ExportUnavailableException]. Those
+ * (moved, deleted, or the permission was lost) -- see
+ * [ch.kevinjordil.helion.source.ExportUnavailableException]. Those
  * two need different messages, so this type keeps a caller from collapsing them back into
  * one "nothing happened" case.
  */
@@ -22,25 +22,19 @@ sealed interface SyncOutcome {
 }
 
 /**
- * Runs one ingestion pass and resolves it to a [SyncOutcome]. Takes [copyToCache] and
- * [ingest] as plain functions -- not [ch.kevinjordil.helion.AppContainer] directly -- so
- * this stays testable with fakes and does not need Robolectric or a real database.
+ * Runs one ingestion pass and resolves it to a [SyncOutcome]. Takes [ingest] as a plain
+ * function -- not [ch.kevinjordil.helion.AppContainer] directly -- so this stays testable with
+ * fakes and does not need Robolectric or a real database. The export is copied inside the
+ * pass, after Gadgetbridge has written it (see [ch.kevinjordil.helion.source.Ingestor]), so an
+ * unreadable file comes back as [IngestResult.Unavailable] rather than as an exception.
  */
-suspend fun runSync(
-    copyToCache: () -> String?,
-    ingest: suspend (String?) -> IngestResult,
-): SyncOutcome {
-    val path = try {
-        copyToCache()
-    } catch (e: ExportUnavailableException) {
-        return SyncOutcome.Unavailable(e.message.orEmpty())
-    }
-    return when (val result = ingest(path)) {
+suspend fun runSync(ingest: suspend () -> IngestResult): SyncOutcome =
+    when (val result = ingest()) {
         IngestResult.NoSource -> SyncOutcome.NotConfigured
+        is IngestResult.Unavailable -> SyncOutcome.Unavailable(result.reason)
         is IngestResult.Ingested -> SyncOutcome.Ingested(result.minutes, result.points, result.refreshTriggered)
         is IngestResult.Failed -> SyncOutcome.Failed(result.reason)
     }
-}
 
 /**
  * Maps a [SyncOutcome] to a string resource and its format arguments, ready for

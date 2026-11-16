@@ -31,13 +31,16 @@ class ExportUnavailableException(message: String, cause: Throwable? = null) : IO
  * itself -- it only stores the string. The picker UI (Task 8) is responsible for taking the
  * permission; this class only reads what it is given.
  */
-class ExportLocation(private val context: Context) {
+class ExportLocation(private val context: Context) : ExportSource {
 
     private val prefs = context.getSharedPreferences("helion", Context.MODE_PRIVATE)
 
     var uri: String?
         get() = prefs.getString(KEY_URI, null)
         set(value) = prefs.edit().putString(KEY_URI, value).apply()
+
+    override val isConfigured: Boolean
+        get() = uri != null
 
     /** Size and modification time of the source file as of the last successful copy. */
     private var knownSize: Long
@@ -52,8 +55,8 @@ class ExportLocation(private val context: Context) {
      * Returns the path of a readable copy, or null if no location has been configured yet.
      *
      * With no way to trigger a Gadgetbridge refresh, most passes read a source file that has
-     * not changed since the last one -- as often as every 30 minutes, forever, on a phone
-     * whose Gadgetbridge cannot be triggered. The file only grows (hundreds of KB per day),
+     * not changed since the last one -- e.g. on a phone whose Gadgetbridge cannot be
+     * triggered. The file only grows (hundreds of KB per day),
      * so re-copying it unconditionally every pass is real, needless I/O. When the source's
      * size and modification time both match what was seen at the last successful copy, and
      * the previous cached copy is still there, this returns that cached path without
@@ -74,7 +77,7 @@ class ExportLocation(private val context: Context) {
      * configured" apart from "configured but broken". A copy that fails halfway leaves the
      * previously cached export untouched rather than replacing it with a partial one.
      */
-    fun copyToCache(): String? {
+    override fun copyToCache(): String? {
         val source = uri ?: return null
         val sourceUri = Uri.parse(source)
         val destination = File(context.cacheDir, "gadgetbridge-export.db")
